@@ -7,7 +7,20 @@ FROM node:${NODE_VERSION}-alpine AS pnpm-base
 ARG PNPM_VERSION
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
-RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+RUN set -eu; \
+	corepack enable; \
+	attempt=1; \
+	until corepack prepare "pnpm@${PNPM_VERSION}" --activate; do \
+		if [ "${attempt}" -ge 5 ]; then \
+			echo >&2 "pnpm download failed after ${attempt} attempts"; \
+			exit 1; \
+		fi; \
+		delay=$((attempt * 2)); \
+		echo >&2 "pnpm download failed; retrying in ${delay}s"; \
+		sleep "${delay}"; \
+		attempt=$((attempt + 1)); \
+	done; \
+	pnpm --version
 WORKDIR /workspace
 
 FROM pnpm-base AS build-dependencies

@@ -24,6 +24,7 @@ services:
     build:
       context: .
       dockerfile: apps/nestjs-server/Dockerfile
+      network: ${DOCKER_BUILD_NETWORK:-host}
     restart: unless-stopped
     init: true
     depends_on:
@@ -77,6 +78,7 @@ services:
     build:
       context: .
       dockerfile: apps/react-client/Dockerfile
+      network: ${DOCKER_BUILD_NETWORK:-host}
       args:
         VITE_API_URL: ${VITE_API_URL:-}
     restart: unless-stopped
