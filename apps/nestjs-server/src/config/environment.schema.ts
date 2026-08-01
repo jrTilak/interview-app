@@ -16,7 +16,11 @@ const BaseEnvironmentSchema = z.object({
 		.trim()
 		.regex(/^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/)
 		.default("api"),
-	API_CORS_ORIGINS: z.string().trim().min(1).default("http://localhost:5173"),
+	API_CORS_ORIGINS: z
+		.string()
+		.trim()
+		.min(1)
+		.default("http://localhost:5173,http://127.0.0.1:5173"),
 	API_DOCS_FILE_PATH: z.string().trim().min(1).default("docs/api-info.md"),
 	SWAGGER_ENABLE: booleanEnvironment.default(true),
 

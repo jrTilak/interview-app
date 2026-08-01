@@ -1,0 +1,9 @@
+# Known limitations
+
+The current release is a final-year-project interview demonstration, not a production proctoring platform. The following presentation-relevant limitations are intentional or low impact:
+
+- Browser fullscreen can always be exited by the candidate. The client can only detect that exit and block the interview view until fullscreen is restored; it cannot prevent operating-system shortcuts or another display from being used.
+- Some client session and query state is cached in memory. Switching accounts in the same tab should work, but an unusual interrupted logout or stale session transition may require a page refresh.
+- Camera and screen-share chunks are authorized, bounded, and discarded by the server. They are not recorded or analyzed, so the system does not provide production-grade identity checks, cheating detection, or proctor review.
+- Realtime attempt ownership and media coordination are process-local. Horizontal scaling requires sticky routing, distributed leases, and a shared Socket.IO adapter.
+- The interview flow records transcripts and task completion only. Candidate scoring, answer evaluation, reports, and post-interview analysis are outside the current scope.

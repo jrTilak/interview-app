@@ -33,6 +33,8 @@ import {
 	AttemptJoinEventSchema,
 	AttemptStartEventSchema,
 	type BufferedCandidateAudio,
+	type ConnectionPingAckData,
+	ConnectionPingEventSchema,
 	DisposableMediaChunkEventSchema,
 	type InterviewEventEmitter,
 	MediaStatusEventSchema,
@@ -396,6 +398,19 @@ export class InterviewGateway
 		this._mediaWindows.clear();
 		this._microphoneOwners.clear();
 		this._socketCounts.clear();
+	}
+
+	/** Measures authenticated transport latency without joining or reading an attempt. */
+	@SubscribeMessage("connection:ping")
+	async pingConnection(
+		@ConnectedSocket() client: InterviewSocket,
+		@MessageBody() payload: unknown,
+	): Promise<Acknowledgement<ConnectionPingAckData>> {
+		return this._acknowledge(client, () => {
+			this._session(client);
+			const { probeId } = this._parse(ConnectionPingEventSchema, payload);
+			return { probeId, serverTime: new Date().toISOString() };
+		});
 	}
 
 	/** Authorizes the socket, joins its private room, and returns current state. */

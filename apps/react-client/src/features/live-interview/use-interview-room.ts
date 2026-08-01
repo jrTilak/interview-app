@@ -1,0 +1,701 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
+import { attemptQueryOptions } from "@/shared/api/modules/attempts/queries";
+import { QUERY_KEYS } from "@/shared/api/query-keys";
+import { APP_CONFIG, getRealtimeOrigin } from "@/shared/config/app.config";
+import { parseError } from "@/shared/lib/parse-error";
+import {
+	interviewAudioPlayer,
+	interviewMediaSession,
+	PcmMicrophoneCaptureController,
+	WebAudioMicrophoneFrameSource,
+} from "@/shared/media";
+import { DisposableMediaStreamer } from "@/shared/realtime/disposable-media-streamer";
+import type {
+	AcceptedPayload,
+	AssistantAudioChunkPayload,
+	AttemptMedia,
+	AttemptSnapshot,
+	ConnectionPingAckData,
+	InterviewSocket,
+	RealtimeErrorPayload,
+} from "@/shared/realtime/protocol";
+import {
+	emitWithAck,
+	RealtimeRequestError,
+	toUint8Array,
+} from "@/shared/realtime/socket-ack";
+import { useInterviewRoomStore } from "@/stores/interview-room.store";
+import { LatencyProbe } from "./latency-probe";
+
+const MEDIA_ACCEPTING_STATES = new Set([
+	"ASSISTANT_SPEAKING",
+	"LISTENING",
+	"PROCESSING",
+]);
+const LATENCY_PROBE_INTERVAL_MS = 10_000;
+const LATENCY_PROBE_TIMEOUT_MS = 5_000;
+
+export type UseInterviewRoomOptions = {
+	enabled?: boolean;
+};
+
+/** Owns one reconnect-safe Socket.IO room and its transient browser media. */
+export function useInterviewRoom(
+	attemptId: string,
+	{ enabled = true }: UseInterviewRoomOptions = {},
+) {
+	const attempt = useQuery(attemptQueryOptions(attemptId));
+	const cache = useQueryClient();
+	const [assistantSubtitle, setAssistantSubtitle] = useState("");
+	const [audioUnlockRequired, setAudioUnlockRequired] = useState(
+		() => !interviewAudioPlayer.isRunning,
+	);
+	const [candidateSubtitle, setCandidateSubtitle] = useState("");
+	const [latencyMs, setLatencyMs] = useState<number | null>(null);
+	const audioUnlockedRef = useRef(interviewAudioPlayer.isRunning);
+	const afterAudioUnlockRef = useRef<() => Promise<void>>(
+		async () => undefined,
+	);
+	const snapshotRef = useRef<AttemptSnapshot | undefined>(attempt.data);
+	const finishAnswerRef = useRef<() => Promise<void>>(async () => undefined);
+	const retryAssistantRef = useRef<() => Promise<void>>(async () => undefined);
+	const connection = useInterviewRoomStore((state) => state.connection);
+	const capture = useInterviewRoomStore((state) => state.capture);
+	const playback = useInterviewRoomStore((state) => state.playback);
+	const lastError = useInterviewRoomStore((state) => state.lastError);
+
+	useEffect(() => {
+		snapshotRef.current = attempt.data;
+	}, [attempt.data]);
+
+	const unlockAudio = useCallback(async () => {
+		await interviewAudioPlayer.resume();
+		if (!interviewAudioPlayer.isRunning) {
+			throw new Error("Browser audio could not be enabled.");
+		}
+		audioUnlockedRef.current = true;
+		setAudioUnlockRequired(false);
+		await afterAudioUnlockRef.current();
+	}, []);
+
+	const canConnect = enabled && Boolean(attempt.data);
+	useEffect(() => {
+		if (!canConnect) return;
+		let disposed = false;
+		let connectionVersion = 0;
+		let activeMicrophoneTurnId: string | undefined;
+		let microphone: PcmMicrophoneCaptureController | undefined;
+		let microphoneStartVersion = 0;
+		let microphoneStarting = false;
+		let rejectMicrophoneStartGate: ((error: unknown) => void) | undefined;
+		let playbackChain = Promise.resolve();
+		let playbackGeneration = 0;
+		let latencyIntervalId: number | undefined;
+		let cameraStreamer: DisposableMediaStreamer | undefined;
+		let screenStreamer: DisposableMediaStreamer | undefined;
+		const store = useInterviewRoomStore.getState();
+		const socket: InterviewSocket = io(
+			`${getRealtimeOrigin()}${APP_CONFIG.roomNamespace}`,
+			{
+				autoConnect: false,
+				reconnection: true,
+				reconnectionAttempts: Number.POSITIVE_INFINITY,
+				reconnectionDelay: 700,
+				reconnectionDelayMax: 5_000,
+				transports: ["websocket", "polling"],
+				withCredentials: true,
+			},
+		);
+		audioUnlockedRef.current = interviewAudioPlayer.isRunning;
+		setAudioUnlockRequired(!interviewAudioPlayer.isRunning);
+		const latencyProbe = new LatencyProbe();
+
+		const stopLatencySampling = () => {
+			if (latencyIntervalId !== undefined) {
+				window.clearInterval(latencyIntervalId);
+				latencyIntervalId = undefined;
+			}
+			latencyProbe.reset();
+			setLatencyMs(null);
+		};
+
+		const probeLatency = async (connectedVersion: number) => {
+			if (
+				disposed ||
+				connectedVersion !== connectionVersion ||
+				!socket.connected
+			) {
+				return;
+			}
+			try {
+				const probeId = crypto.randomUUID();
+				const measured = await latencyProbe.measure(async () => {
+					const acknowledgement = await emitWithAck<ConnectionPingAckData>(
+						socket,
+						"connection:ping",
+						{ probeId },
+						LATENCY_PROBE_TIMEOUT_MS,
+					);
+					if (acknowledgement.probeId !== probeId) {
+						throw new Error("Latency acknowledgement did not match its probe.");
+					}
+				});
+				if (
+					measured !== null &&
+					!disposed &&
+					connectedVersion === connectionVersion &&
+					socket.connected
+				) {
+					setLatencyMs(measured);
+				}
+			} catch {
+				if (
+					!disposed &&
+					connectedVersion === connectionVersion &&
+					socket.connected
+				) {
+					setLatencyMs(null);
+				}
+			}
+		};
+
+		const startLatencySampling = (connectedVersion: number) => {
+			stopLatencySampling();
+			void probeLatency(connectedVersion);
+			latencyIntervalId = window.setInterval(
+				() => void probeLatency(connectedVersion),
+				LATENCY_PROBE_INTERVAL_MS,
+			);
+		};
+
+		const reportError = (error: unknown, fallback: string) => {
+			const payload: RealtimeErrorPayload =
+				error instanceof RealtimeRequestError
+					? {
+							code: error.code,
+							message: error.message,
+							retryable: error.retryable,
+						}
+					: {
+							code: "CLIENT_MEDIA_ERROR",
+							message: parseError(error, fallback),
+							retryable: true,
+						};
+			useInterviewRoomStore.getState().setLastError(payload);
+		};
+
+		const stopStreamers = () => {
+			cameraStreamer?.stop();
+			screenStreamer?.stop();
+			cameraStreamer = undefined;
+			screenStreamer = undefined;
+		};
+
+		const discardActiveMicrophone = () => {
+			const controller = microphone;
+			const turnId = activeMicrophoneTurnId;
+			microphone = undefined;
+			activeMicrophoneTurnId = undefined;
+			microphoneStarting = false;
+			microphoneStartVersion += 1;
+			const rejectStart = rejectMicrophoneStartGate;
+			rejectMicrophoneStartGate = undefined;
+			rejectStart?.(
+				new Error("The disconnected microphone turn was discarded."),
+			);
+			const room = useInterviewRoomStore.getState();
+			if (turnId) room.finishMicrophoneTurn(turnId);
+			room.setCaptureStatus("microphone", "idle");
+			void controller?.cancel();
+		};
+
+		const stopPlayback = () => {
+			playbackGeneration += 1;
+			playbackChain = Promise.resolve();
+			const room = useInterviewRoomStore.getState();
+			const turnId = room.playback.turnId;
+			interviewAudioPlayer.stop();
+			if (turnId) room.finishPlayback(turnId);
+		};
+
+		const stopTerminalMedia = () => {
+			const room = useInterviewRoomStore.getState();
+			// Clear the joined marker before stopAll synchronously notifies subscribers.
+			room.setJoinedAttemptId(null);
+			discardActiveMicrophone();
+			stopStreamers();
+			stopPlayback();
+			interviewMediaSession.stopAll();
+			room.setCaptureStatus("camera", "idle");
+			room.setCaptureStatus("screen", "idle");
+		};
+
+		const updateSnapshot = (snapshot: AttemptSnapshot) => {
+			if (snapshot.id !== attemptId) return;
+			snapshotRef.current = snapshot;
+			cache.setQueryData(QUERY_KEYS.attempts.detail(attemptId), snapshot);
+			if (snapshot.state === "COMPLETED" || snapshot.state === "FAILED") {
+				stopTerminalMedia();
+			}
+		};
+
+		const canSendDisposableMedia = () => {
+			const snapshot = snapshotRef.current;
+			return Boolean(
+				socket.connected &&
+					snapshot &&
+					MEDIA_ACCEPTING_STATES.has(snapshot.state),
+			);
+		};
+
+		const reconcileStreamers = () => {
+			const media = interviewMediaSession.getSnapshot();
+			if (media.cameraActive && media.cameraStream && !cameraStreamer) {
+				cameraStreamer = new DisposableMediaStreamer({
+					attemptId,
+					canSend: canSendDisposableMedia,
+					kind: "camera",
+					onError: (error) =>
+						reportError(error, "Camera transport was interrupted."),
+					socket,
+					stream: media.cameraStream,
+				});
+				try {
+					cameraStreamer.start();
+					useInterviewRoomStore.getState().setCaptureStatus("camera", "active");
+				} catch (error) {
+					reportError(error, "Camera transport could not start.");
+				}
+			} else if (!media.cameraActive) {
+				cameraStreamer?.stop();
+				cameraStreamer = undefined;
+				useInterviewRoomStore.getState().setCaptureStatus("camera", "idle");
+			}
+
+			if (media.screenActive && media.screenStream && !screenStreamer) {
+				screenStreamer = new DisposableMediaStreamer({
+					attemptId,
+					canSend: canSendDisposableMedia,
+					kind: "screen",
+					onError: (error) =>
+						reportError(error, "Screen transport was interrupted."),
+					socket,
+					stream: media.screenStream,
+				});
+				try {
+					screenStreamer.start();
+					useInterviewRoomStore.getState().setCaptureStatus("screen", "active");
+				} catch (error) {
+					reportError(error, "Screen transport could not start.");
+				}
+			} else if (!media.screenActive) {
+				screenStreamer?.stop();
+				screenStreamer = undefined;
+				useInterviewRoomStore.getState().setCaptureStatus("screen", "idle");
+			}
+		};
+
+		const syncMediaStatus = async () => {
+			if (
+				!socket.connected ||
+				!useInterviewRoomStore.getState().connection.joinedAttemptId
+			) {
+				return;
+			}
+			const media = interviewMediaSession.getSnapshot();
+			try {
+				await emitWithAck<AttemptMedia>(socket, "media:status", {
+					attemptId,
+					cameraActive: media.cameraActive,
+					microphoneActive: media.microphoneActive,
+					screenActive: media.screenActive,
+				});
+				reconcileStreamers();
+			} catch (error) {
+				reportError(error, "Device status could not be synchronized.");
+			}
+		};
+
+		const maybeStartMicrophone = async () => {
+			const snapshot = snapshotRef.current;
+			const room = useInterviewRoomStore.getState();
+			const media = interviewMediaSession.getSnapshot();
+			if (
+				disposed ||
+				microphone ||
+				microphoneStarting ||
+				!socket.connected ||
+				room.connection.joinedAttemptId !== attemptId ||
+				snapshot?.state !== "LISTENING" ||
+				room.playback.status !== "idle" ||
+				!audioUnlockedRef.current ||
+				!media.microphoneActive ||
+				!media.cameraStream
+			) {
+				return;
+			}
+
+			microphoneStarting = true;
+			room.setCaptureStatus("microphone", "starting");
+			const startVersion = ++microphoneStartVersion;
+			const turnId = crypto.randomUUID();
+			activeMicrophoneTurnId = turnId;
+			let serverTurnAccepted = false;
+			let resolveStartGate: () => void = () => undefined;
+			let rejectStartGate: (error: unknown) => void = () => undefined;
+			const startGate = new Promise<void>((resolve, reject) => {
+				resolveStartGate = resolve;
+				rejectStartGate = reject;
+			});
+			rejectMicrophoneStartGate = rejectStartGate;
+			void startGate.catch(() => undefined);
+			const source = new WebAudioMicrophoneFrameSource(
+				{},
+				{ mediaStream: media.cameraStream },
+			);
+			let controller: PcmMicrophoneCaptureController;
+			const isCurrentTurn = () =>
+				microphone === controller && microphoneStartVersion === startVersion;
+			controller = new PcmMicrophoneCaptureController(
+				source,
+				{
+					async onChunk(chunk) {
+						await startGate;
+						if (!isCurrentTurn() || disposed || !socket.connected) {
+							throw new Error("The microphone turn is no longer connected.");
+						}
+						await emitWithAck<AcceptedPayload>(socket, "microphone:chunk", {
+							attemptId,
+							data: chunk.data,
+							sequence: chunk.sequence,
+							turnId,
+						});
+						if (isCurrentTurn()) {
+							useInterviewRoomStore
+								.getState()
+								.markMicrophoneChunkSent(turnId, chunk.sequence);
+						}
+					},
+					async onComplete(completion) {
+						await startGate;
+						if (!isCurrentTurn() || disposed || !socket.connected) return;
+						await emitWithAck<AcceptedPayload>(socket, "microphone:end", {
+							attemptId,
+							lastSequence: completion.lastSequence,
+							turnId,
+						});
+						if (!isCurrentTurn()) return;
+						microphone = undefined;
+						activeMicrophoneTurnId = undefined;
+						rejectMicrophoneStartGate = undefined;
+						microphoneStartVersion += 1;
+						const currentRoom = useInterviewRoomStore.getState();
+						currentRoom.finishMicrophoneTurn(turnId);
+						currentRoom.setCaptureStatus("microphone", "idle");
+					},
+					onError(error) {
+						if (!isCurrentTurn()) return;
+						const shouldRetry =
+							serverTurnAccepted &&
+							socket.connected &&
+							snapshotRef.current?.state === "LISTENING";
+						reportError(error, "Microphone capture failed. Answer again.");
+						microphone = undefined;
+						activeMicrophoneTurnId = undefined;
+						rejectMicrophoneStartGate = undefined;
+						microphoneStarting = false;
+						microphoneStartVersion += 1;
+						const currentRoom = useInterviewRoomStore.getState();
+						currentRoom.finishMicrophoneTurn(turnId);
+						currentRoom.setCaptureStatus("microphone", "idle");
+						if (shouldRetry) {
+							queueMicrotask(() => void maybeStartMicrophone());
+						}
+					},
+				},
+				{
+					endianness: "little",
+					maxChunkBytes: 16 * 1024,
+					maxTurnBytes: 8 * 1024 * 1024,
+					vad: {
+						minimumSpeechMs: 180,
+						silenceDurationMs: 1_400,
+						speechThreshold: 0.015,
+					},
+				},
+			);
+			microphone = controller;
+			try {
+				const result = await controller.start();
+				if (!isCurrentTurn()) return;
+				await emitWithAck<AcceptedPayload>(socket, "microphone:start", {
+					attemptId,
+					channels: 1,
+					mimeType: "audio/l16",
+					sampleRateHz: result.sampleRateHz,
+					turnId,
+				});
+				if (!isCurrentTurn()) return;
+				serverTurnAccepted = true;
+				resolveStartGate();
+				rejectMicrophoneStartGate = undefined;
+				useInterviewRoomStore.getState().beginMicrophoneTurn(turnId);
+			} catch (error) {
+				rejectStartGate(error);
+				await controller.cancel();
+				if (!isCurrentTurn()) return;
+				microphone = undefined;
+				activeMicrophoneTurnId = undefined;
+				rejectMicrophoneStartGate = undefined;
+				microphoneStartVersion += 1;
+				const currentRoom = useInterviewRoomStore.getState();
+				currentRoom.finishMicrophoneTurn(turnId);
+				currentRoom.setCaptureStatus("microphone", "idle");
+				reportError(error, "The microphone turn could not start.");
+			} finally {
+				if (microphoneStartVersion === startVersion) {
+					microphoneStarting = false;
+				}
+			}
+		};
+		afterAudioUnlockRef.current = maybeStartMicrophone;
+
+		finishAnswerRef.current = async () => {
+			if (microphone?.state !== "recording") return;
+			try {
+				await microphone.finish("manual");
+			} catch (error) {
+				reportError(error, "The current answer could not be submitted.");
+			}
+		};
+		retryAssistantRef.current = async () => {
+			if (!socket.connected) throw new Error("The interview is disconnected.");
+			await emitWithAck<AcceptedPayload>(socket, "attempt:start", {
+				attemptId,
+				commandId: crypto.randomUUID(),
+			});
+			useInterviewRoomStore.getState().setLastError(null);
+		};
+
+		socket.on("attempt:snapshot", updateSnapshot);
+		socket.on("attempt:state", (snapshot) => {
+			updateSnapshot(snapshot);
+			if (snapshot.state === "LISTENING") void maybeStartMicrophone();
+		});
+		socket.on("assistant:turn:start", ({ turnId }) => {
+			setCandidateSubtitle("");
+			stopPlayback();
+			const audioRunning = interviewAudioPlayer.isRunning;
+			audioUnlockedRef.current = audioRunning;
+			setAudioUnlockRequired(!audioRunning);
+			try {
+				interviewAudioPlayer.beginTurn(turnId);
+				useInterviewRoomStore.getState().beginPlayback(turnId);
+			} catch (error) {
+				reportError(error, "Interviewer audio could not begin.");
+			}
+		});
+		socket.on("assistant:subtitle", ({ text }) => setAssistantSubtitle(text));
+		socket.on("assistant:audio:chunk", (chunk) => {
+			const generation = playbackGeneration;
+			playbackChain = playbackChain
+				.then(async () => {
+					if (disposed || generation !== playbackGeneration) return;
+					const data = await toUint8Array(chunk.data);
+					if (disposed || generation !== playbackGeneration) return;
+					interviewAudioPlayer.enqueue({
+						channels: chunk.channels ?? 1,
+						data,
+						mimeType: chunk.mimeType,
+						sampleRateHz: chunk.sampleRateHz ?? 24_000,
+						sequence: chunk.sequence,
+						turnId: chunk.turnId,
+					});
+					useInterviewRoomStore
+						.getState()
+						.markPlaybackChunk(chunk.turnId, chunk.sequence);
+				})
+				.catch((error) => {
+					if (generation === playbackGeneration) {
+						reportError(
+							error,
+							"An interviewer audio chunk could not be played.",
+						);
+					}
+				});
+		});
+		socket.on("assistant:turn:end", ({ turnId }) => {
+			const generation = playbackGeneration;
+			playbackChain = playbackChain
+				.then(async () => {
+					if (disposed || generation !== playbackGeneration) return;
+					await interviewAudioPlayer.endTurn(turnId);
+					if (disposed || generation !== playbackGeneration) return;
+					useInterviewRoomStore.getState().finishPlayback(turnId);
+					await maybeStartMicrophone();
+				})
+				.catch((error) => {
+					if (generation !== playbackGeneration) return;
+					stopPlayback();
+					useInterviewRoomStore.getState().finishPlayback(turnId);
+					reportError(error, "Interviewer audio could not finish.");
+					void maybeStartMicrophone();
+				});
+		});
+		socket.on("candidate:transcript", ({ text }) => {
+			setCandidateSubtitle(text);
+			void cache.invalidateQueries({
+				queryKey: QUERY_KEYS.attempts.detail(attemptId),
+			});
+		});
+		socket.on("attempt:ended", () => stopTerminalMedia());
+		socket.on("attempt:error", (error) => {
+			useInterviewRoomStore.getState().setLastError(error);
+			if (
+				error.code === "HTTP_400" &&
+				microphone &&
+				snapshotRef.current?.state === "LISTENING"
+			) {
+				discardActiveMicrophone();
+				queueMicrotask(() => void maybeStartMicrophone());
+			}
+		});
+		socket.on("connect_error", (error) => {
+			stopLatencySampling();
+			reportError(error, "The realtime interview server is unavailable.");
+			useInterviewRoomStore.getState().setConnectionStatus("disconnected");
+		});
+		socket.on("disconnect", (reason) => {
+			connectionVersion += 1;
+			stopLatencySampling();
+			const room = useInterviewRoomStore.getState();
+			room.setJoinedAttemptId(null);
+			discardActiveMicrophone();
+			stopPlayback();
+			if (!disposed && reason !== "io client disconnect") {
+				room.setConnectionStatus("reconnecting");
+			}
+		});
+		socket.io.on("reconnect_attempt", () => {
+			useInterviewRoomStore.getState().setConnectionStatus("reconnecting");
+		});
+		socket.on("connect", () => {
+			const connectedVersion = ++connectionVersion;
+			startLatencySampling(connectedVersion);
+			void (async () => {
+				useInterviewRoomStore.getState().setConnectionStatus("connected");
+				try {
+					const snapshot = await emitWithAck<AttemptSnapshot>(
+						socket,
+						"attempt:join",
+						{ attemptId },
+					);
+					if (
+						disposed ||
+						connectedVersion !== connectionVersion ||
+						!socket.connected
+					) {
+						return;
+					}
+					useInterviewRoomStore.getState().setJoinedAttemptId(attemptId);
+					updateSnapshot(snapshot);
+					await syncMediaStatus();
+					if (snapshot.state !== "COMPLETED" && snapshot.state !== "FAILED") {
+						await emitWithAck<AcceptedPayload>(socket, "attempt:start", {
+							attemptId,
+							commandId: crypto.randomUUID(),
+						});
+					}
+					if (
+						disposed ||
+						connectedVersion !== connectionVersion ||
+						!socket.connected
+					) {
+						return;
+					}
+					if (snapshot.state === "LISTENING") await maybeStartMicrophone();
+				} catch (error) {
+					reportError(error, "The interview room could not be joined.");
+				}
+			})();
+		});
+
+		const unsubscribeMedia = interviewMediaSession.subscribe(() => {
+			void syncMediaStatus();
+		});
+		store.setConnectionStatus("connecting");
+		socket.connect();
+
+		return () => {
+			disposed = true;
+			stopLatencySampling();
+			unsubscribeMedia();
+			afterAudioUnlockRef.current = async () => undefined;
+			finishAnswerRef.current = async () => undefined;
+			retryAssistantRef.current = async () => undefined;
+			const room = useInterviewRoomStore.getState();
+			const snapshot = snapshotRef.current;
+			const canClearPersistedMedia =
+				socket.connected &&
+				room.connection.joinedAttemptId === attemptId &&
+				snapshot?.state !== "COMPLETED" &&
+				snapshot?.state !== "FAILED";
+			discardActiveMicrophone();
+			stopStreamers();
+			stopPlayback();
+			if (canClearPersistedMedia) {
+				socket.emit(
+					"media:status",
+					{
+						attemptId,
+						cameraActive: false,
+						microphoneActive: false,
+						screenActive: false,
+					},
+					() => undefined,
+				);
+			}
+			room.setJoinedAttemptId(null);
+			socket.removeAllListeners();
+			socket.disconnect();
+			interviewMediaSession.stopAll();
+			room.reset();
+		};
+	}, [attemptId, cache, canConnect]);
+
+	const finishAnswer = useCallback(() => finishAnswerRef.current(), []);
+	const retryAssistant = useCallback(() => retryAssistantRef.current(), []);
+	const clearError = useCallback(
+		() => useInterviewRoomStore.getState().setLastError(null),
+		[],
+	);
+
+	return {
+		assistantSubtitle,
+		attempt,
+		audioUnlockRequired,
+		candidateSubtitle,
+		capture,
+		clearError,
+		connection,
+		finishAnswer,
+		lastError,
+		latencyMs,
+		playback,
+		retryAssistant,
+		unlockAudio,
+	};
+}
+
+/** Normalizes optional audio metadata before playback at the call site. */
+export function normalizeAssistantAudioChunk(
+	chunk: AssistantAudioChunkPayload,
+) {
+	return {
+		...chunk,
+		channels: chunk.channels ?? 1,
+		sampleRateHz: chunk.sampleRateHz ?? 24_000,
+	};
+}

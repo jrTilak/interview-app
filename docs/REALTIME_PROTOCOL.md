@@ -23,10 +23,13 @@ Failures are also emitted as `attempt:error`. UUIDs used as `turnId` must be new
 
 The session is verified once during the WebSocket handshake. At most three concurrent sockets are accepted for one user on a server instance. Reconnect after logout or any session change so the new handshake observes it.
 
+The client may periodically emit `connection:ping` with `{ probeId: uuid }`. Its acknowledgement echoes the UUID and adds an ISO `serverTime`. The client measures local round-trip duration around that acknowledgement; the probe requires the handshake session but does not require joining an attempt, query interview state, or persist a sample.
+
 ## Client-to-server events
 
 | Event | Payload | Notes |
 | --- | --- | --- |
+| `connection:ping` | `{ probeId: uuid }` | Authenticated state-free latency probe; ack returns `{ probeId, serverTime }` |
 | `attempt:join` | `{ attemptId: uuid }` | Authorizes ownership, joins a private room, emits `attempt:snapshot` |
 | `attempt:start` | `{ attemptId: uuid, commandId: uuid }` | Idempotently starts or resumes the interviewer |
 | `microphone:start` | `{ attemptId, turnId, mimeType, sampleRateHz?, channels? }` | Allowed only in `LISTENING`; channels defaults to 1 |
@@ -36,7 +39,7 @@ The session is verified once during the WebSocket handshake. At most three concu
 | `camera:chunk` | `{ attemptId, sequence, mimeType, data }` | Bounded, authorized, immediately discarded |
 | `screen:chunk` | `{ attemptId, sequence, mimeType, data }` | Bounded, authorized, immediately discarded |
 
-Supported STT MIME types are `audio/wav`, `audio/mpeg`, `audio/mp3`, `audio/aiff`, `audio/aac`, `audio/ogg`, `audio/flac`, `audio/m4a`, and `audio/l16`. Browser WebM is not accepted by the current Gemini buffered-STT adapter. Encode a supported format on the client or add a transcoding provider behind the STT port.
+Supported STT MIME types are `audio/wav`, `audio/mpeg`, `audio/mp3`, `audio/aiff`, `audio/aac`, `audio/ogg`, `audio/flac`, `audio/m4a`, and `audio/l16`. For this application's Gemini adapter, `audio/l16` means raw signed 16-bit mono little-endian PCM and includes `sampleRateHz`; it is an explicit provider convention rather than an assumption about generic RFC L16. The React client sends 16 kHz. Browser WebM microphone audio is not accepted by the current Gemini buffered-STT adapter; encode a supported format in the client or add a transcoding provider behind the STT port.
 
 The server also closes a mic turn after `AUDIO_SILENCE_MS` with no chunks, including a started turn that received no audio. This is a network/chunk inactivity fallback, not acoustic silence detection. The client should perform voice-activity detection or stop sending and emit `microphone:end` when the speaker finishes. Only one socket may own the active mic turn for an attempt.
 
@@ -56,10 +59,10 @@ Camera and screen chunks are accepted only for an active interview when their re
 | `attempt:ended` | `{ reason: "AI_COMPLETED" | "TIME_LIMIT", endedAt }` |
 | `attempt:error` | `{ code, message, retryable }` |
 
-TTS currently streams mono 24 kHz linear PCM (`audio/l16`) from Gemini. Use the metadata on every chunk instead of hard-coding it in the client. Subtitle text is emitted before audio, so an audio-provider failure still leaves the interview usable via text.
+TTS currently streams mono 24 kHz signed little-endian PCM (`audio/l16`) from Gemini. Use the metadata on every chunk instead of hard-coding its rate or channels in the client. Subtitle text is emitted before audio, so an audio-provider failure still leaves the interview usable via text.
 
 ## Reconnection
 
 Call `GET /api/interview-attempts/:id`, reconnect, and emit `attempt:join`. If the durable state is `ASSISTANT_SPEAKING` or `ENDING`, `attempt:start` replays the persisted last assistant utterance rather than creating a second transcript. If it is `LISTENING`, the client may open a new mic turn. Completed attempts cannot be restarted or mutated.
 
-Mic bytes are intentionally transient and scoped to one socket. A disconnect during a mic turn drops that incomplete buffer; start a new `turnId` after reconnecting.
+Mic bytes are intentionally transient and scoped to one socket. A disconnect during a mic turn drops that incomplete server buffer; the client must cancel its local controller and start a new `turnId` after reconnecting. A direct live-route restore also requires a fresh user gesture before Web Audio playback and realtime orchestration begin.

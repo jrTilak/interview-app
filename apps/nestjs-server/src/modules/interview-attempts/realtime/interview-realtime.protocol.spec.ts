@@ -1,11 +1,28 @@
-import { MicrophoneStartEventSchema } from "./interview-realtime.protocol.js";
+import {
+	ConnectionPingEventSchema,
+	MicrophoneStartEventSchema,
+} from "./interview-realtime.protocol.js";
 
 const identity = {
 	attemptId: "f0c765b0-a9fe-4a67-bf75-a63486949831",
 	turnId: "19ad8c03-9e89-4d23-b393-d3cd6a654900",
 };
+const probeId = "536d1912-17b0-43f5-a08f-dc2dce239341";
 
 describe("interview realtime protocol", () => {
+	it("accepts only a strict UUID connection probe", () => {
+		expect(ConnectionPingEventSchema.parse({ probeId })).toEqual({ probeId });
+		expect(() =>
+			ConnectionPingEventSchema.parse({ probeId: "not-a-uuid" }),
+		).toThrow();
+		expect(() =>
+			ConnectionPingEventSchema.parse({
+				probeId,
+				attemptId: identity.attemptId,
+			}),
+		).toThrow();
+	});
+
 	it("normalizes parameterized supported audio MIME values", () => {
 		const parsed = MicrophoneStartEventSchema.parse({
 			...identity,

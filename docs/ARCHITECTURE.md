@@ -3,9 +3,9 @@
 ## Runtime boundary
 
 ```text
-React client
-  |-- HTTPS + Better Auth cookie --> NestJS REST API --> PostgreSQL
-  `-- Socket.IO /interviews ------> realtime gateway
+React desktop PWA (nginx in Compose)
+  |-- same-origin /api proxy + Better Auth cookie --> NestJS REST API --> PostgreSQL
+  `-- same-origin /socket.io proxy ----------------> realtime gateway
                                          |
                                          v
                                 interview orchestrator
@@ -17,7 +17,19 @@ React client
 
 NestJS is the source of truth. On each turn the model receives only the current pending task, never the future hidden list. It may propose only two narrow actions: mark that known question ID as asked and request interview completion. The server validates IDs, refuses early completion while a task remains, enforces the deadline independently, and owns every state transition.
 
-The repository Docker Compose stack runs the backend and PostgreSQL together on loopback-bound host ports. PostgreSQL must pass its health check before NestJS starts; with `DB_AUTO_MIGRATE=true`, the server applies its bundled Drizzle migrations before it begins listening. The backend readiness check also queries PostgreSQL so dependency loss is reflected in container health.
+The repository Docker Compose stack runs the frontend, backend, and PostgreSQL together on loopback-bound host ports. nginx serves the PWA and proxies same-origin API and WebSocket traffic to NestJS. PostgreSQL must pass its health check before NestJS starts; with `DB_AUTO_MIGRATE=true`, the server applies its bundled Drizzle migrations before it begins listening. The backend readiness check also queries PostgreSQL so dependency loss is reflected in container health, and the frontend waits for that readiness check.
+
+## Client boundaries
+
+- TanStack Router owns file-based routes and session guards. Authenticated shared links preserve their target through login.
+- Orval generates separate Better Auth and application clients. A small Axios boundary supplies cookies, base URLs, and consistent response errors.
+- TanStack Query caches HTTP data in memory only. Zustand contains ephemeral room connection/media state and is never persisted.
+- TanStack Form and Zod validate login, signup, and interview creation at the client boundary; the server remains authoritative.
+- Camera and screen streams are disposable. Browser microphone frames are converted to mono 16 kHz signed little-endian PCM16 and ended by acoustic silence detection.
+- The PWA precaches only its static shell. API and Socket.IO paths are network-only, and updates are deferred while an interview attempt is active.
+- A desktop capability gate runs before the router can issue protected API work or activate media features.
+- The lobby unlocks Web Audio and application fullscreen from one user gesture. Leaving fullscreen removes the question/transcript UI until the candidate explicitly restores it; this cannot override the browser's mandatory Escape behavior.
+- An authenticated, state-free Socket.IO acknowledgement probe supplies the latest round-trip latency sample without persisting monitoring history.
 
 ## Modules
 

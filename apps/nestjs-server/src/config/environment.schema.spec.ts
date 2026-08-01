@@ -20,6 +20,9 @@ describe("EnvironmentSchema", () => {
 		expect(result.DB_AUTO_MIGRATE).toBe(false);
 		expect(result.AUDIO_SILENCE_MS).toBe(1800);
 		expect(result.GEMINI_LLM_MODEL).toBe("gemini-3.6-flash");
+		expect(result.API_CORS_ORIGINS).toBe(
+			"http://localhost:5173,http://127.0.0.1:5173",
+		);
 	});
 
 	it("converts explicit string settings", () => {

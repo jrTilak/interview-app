@@ -28,22 +28,32 @@
 - Scalar/OpenAPI references for domain and authentication APIs
 - Unit and PostgreSQL-backed REST/Socket.IO E2E coverage
 - Test-code type checking and a clean production dependency audit
+- Desktop React PWA with zero-radius Chakra theme and a hard mobile/tablet gate
+- Generated Orval clients, Axios cookies, TanStack Router guards, Query caching, Form validation, and ephemeral Zustand room state
+- Creator dashboard, creation/detail/share flows, and authenticated candidate join flow
+- Device preflight, disposable camera/screen transport, PCM microphone VAD, realtime subtitles, and ordered audio playback
+- Required interview fullscreen, concealed exit warning/re-entry flow, and ephemeral exit count
+- Authenticated realtime round-trip latency indicator
+- Explicit-logout cache clearing and reconnect-safe microphone ownership
+- Static-shell-only PWA caching with active-interview-safe updates
+- Production frontend nginx image and one-command frontend/backend/PostgreSQL Compose stack
+- Frontend unit, component, and desktop Chromium journey coverage
 
 ## Intentionally not part of this phase
 
-- React client
 - Interview scoring, analysis, reports, recommendations, or ideal answers
 - User profile editing or account-management UI
 - Email delivery, verification, and forgot-password flow
 - Recording or storing camera, screen, or raw microphone media
 - Human observer dashboard
+- Inescapable kiosk controls or operating-system/browser lockdown (the Fullscreen API always preserves a user escape path)
 - Multiple attempts by the same candidate for one interview link
 
 ## Later integration work
 
 - Replace any Gemini adapter independently with local LLM/STT/TTS services
-- Add an audio transcoder or client encoder if the browser emits WebM
-- Add real acoustic/client-side VAD; the server currently uses explicit end plus no-chunk timeout
+- Add an audio transcoder if a future client sends WebM microphone audio
+- Add server-side decoded-audio VAD as a fallback; the browser performs acoustic VAD and the server retains a chunk-inactivity timeout
 - Add a shared Socket.IO adapter, sticky routing, and distributed work leases before multi-instance scaling
 - Add observability and deployment configuration for the selected production environment
 

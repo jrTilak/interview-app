@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Interview Desk">
+  <rect width="512" height="512" fill="#142b26"/>
+  <path d="M128 144h256v56H128zm0 84h164v56H128zm0 84h256v56H128z" fill="#d6ff4b"/>
+  <path d="M328 228h56v56h-56z" fill="#f4f2ec"/>
+</svg>

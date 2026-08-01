@@ -1,6 +1,6 @@
 # Project task tracker
 
-This is the living implementation checklist for the NestJS interview-server phase. A checked item is implemented and covered by the verification commands in the root README.
+This is the living implementation checklist for the end-to-end interview platform. A checked item is implemented and covered by the verification commands in the root README.
 
 ## Foundation
 
@@ -59,11 +59,30 @@ This is the living implementation checklist for the NestJS interview-server phas
 - [x] Add lint, build, test typecheck, dependency audit, and test commands
 - [x] Document setup, architecture, API, realtime protocol, privacy, and deployment constraints
 
+## React desktop client
+
+- [x] Map the existing Expo-client conventions and backend HTTP/realtime contracts
+- [x] Scaffold the React, Vite, pnpm-workspace, Chakra UI, and desktop PWA foundation
+- [x] Generate typed application and authentication clients with Orval and Axios
+- [x] Add TanStack Query caching, Router guards, Form validation, and Zustand room state
+- [x] Build email signup/login/logout and authenticated application navigation
+- [x] Build interview listing, creation, detail, copy-link, and shared-link join flows
+- [x] Build the realtime interview room with preflight, camera/screen transport, PCM microphone VAD, audio playback, and subtitles
+- [x] Hard-block mobile/tablet layouts and finish the zero-radius desktop design system
+- [x] Add frontend unit/component edge-case coverage
+- [x] Add desktop Chromium product-journey coverage
+- [x] Document frontend setup, media/privacy boundaries, and verification
+- [x] Add frontend Docker/nginx delivery and verify the full Compose stack
+- [x] Recover the live interview room after transient realtime disconnects
+- [x] Show authenticated realtime latency in the live interview room
+- [x] Require interview fullscreen and block the question view until fullscreen is restored
+- [x] Complete the expanded browser/container regression pass
+
 ## Deliberately deferred
 
-- [ ] Build the React client
+- [ ] Harden cross-account session teardown and in-memory client cache isolation
 - [ ] Replace Gemini adapters with the planned local LLM/STT/TTS services
-- [ ] Add browser/client acoustic VAD or a server-side audio decoding/VAD service
+- [ ] Add server-side decoded-audio VAD as a fallback to the browser/client acoustic VAD
 - [ ] Add WebM transcoding if the chosen browser recorder cannot emit a supported STT format
 - [ ] Add distributed work leases, sticky routing, and a shared Socket.IO adapter before horizontal scaling
 - [ ] Add production observability and deployment configuration

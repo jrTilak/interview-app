@@ -1,0 +1,96 @@
+import { expect, test } from "@playwright/test";
+
+const attemptId = "06597a50-e835-4527-b7eb-b8d5405a816d";
+const shareCode = "uF7qP8Q3bFvLXrAQdS5kMK0pNPkVsU8_";
+const createdAt = "2026-08-01T08:00:00.000Z";
+const concealedQuestion = "Explain the private architecture challenge.";
+
+const session = {
+	session: {
+		id: "451ebc55-a27f-48b0-accc-800558a66e42",
+		expiresAt: "2026-08-08T08:00:00.000Z",
+		token: "opaque-candidate-session",
+		createdAt,
+		updatedAt: createdAt,
+		userId: "4b8757d8-b56b-47eb-827f-65b14977fa25",
+	},
+	user: {
+		id: "4b8757d8-b56b-47eb-827f-65b14977fa25",
+		name: "Casey Candidate",
+		email: "casey@example.com",
+		emailVerified: false,
+		createdAt,
+		updatedAt: createdAt,
+	},
+};
+
+test("conceals a live interview until browser fullscreen is entered", async ({
+	page,
+}) => {
+	let socketRequests = 0;
+	page.on("request", (request) => {
+		if (new URL(request.url()).pathname.startsWith("/socket.io")) {
+			socketRequests += 1;
+		}
+	});
+	await page.route("**/api/auth/get-session", async (route) => {
+		await route.fulfill({ json: session, status: 200 });
+	});
+	await page.route(`**/api/shared-interviews/${shareCode}`, async (route) => {
+		await route.fulfill({
+			json: {
+				message: "Retrieved successfully",
+				data: {
+					title: "Focused systems interview",
+					description: "A private candidate conversation.",
+					durationMinutes: 30,
+					questionCount: 3,
+				},
+			},
+			status: 200,
+		});
+	});
+	await page.route(`**/api/interview-attempts/${attemptId}`, async (route) => {
+		await route.fulfill({
+			json: {
+				message: "Retrieved successfully",
+				data: {
+					id: attemptId,
+					state: "LISTENING",
+					startedAt: createdAt,
+					deadlineAt: "2026-08-01T08:30:00.000Z",
+					endedAt: null,
+					endReason: null,
+					media: {
+						cameraActive: true,
+						microphoneActive: true,
+						screenActive: true,
+					},
+					turns: [
+						{
+							id: "f9192558-7953-4e6b-9d64-a17ad726010d",
+							role: "assistant",
+							text: concealedQuestion,
+							createdAt,
+						},
+					],
+				},
+			},
+			status: 200,
+		});
+	});
+
+	await page.goto(`/interviews/${shareCode}/attempts/${attemptId}`);
+
+	await expect(
+		page.getByRole("heading", { name: "Enter the focused interview view." }),
+	).toBeVisible();
+	await expect(page.getByText("FULLSCREEN REQUIRED")).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Enter fullscreen" }),
+	).toBeVisible();
+	await expect(page.getByText(concealedQuestion)).toHaveCount(0);
+	await expect(page.getByText("Conversation", { exact: true })).toHaveCount(0);
+	await page.waitForTimeout(200);
+	expect(socketRequests).toBe(0);
+});

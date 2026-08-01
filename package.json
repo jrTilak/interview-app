@@ -10,23 +10,30 @@
 		"pnpm": ">=11"
 	},
 	"scripts": {
-		"build": "pnpm --filter @interview-app/nestjs-server build",
+		"build": "pnpm -r --if-present build",
 		"start": "pnpm --filter @interview-app/nestjs-server start",
-		"dev": "pnpm --filter @interview-app/nestjs-server start:dev",
+		"dev": "pnpm --parallel --filter @interview-app/nestjs-server --filter @interview-app/react-client dev",
+		"dev:server": "pnpm --filter @interview-app/nestjs-server dev",
+		"dev:web": "pnpm --filter @interview-app/react-client dev",
 		"docker:up": "docker compose up --build --wait",
 		"docker:down": "docker compose down",
-		"docker:logs": "docker compose logs --follow backend",
+		"docker:logs": "docker compose logs --follow backend frontend",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
-		"test": "pnpm --filter @interview-app/nestjs-server test",
+		"test": "pnpm -r --if-present test",
+		"test:server": "pnpm --filter @interview-app/nestjs-server test",
+		"test:web": "pnpm --filter @interview-app/react-client test",
+		"typecheck": "pnpm -r --if-present typecheck",
 		"typecheck:test": "pnpm --filter @interview-app/nestjs-server typecheck:test",
 		"test:cov": "pnpm --filter @interview-app/nestjs-server test:cov",
 		"test:e2e": "pnpm --filter @interview-app/nestjs-server test:e2e",
 		"test:e2e:docker": "sh ./scripts/test-e2e-docker.sh",
+		"test:e2e:web": "pnpm --filter @interview-app/react-client test:e2e",
 		"db:generate": "pnpm --filter @interview-app/nestjs-server db:generate",
 		"db:migrate": "pnpm --filter @interview-app/nestjs-server db:migrate",
-		"db:studio": "pnpm --filter @interview-app/nestjs-server db:studio"
+		"db:studio": "pnpm --filter @interview-app/nestjs-server db:studio",
+		"api:generate": "pnpm --filter @interview-app/react-client api:generate"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.5"

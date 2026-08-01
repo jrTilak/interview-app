@@ -10,6 +10,7 @@ import { InterviewGateway } from "./interview.gateway.js";
 
 const attemptId = "f0c765b0-a9fe-4a67-bf75-a63486949831";
 const turnId = "19ad8c03-9e89-4d23-b393-d3cd6a654900";
+const probeId = "536d1912-17b0-43f5-a08f-dc2dce239341";
 const session = {
 	user: {
 		id: "4b8757d8-b56b-47eb-827f-65b14977fa25",
@@ -157,6 +158,63 @@ describe("InterviewGateway", () => {
 		const replacement = socketDouble("replacement", { session });
 		gateway.handleConnection(replacement);
 		expect(replacement.disconnect).not.toHaveBeenCalled();
+	});
+
+	it("acknowledges an authenticated connection probe without joining an attempt", async () => {
+		const { gateway, attempts, audioBuffers } = createGateway();
+		const client = socketDouble("latency-probe", { session });
+
+		const acknowledgement = await gateway.pingConnection(client, { probeId });
+
+		expect(acknowledgement).toEqual({
+			ok: true,
+			data: {
+				probeId,
+				serverTime: expect.any(String),
+			},
+		});
+		if (!acknowledgement.ok) throw new Error("Expected a successful probe");
+		expect(new Date(acknowledgement.data.serverTime).toISOString()).toBe(
+			acknowledgement.data.serverTime,
+		);
+		expect(client.join).not.toHaveBeenCalled();
+		expect(attempts.findSnapshot).not.toHaveBeenCalled();
+		expect(attempts.start).not.toHaveBeenCalled();
+		expect(attempts.assertListening).not.toHaveBeenCalled();
+		expect(attempts.updateMedia).not.toHaveBeenCalled();
+		expect(audioBuffers.start).not.toHaveBeenCalled();
+		expect(audioBuffers.append).not.toHaveBeenCalled();
+		expect(audioBuffers.finish).not.toHaveBeenCalled();
+	});
+
+	it("rejects unauthenticated or invalid connection probes", async () => {
+		const { gateway, attempts } = createGateway();
+		const unauthenticated = socketDouble("unauthenticated-probe");
+		const authenticated = socketDouble("invalid-probe", { session });
+
+		await expect(
+			gateway.pingConnection(unauthenticated, { probeId }),
+		).resolves.toEqual({
+			ok: false,
+			error: expect.objectContaining({ code: "HTTP_401" }),
+		});
+		await expect(
+			gateway.pingConnection(authenticated, { probeId, extra: true }),
+		).resolves.toEqual({
+			ok: false,
+			error: expect.objectContaining({ code: "INVALID_EVENT" }),
+		});
+		expect(unauthenticated.join).not.toHaveBeenCalled();
+		expect(authenticated.join).not.toHaveBeenCalled();
+		expect(attempts.findSnapshot).not.toHaveBeenCalled();
+		expect(unauthenticated.emit).toHaveBeenCalledWith(
+			"attempt:error",
+			expect.objectContaining({ code: "HTTP_401" }),
+		);
+		expect(authenticated.emit).toHaveBeenCalledWith(
+			"attempt:error",
+			expect.objectContaining({ code: "INVALID_EVENT" }),
+		);
 	});
 
 	it("permits only one microphone owner and releases it on disconnect", async () => {

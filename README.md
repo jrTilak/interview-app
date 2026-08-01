@@ -1,18 +1,18 @@
 # Interview App
 
-An end-to-end AI interview platform backend built as a pnpm workspace. The current workspace contains the NestJS server; the React client and local AI services can be added as separate workspace packages later.
+A desktop-first AI interview platform built as a pnpm workspace. Creators turn raw question notes into structured interviews, share an authenticated link, and candidates complete a realtime voice interview with streamed subtitles and audio.
 
 ## What works
 
-- Email/password signup, login, logout, and session handling through Better Auth
-- Creator-owned interview creation from raw question notes
-- Gemini structured-output conversion into immutable interview tasks
-- Authenticated share-link preview and one resumable attempt per candidate
-- Realtime Socket.IO interview state, microphone turns, subtitles, and streamed TTS audio
-- Camera and screen chunks accepted, bounded, authorized, then intentionally discarded
-- Durable transcripts, question progress, hard deadlines, reconnect snapshots, and AI tool-controlled completion
-- Swappable LLM, speech-to-text, and text-to-speech ports with Gemini adapters
-- Strict Zod validation, Drizzle ORM, PostgreSQL, OpenAPI, unit tests, and database-backed E2E tests
+- Desktop React PWA with email/password signup, login, guarded routes, and session-aware caching
+- Creator dashboard, AI-assisted interview creation, private detail view, and copyable share links
+- Candidate device preflight and one resumable attempt per interview
+- Realtime Socket.IO room with latency status, camera/screen transport, acoustic turn detection, raw PCM microphone input, subtitles, and streamed audio playback
+- Required application fullscreen with a concealed interruption screen and explicit re-entry after every exit
+- NestJS API with Better Auth, strict Zod boundaries, Drizzle ORM, PostgreSQL, and OpenAPI references
+- Durable transcripts, question progress, hard deadlines, reconnect snapshots, and server-controlled completion
+- Replaceable LLM, speech-to-text, and text-to-speech ports, currently backed by independent Gemini adapters
+- Unit, component, REST/Socket.IO E2E, and Chromium browser coverage
 
 The deliberately excluded scope is recorded in [Implementation status](docs/IMPLEMENTATION_STATUS.md).
 
@@ -21,23 +21,23 @@ The deliberately excluded scope is recorded in [Implementation status](docs/IMPL
 - Node.js 22.22.1 or newer
 - pnpm 11 or newer
 - Docker with Compose, or a PostgreSQL 18-compatible database
-- A Google Gemini API key for real AI calls
+- A Google Gemini API key for real AI interview turns
 
-## Start locally
+## Start the complete app with Docker
 
-### Complete Docker stack
-
-Start PostgreSQL, apply migrations automatically, build the production backend image, and wait until both services are healthy:
+Start the frontend, backend, PostgreSQL, and automatic database migrations with one command:
 
 ```bash
 GEMINI_API_KEY=your-google-api-key docker compose up --build --wait
 ```
 
-The API is then available at `http://localhost:3000`, with application and authentication references at `/api-docs` and `/auth-docs`. If pnpm is installed, `pnpm docker:up` is the equivalent convenience command. Follow backend logs with `pnpm docker:logs` or `docker compose logs --follow backend`, and stop the stack with `pnpm docker:down` or `docker compose down`; the PostgreSQL volume is retained.
+Open `http://localhost:5173`. The API is also published at `http://localhost:3000`; its application and authentication references are at `/api-docs` and `/auth-docs`. The frontend container proxies `/api` and `/socket.io` to the backend, so browser sessions stay same-origin.
 
-Both published ports bind to `127.0.0.1` by default. Before exposing the stack publicly, set strong `BETTER_AUTH_SECRET` and `POSTGRES_PASSWORD` values, configure `BETTER_AUTH_URL` and allowed origins, and explicitly change `BACKEND_BIND_ADDRESS` if remote access is intended. Changing `BACKEND_PORT` automatically updates the default local Better Auth URL. The server can start without a real Gemini key, but AI interview operations require one.
+If pnpm is installed, `pnpm docker:up`, `pnpm docker:logs`, and `pnpm docker:down` are convenience wrappers. Database data remains in the named Compose volume after shutdown.
 
-### Native development
+Published ports bind to `127.0.0.1` by default. Before public deployment, set strong `BETTER_AUTH_SECRET` and `POSTGRES_PASSWORD` values, configure `BETTER_AUTH_URL`, `APP_WEB_URL`, and `API_CORS_ORIGINS`, then explicitly change the bind addresses. The server starts with a placeholder Gemini key for UI inspection, but interview creation and AI turns need a real key.
+
+## Native development
 
 ```bash
 pnpm install
@@ -47,43 +47,46 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Set a random `BETTER_AUTH_SECRET` of at least 32 characters and a real `GEMINI_API_KEY` in `apps/nestjs-server/.env` first. The API defaults to `http://localhost:3000`; the application and authentication reference UIs are at `/api-docs` and `/auth-docs`.
+Set a random `BETTER_AUTH_SECRET` of at least 32 characters and a real `GEMINI_API_KEY` in `apps/nestjs-server/.env`. Vite serves the app at `http://localhost:5173` and proxies API/realtime traffic to NestJS at `http://localhost:3000`. See the app-specific runbooks for provider and proxy overrides.
 
 ## Verify
 
 ```bash
 pnpm lint
-pnpm build
+pnpm typecheck
 pnpm typecheck:test
+pnpm build
 pnpm test
 pnpm test:e2e:docker
+pnpm test:e2e:web
 pnpm audit --prod
 ```
 
-The Docker E2E command starts an isolated PostgreSQL instance on port `55432`, runs migrations and the full REST/Socket.IO flow with fake AI adapters, then removes the test database volume.
+The server Docker E2E command uses an isolated PostgreSQL instance and fake AI adapters. The browser suite builds the client, starts a local preview, mocks only the backend boundary, and exercises the product journeys in desktop Chromium.
 
 ## Documentation
 
+- [Web client runbook](apps/react-client/README.md)
 - [Server runbook](apps/nestjs-server/README.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Realtime protocol](docs/REALTIME_PROTOCOL.md)
 - [Task tracker](docs/TASKS.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
+- [Known limitations](docs/KNOWN_LIMITATIONS.md)
 
 ## Workspace commands
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm dev` | Start NestJS in watch mode |
-| `pnpm docker:up` | Build and start the backend plus PostgreSQL, including migrations |
-| `pnpm docker:down` | Stop the Docker stack while retaining database data |
-| `pnpm docker:logs` | Follow backend container logs |
-| `pnpm build` | Build production JavaScript |
-| `pnpm test` | Run unit tests |
-| `pnpm typecheck:test` | Type-check unit and E2E test code |
-| `pnpm test:cov` | Run unit tests with coverage |
-| `pnpm test:e2e:docker` | Run isolated PostgreSQL E2E tests |
+| `pnpm dev` | Start NestJS and Vite in watch mode |
+| `pnpm dev:server` / `pnpm dev:web` | Start one development process |
+| `pnpm docker:up` | Build and start the complete stack |
+| `pnpm docker:down` | Stop the stack while retaining database data |
+| `pnpm docker:logs` | Follow application container logs |
+| `pnpm api:generate` | Regenerate Orval clients from the running server |
+| `pnpm build` | Build all production packages |
+| `pnpm test` | Run workspace unit and component tests |
+| `pnpm test:e2e:web` | Run desktop Chromium journeys |
+| `pnpm test:e2e:docker` | Run isolated server REST/Socket.IO E2E tests |
+| `pnpm db:generate` / `pnpm db:migrate` | Generate or apply Drizzle migrations |
 | `pnpm audit --prod` | Audit production dependencies |
-| `pnpm db:generate` | Generate a Drizzle migration after schema changes |
-| `pnpm db:migrate` | Apply migrations |
-| `pnpm db:studio` | Open Drizzle Studio |

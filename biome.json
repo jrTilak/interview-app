@@ -7,7 +7,13 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"includes": ["**", "!!**/coverage", "!!**/dist"]
+		"includes": [
+			"**",
+			"!!**/coverage",
+			"!!**/dist",
+			"!!apps/react-client/src/routeTree.gen.ts",
+			"!!apps/react-client/src/shared/api/generated"
+		]
 	},
 	"formatter": {
 		"enabled": true,

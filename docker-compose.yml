@@ -33,13 +33,13 @@ services:
       NODE_ENV: production
       PORT: 3000
       APP_NAME: ${APP_NAME:-Interview App}
-      APP_WEB_URL: ${APP_WEB_URL:-http://localhost:5173}
+      APP_WEB_URL: ${APP_WEB_URL:-http://localhost:${FRONTEND_PORT:-5173}}
       API_PREFIX: api
-      API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://localhost:5173}
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}}
       API_DOCS_FILE_PATH: docs/api-info.md
       SWAGGER_ENABLE: ${SWAGGER_ENABLE:-true}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-docker-local-secret-change-before-public-deployment}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${BACKEND_PORT:-3000}}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${FRONTEND_PORT:-5173}}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${POSTGRES_DB:-interview_app}
@@ -72,6 +72,34 @@ services:
       retries: 5
       start_period: 10s
     stop_grace_period: 15s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/react-client/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-5173}:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--output-document=/dev/null",
+          "http://127.0.0.1:8080/healthz",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    stop_grace_period: 10s
 
 volumes:
   interview-postgres-data:

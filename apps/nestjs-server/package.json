@@ -6,6 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "nest build",
+		"dev": "pnpm run start:dev",
 		"start": "nest start",
 		"start:dev": "NODE_ENV=development nest start --watch",
 		"start:debug": "nest start --debug --watch",

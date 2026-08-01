@@ -11,6 +11,10 @@ const AttemptCommandSchema = z
 	})
 	.strict();
 
+export const ConnectionPingEventSchema = z
+	.object({ probeId: z.uuid() })
+	.strict();
+
 export const AttemptJoinEventSchema = z
 	.object({ attemptId: z.uuid() })
 	.strict();
@@ -77,6 +81,11 @@ export const DisposableMediaChunkEventSchema = z
 	.strict();
 
 export type MicrophoneStartEvent = z.infer<typeof MicrophoneStartEventSchema>;
+
+export type ConnectionPingAckData = {
+	probeId: z.infer<typeof ConnectionPingEventSchema>["probeId"];
+	serverTime: string;
+};
 
 export type BufferedCandidateAudio = MicrophoneStartEvent & {
 	bytes: Uint8Array;

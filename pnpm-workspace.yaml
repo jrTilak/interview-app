@@ -12,3 +12,7 @@ allowBuilds:
   "esbuild": true
   "protobufjs": true
   "unrs-resolver": true
+
+minimumReleaseAgeExclude:
+  - "@tanstack/form-core@1.33.3"
+  - "@tanstack/react-form@1.33.3"
