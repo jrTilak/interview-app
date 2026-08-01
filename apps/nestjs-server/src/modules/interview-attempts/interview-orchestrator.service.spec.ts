@@ -96,8 +96,14 @@ function modelContext() {
 	};
 }
 
-/** Produces a one-chunk fake TTS stream. */
+/** Produces provider-sized chunks that must become one client audio block. */
 async function* speechStream() {
+	yield {
+		bytes: Buffer.from("continuous "),
+		mimeType: "audio/l16",
+		sampleRateHz: 24_000,
+		channels: 1,
+	};
 	yield {
 		bytes: Buffer.from("voice"),
 		mimeType: "audio/l16",
@@ -107,7 +113,7 @@ async function* speechStream() {
 }
 
 describe("InterviewOrchestratorService", () => {
-	it("starts with a greeting, scopes model tool IDs, streams audio, and listens", async () => {
+	it("starts with a greeting, scopes model tool IDs, coalesces TTS, and listens", async () => {
 		const attempts = {
 			start: asyncMock({
 				snapshot: snapshot("ASSISTANT_SPEAKING"),
@@ -162,6 +168,23 @@ describe("InterviewOrchestratorService", () => {
 				"assistant:audio:chunk",
 				"assistant:turn:end",
 			]),
+		);
+		const audioEvents = events.filter(
+			({ event }) => event === "assistant:audio:chunk",
+		);
+		expect(audioEvents).toHaveLength(1);
+		expect(audioEvents[0]?.payload).toEqual({
+			turnId,
+			sequence: 0,
+			mimeType: "audio/l16",
+			sampleRateHz: 24_000,
+			channels: 1,
+			data: Buffer.from("continuous voice"),
+		});
+		expect(
+			events.findIndex(({ event }) => event === "assistant:audio:chunk"),
+		).toBeLessThan(
+			events.findIndex(({ event }) => event === "assistant:turn:end"),
 		);
 		expect(events.at(-1)?.payload.state).toBe("LISTENING");
 	});

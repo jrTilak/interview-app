@@ -59,7 +59,7 @@ Camera and screen chunks are accepted only for an active interview when their re
 | `attempt:ended` | `{ reason: "AI_COMPLETED" | "TIME_LIMIT", endedAt }` |
 | `attempt:error` | `{ code, message, retryable }` |
 
-TTS requests Gemini's provider-selected audio format and normalizes each live audio event to an ordered `assistant:audio:chunk`. Gemini currently yields mono 24 kHz signed little-endian PCM (`audio/l16`); clients should still use the metadata on every chunk. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
+TTS requests Gemini's provider-selected audio format and validates each live audio event. The server buffers one size-limited assistant utterance and emits it as a single `assistant:audio:chunk`, preventing browser playback underruns when provider chunks arrive slower than real time. Gemini currently yields mono 24 kHz signed little-endian PCM (`audio/l16`); clients should still use the payload metadata. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
 
 ## Reconnection
 

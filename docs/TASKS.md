@@ -50,6 +50,7 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [x] Add replaceable LLM, STT, and TTS ports with separate Gemini adapters
 - [x] Validate Gemini status, tool calls, structured data, audio formats, timeouts, and stream errors
 - [x] Wrap socket PCM as in-memory WAV for Gemini STT and normalize live Gemini TTS audio events
+- [x] Coalesce each bounded TTS utterance before delivery to prevent client playback underruns
 - [x] Avoid sending candidate email or future hidden questions to the model
 
 ## Quality and documentation

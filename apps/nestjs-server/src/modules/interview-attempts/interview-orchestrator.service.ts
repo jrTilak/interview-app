@@ -5,6 +5,7 @@ import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
 	SPEECH_TO_TEXT,
+	type SpeechChunk,
 	type SpeechToTextPort,
 	TEXT_TO_SPEECH,
 	type TextToSpeechPort,
@@ -62,7 +63,7 @@ export class InterviewOrchestratorService {
 		}
 	}
 
-	/** Streams a saved assistant utterance, then advances durable state. */
+	/** Buffers one bounded utterance for gapless playback, then advances state. */
 	private async _speak(
 		attemptId: string,
 		candidate: User,
@@ -75,8 +76,9 @@ export class InterviewOrchestratorService {
 			text: turn.text,
 			isFinal: true,
 		});
-		let sequence = 0;
 		let totalBytes = 0;
+		const audioParts: Buffer[] = [];
+		let audioFormat: Omit<SpeechChunk, "bytes"> | undefined;
 		try {
 			for await (const chunk of this._textToSpeech.synthesize({
 				text: turn.text,
@@ -85,23 +87,40 @@ export class InterviewOrchestratorService {
 				if (totalBytes > InterviewOrchestratorService._MAX_TTS_BYTES) {
 					throw new Error("Text-to-speech output exceeded the server limit");
 				}
-				emit("assistant:audio:chunk", {
-					turnId: turn.id,
-					sequence,
+
+				const chunkFormat = {
 					mimeType: chunk.mimeType,
 					sampleRateHz: chunk.sampleRateHz,
 					channels: chunk.channels,
-					data: chunk.bytes,
-				});
-				sequence += 1;
+				};
+				if (
+					audioFormat &&
+					(audioFormat.mimeType !== chunkFormat.mimeType ||
+						audioFormat.sampleRateHz !== chunkFormat.sampleRateHz ||
+						audioFormat.channels !== chunkFormat.channels)
+				) {
+					throw new Error("Text-to-speech format changed during an utterance");
+				}
+				audioFormat ??= chunkFormat;
+				audioParts.push(Buffer.from(chunk.bytes));
 			}
-			if (sequence === 0) {
+
+			if (!audioFormat || audioParts.length === 0) {
 				this._emitFailure(
 					emit,
 					"AUDIO_UNAVAILABLE",
 					"Interviewer audio was unavailable; use the subtitle for this turn.",
 					true,
 				);
+			} else {
+				// Provider chunks can arrive slower than playback. One turn-sized block
+				// prevents the browser audio queue from underrunning between chunks.
+				emit("assistant:audio:chunk", {
+					turnId: turn.id,
+					sequence: 0,
+					...audioFormat,
+					data: Buffer.concat(audioParts, totalBytes),
+				});
 			}
 		} catch (error) {
 			this._logger.warn("Text-to-speech failed for an interview turn", error);
