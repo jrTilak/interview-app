@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-interview_app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-interview_app}
     ports:
-      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-15432}:5432"
     volumes:
       - interview-postgres-data:/var/lib/postgresql
     healthcheck:
@@ -34,13 +34,13 @@ services:
       NODE_ENV: production
       PORT: 3000
       APP_NAME: ${APP_NAME:-Interview App}
-      APP_WEB_URL: ${APP_WEB_URL:-http://localhost:${FRONTEND_PORT:-5173}}
+      APP_WEB_URL: ${APP_WEB_URL:-http://localhost:${FRONTEND_PORT:-18080}}
       API_PREFIX: api
-      API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}}
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-18080},http://127.0.0.1:${FRONTEND_PORT:-18080}}
       API_DOCS_FILE_PATH: docs/api-info.md
       SWAGGER_ENABLE: ${SWAGGER_ENABLE:-true}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-docker-local-secret-change-before-public-deployment}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${FRONTEND_PORT:-5173}}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${FRONTEND_PORT:-18080}}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${POSTGRES_DB:-interview_app}
@@ -59,7 +59,7 @@ services:
       AUDIO_MAX_BYTES: ${AUDIO_MAX_BYTES:-10485760}
       MEDIA_MAX_CHUNK_BYTES: ${MEDIA_MAX_CHUNK_BYTES:-524288}
     ports:
-      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-3000}:3000"
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-18081}:3000"
     healthcheck:
       test:
         [
@@ -87,7 +87,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-5173}:8080"
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-18080}:8080"
     healthcheck:
       test:
         [

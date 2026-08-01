@@ -31,7 +31,7 @@ Start the frontend, backend, PostgreSQL, and automatic database migrations with 
 GEMINI_API_KEY=your-google-api-key docker compose up --build --wait
 ```
 
-Open `http://localhost:5173`. The API is also published at `http://localhost:3000`; its application and authentication references are at `/api-docs` and `/auth-docs`. The frontend container proxies `/api` and `/socket.io` to the backend, so browser sessions stay same-origin.
+Open `http://localhost:18080`. The API is also published at `http://localhost:18081`; its application and authentication references are at `/api-docs` and `/auth-docs`. The frontend container proxies `/api` and `/socket.io` to the backend, so browser sessions stay same-origin.
 
 If pnpm is installed, `pnpm docker:up`, `pnpm docker:logs`, and `pnpm docker:down` are convenience wrappers. Database data remains in the named Compose volume after shutdown.
 

@@ -10,7 +10,7 @@ From the repository root:
 GEMINI_API_KEY=your-google-api-key docker compose up --build --wait
 ```
 
-This builds the frontend and backend images, starts PostgreSQL, waits for dependencies to become healthy, and applies the checked-in Drizzle migrations from the backend process. Open the PWA on port 5173; the API remains directly available on port 3000. No host Node.js installation or manual migration command is needed beyond Docker and Compose. `docker compose down` stops all three services without deleting PostgreSQL data. The root `pnpm docker:*` scripts are optional convenience aliases.
+This builds the frontend and backend images, starts PostgreSQL, waits for dependencies to become healthy, and applies the checked-in Drizzle migrations from the backend process. Open the PWA on port 18080; the API remains directly available on port 18081. No host Node.js installation or manual migration command is needed beyond Docker and Compose. `docker compose down` stops all three services without deleting PostgreSQL data. The root `pnpm docker:*` scripts are optional convenience aliases.
 
 All published ports bind to `127.0.0.1` by default. Set the frontend/backend bind addresses, strong database/auth secrets, the public `BETTER_AUTH_URL`, and exact CORS origins before deliberately exposing the service to another machine. The Compose backend health check calls `/api/ready`, which verifies both the NestJS process and its PostgreSQL connection.
 
