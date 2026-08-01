@@ -32,7 +32,7 @@ Copy `.env.example` to `.env`. Important values are:
 
 Production WebSocket handshakes must include an allowed `Origin`. Authentication uses the Better Auth HTTP-only session cookie.
 
-Email addresses are self-asserted in this phase: signup uses email/password, but verification mail is deliberately excluded. Raw microphone bytes are sent to the configured STT provider (Gemini by default), discarded after transcription, and only the resulting text transcript is persisted.
+Email addresses are self-asserted in this phase: signup uses email/password, but verification mail is deliberately excluded. Raw microphone bytes are adapted in memory for the configured STT provider (wrapped as WAV for Gemini), discarded after transcription, and only the resulting text transcript is persisted.
 
 ## HTTP API
 
@@ -59,7 +59,7 @@ Password reset, email verification mail, social login, account/profile mutation,
 
 Connect Socket.IO to namespace `/interviews` with credentials enabled, join the attempt, then start it. See [the full protocol](../../docs/REALTIME_PROTOCOL.md) for schemas, acknowledgements, and binary flow.
 
-The server accepts supported buffered audio (`wav`, `mpeg`/`mp3`, `aiff`, `aac`, `ogg`, `flac`, `m4a`, or linear PCM `l16`). MIME types are normalized, so parameters such as `audio/ogg; codecs=opus` are accepted. Linear PCM must include its sample rate; the current Gemini integration's explicit wire convention is signed 16-bit little-endian PCM. Browser `MediaRecorder` commonly emits WebM, which Gemini's buffered transcription path does not accept here; the client must record/encode a supported type or a future media service must transcode it.
+The server accepts supported buffered audio (`wav`, `mpeg`/`mp3`, `aiff`, `aac`, `ogg`, `flac`, `m4a`, or linear PCM `l16`). MIME types are normalized, so parameters such as `audio/ogg; codecs=opus` are accepted. Linear PCM uses the application's signed 16-bit little-endian wire convention and must include its sample rate; the Gemini adapter wraps the completed bytes in memory as a valid WAV input. Browser `MediaRecorder` commonly emits WebM, which Gemini's buffered transcription path does not accept here; the client must record/encode a supported type or a future media service must transcode it.
 
 `microphone:end` is the reliable turn boundary. The inactivity fallback means no new chunks arrived; it does not perform acoustic voice-activity detection inside continuously streamed compressed audio.
 

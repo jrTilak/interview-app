@@ -226,14 +226,67 @@ describe("Gemini adapters", () => {
 				channels: 2,
 			}),
 		).resolves.toBe("Candidate answer");
-		expect(create.mock.calls[0]?.[0].input[0]).toEqual(
-			expect.objectContaining({
+		const request = create.mock.calls[0]?.[0];
+		expect(request.input).toEqual([
+			{ type: "text", text: "Transcribe this candidate response." },
+			{
 				type: "audio",
+				data: Buffer.from("ogg").toString("base64"),
 				mime_type: "audio/ogg",
-				channels: 2,
-			}),
-		);
+			},
+		]);
+		expect(request).not.toHaveProperty("response_format");
 	});
+
+	it.each([
+		{
+			channels: 1,
+			pcm: Buffer.from([0x00, 0x80, 0xff, 0x7f]),
+			sampleRateHz: 16_000,
+		},
+		{
+			channels: 2,
+			pcm: Buffer.from([0x00, 0x80, 0xff, 0x7f]),
+			sampleRateHz: 48_000,
+		},
+	])(
+		"wraps $channels-channel raw PCM in a valid WAV provider payload",
+		async ({ channels, pcm, sampleRateHz }) => {
+			const create = createMock({ status: "completed", output_text: "answer" });
+			const adapter = new GeminiSpeechToTextAdapter(client(create), config());
+
+			await adapter.transcribe({
+				bytes: pcm,
+				channels,
+				mimeType: "audio/l16",
+				sampleRateHz,
+			});
+
+			const audio = create.mock.calls[0]?.[0].input.find(
+				(item: { type: string }) => item.type === "audio",
+			);
+			expect(audio).toEqual({
+				type: "audio",
+				data: expect.any(String),
+				mime_type: "audio/wav",
+			});
+			const wave = Buffer.from(audio.data, "base64");
+			expect(wave.toString("ascii", 0, 4)).toBe("RIFF");
+			expect(wave.readUInt32LE(4)).toBe(36 + pcm.byteLength);
+			expect(wave.toString("ascii", 8, 12)).toBe("WAVE");
+			expect(wave.toString("ascii", 12, 16)).toBe("fmt ");
+			expect(wave.readUInt32LE(16)).toBe(16);
+			expect(wave.readUInt16LE(20)).toBe(1);
+			expect(wave.readUInt16LE(22)).toBe(channels);
+			expect(wave.readUInt32LE(24)).toBe(sampleRateHz);
+			expect(wave.readUInt32LE(28)).toBe(sampleRateHz * channels * 2);
+			expect(wave.readUInt16LE(32)).toBe(channels * 2);
+			expect(wave.readUInt16LE(34)).toBe(16);
+			expect(wave.toString("ascii", 36, 40)).toBe("data");
+			expect(wave.readUInt32LE(40)).toBe(pcm.byteLength);
+			expect(wave.subarray(44)).toEqual(pcm);
+		},
+	);
 
 	it("rejects unsupported browser audio before calling Gemini", async () => {
 		const create = createMock();
@@ -261,6 +314,27 @@ describe("Gemini adapters", () => {
 		expect(create).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		{ bytes: Buffer.from([0x00]), channels: 1 },
+		{ bytes: Buffer.from([0x00, 0x00]), channels: 2 },
+	])(
+		"rejects incomplete $channels-channel PCM frames before Gemini",
+		async ({ bytes, channels }) => {
+			const create = createMock();
+			const adapter = new GeminiSpeechToTextAdapter(client(create), config());
+
+			await expect(
+				adapter.transcribe({
+					bytes,
+					channels,
+					mimeType: "audio/l16",
+					sampleRateHz: 16_000,
+				}),
+			).rejects.toBeInstanceOf(UnprocessableEntityException);
+			expect(create).not.toHaveBeenCalled();
+		},
+	);
+
 	it("maps streamed audio deltas to the replaceable TTS port", async () => {
 		async function* events() {
 			yield {
@@ -268,9 +342,6 @@ describe("Gemini adapters", () => {
 				delta: {
 					type: "audio",
 					data: Buffer.from("pcm").toString("base64"),
-					mime_type: "audio/l16",
-					sample_rate: 24_000,
-					channels: 1,
 				},
 			};
 			yield {
@@ -286,18 +357,27 @@ describe("Gemini adapters", () => {
 			chunks.push(chunk);
 		}
 
+		expect(chunks).toEqual([
+			expect.objectContaining({
+				channels: 1,
+				mimeType: "audio/l16",
+				sampleRateHz: 24_000,
+			}),
+		]);
 		expect(Buffer.from(chunks[0]?.bytes ?? []).toString()).toBe("pcm");
 		expect(create).toHaveBeenCalledWith(
 			expect.not.objectContaining({ response_modalities: expect.anything() }),
 			expect.any(Object),
 		);
-		expect(create.mock.calls[0]?.[0]).toEqual(
+		const request = create.mock.calls[0]?.[0];
+		expect(request).toEqual(
 			expect.objectContaining({
+				generation_config: { speech_config: [{ voice: "Kore" }] },
 				store: false,
 				stream: true,
-				response_format: expect.objectContaining({ type: "audio" }),
 			}),
 		);
+		expect(request.response_format).toEqual({ type: "audio" });
 	});
 
 	it("rejects explicit and incomplete TTS stream failures", async () => {

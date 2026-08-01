@@ -49,15 +49,17 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [x] Transcribe candidate audio, persist text, and stream subtitles plus assistant audio
 - [x] Add replaceable LLM, STT, and TTS ports with separate Gemini adapters
 - [x] Validate Gemini status, tool calls, structured data, audio formats, timeouts, and stream errors
+- [x] Wrap socket PCM as in-memory WAV for Gemini STT and normalize live Gemini TTS audio events
 - [x] Avoid sending candidate email or future hidden questions to the model
 
 ## Quality and documentation
 
-- [x] Add focused unit tests for validation, buffering, attempt state, gateway safety, orchestration, creation limits, and Gemini adapters
+- [x] Add focused unit tests for validation, buffering, attempt state, gateway safety, orchestration, creation limits, Gemini audio events, and WAV payloads
 - [x] Add PostgreSQL-backed REST, authentication, authorization, realtime, media, and interview-flow E2E tests
 - [x] Make E2E setup isolated and repeatable with Docker Compose
 - [x] Add lint, build, test typecheck, dependency audit, and test commands
 - [x] Document setup, architecture, API, realtime protocol, privacy, and deployment constraints
+- [x] Run a real Gemini streaming-TTS-to-WAV-STT smoke test with the compiled Docker adapters
 
 ## React desktop client
 
@@ -86,4 +88,3 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [ ] Add WebM transcoding if the chosen browser recorder cannot emit a supported STT format
 - [ ] Add distributed work leases, sticky routing, and a shared Socket.IO adapter before horizontal scaling
 - [ ] Add production observability and deployment configuration
-- [ ] Run the optional real-Gemini smoke test after a `GEMINI_API_KEY` is supplied

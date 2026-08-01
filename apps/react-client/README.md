@@ -28,7 +28,7 @@ Orval generates the application API from `http://localhost:3000/api-docs.json` a
 ## Interview media
 
 - Camera and screen tracks are encoded with `MediaRecorder`, acknowledged in order, and discarded by the server.
-- The microphone is converted in the browser to mono 16 kHz signed PCM16. This app's `audio/l16` provider convention is little-endian because Gemini expects raw little-endian PCM.
+- The microphone is converted in the browser to mono 16 kHz signed little-endian PCM16 for the socket protocol; the server wraps each completed turn as WAV at the Gemini STT boundary.
 - Acoustic silence detection ends a candidate turn; the server also retains its inactivity timeout as a network fallback.
 - Assistant PCM chunks are queued in sequence through the Web Audio API while final subtitle text remains visible.
 - Raw media is never written to Query cache, Zustand persistence, local storage, or IndexedDB.

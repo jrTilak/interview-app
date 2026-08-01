@@ -17,7 +17,7 @@
 - Authenticated Socket.IO namespace with strict event validation
 - Ordered/bounded in-memory candidate audio turns and inactivity fallback
 - Single microphone ownership per attempt and bounded per-process media traffic
-- Independent Gemini LLM, buffered STT, and streaming TTS adapters
+- Independent Gemini LLM, WAV-wrapped buffered STT, and live streaming TTS adapters
 - First-turn greeting with candidate name and interview context
 - Natural interviewer prompt that does not teach, score, correct, or expose answers
 - Server-validated mark-question/end-interview tools and no-repeat progress

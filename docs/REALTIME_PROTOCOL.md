@@ -39,7 +39,7 @@ The client may periodically emit `connection:ping` with `{ probeId: uuid }`. Its
 | `camera:chunk` | `{ attemptId, sequence, mimeType, data }` | Bounded, authorized, immediately discarded |
 | `screen:chunk` | `{ attemptId, sequence, mimeType, data }` | Bounded, authorized, immediately discarded |
 
-Supported STT MIME types are `audio/wav`, `audio/mpeg`, `audio/mp3`, `audio/aiff`, `audio/aac`, `audio/ogg`, `audio/flac`, `audio/m4a`, and `audio/l16`. For this application's Gemini adapter, `audio/l16` means raw signed 16-bit mono little-endian PCM and includes `sampleRateHz`; it is an explicit provider convention rather than an assumption about generic RFC L16. The React client sends 16 kHz. Browser WebM microphone audio is not accepted by the current Gemini buffered-STT adapter; encode a supported format in the client or add a transcoding provider behind the STT port.
+Supported socket STT MIME types are `audio/wav`, `audio/mpeg`, `audio/mp3`, `audio/aiff`, `audio/aac`, `audio/ogg`, `audio/flac`, `audio/m4a`, and `audio/l16`. In this application, socket `audio/l16` means raw signed 16-bit little-endian PCM and requires `sampleRateHz`; the React client sends mono 16 kHz audio. The Gemini adapter wraps a completed PCM turn in a RIFF/WAV container and sends it as `audio/wav`, because raw L16 is not a supported Gemini transcription input. Browser WebM microphone audio is not accepted by the current buffered-STT adapter; encode a supported format in the client or add a transcoding provider behind the STT port.
 
 The server also closes a mic turn after `AUDIO_SILENCE_MS` with no chunks, including a started turn that received no audio. This is a network/chunk inactivity fallback, not acoustic silence detection. The client should perform voice-activity detection or stop sending and emit `microphone:end` when the speaker finishes. Only one socket may own the active mic turn for an attempt.
 
@@ -59,7 +59,7 @@ Camera and screen chunks are accepted only for an active interview when their re
 | `attempt:ended` | `{ reason: "AI_COMPLETED" | "TIME_LIMIT", endedAt }` |
 | `attempt:error` | `{ code, message, retryable }` |
 
-TTS currently streams mono 24 kHz signed little-endian PCM (`audio/l16`) from Gemini. Use the metadata on every chunk instead of hard-coding its rate or channels in the client. Subtitle text is emitted before audio, so an audio-provider failure still leaves the interview usable via text.
+TTS requests Gemini's provider-selected audio format and normalizes each live audio event to an ordered `assistant:audio:chunk`. Gemini currently yields mono 24 kHz signed little-endian PCM (`audio/l16`); clients should still use the metadata on every chunk. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
 
 ## Reconnection
 

@@ -16,6 +16,7 @@ import {
 	assertGeminiInteractionStatus,
 	geminiRequestOptions,
 } from "./gemini-request.js";
+import { wrapPcm16LittleEndianInWave } from "./pcm-wav.js";
 
 @Injectable()
 export class GeminiSpeechToTextAdapter implements SpeechToTextPort {
@@ -34,10 +35,23 @@ export class GeminiSpeechToTextAdapter implements SpeechToTextPort {
 				`Unsupported transcription audio type: ${mimeType}`,
 			);
 		}
-		if (mimeType === "audio/l16" && input.sampleRateHz === undefined) {
-			throw new UnprocessableEntityException(
-				"Raw linear PCM audio requires a sample rate",
-			);
+		let providerAudio: { bytes: Buffer; mimeType: string };
+		if (mimeType === "audio/l16") {
+			if (input.sampleRateHz === undefined) {
+				throw new UnprocessableEntityException(
+					"Raw linear PCM audio requires a sample rate",
+				);
+			}
+			providerAudio = {
+				bytes: wrapPcm16LittleEndianInWave({
+					bytes: input.bytes,
+					channels: input.channels ?? 1,
+					sampleRateHz: input.sampleRateHz,
+				}),
+				mimeType: "audio/wav",
+			};
+		} else {
+			providerAudio = { bytes: Buffer.from(input.bytes), mimeType };
 		}
 		const response = await this._client.interactions.create(
 			{
@@ -46,16 +60,13 @@ export class GeminiSpeechToTextAdapter implements SpeechToTextPort {
 				system_instruction:
 					"Transcribe the candidate audio faithfully. Return only spoken words. Do not answer, correct, summarize, or add labels. Return an empty string when there is no intelligible speech.",
 				input: [
+					{ type: "text", text: "Transcribe this candidate response." },
 					{
 						type: "audio",
-						data: Buffer.from(input.bytes).toString("base64"),
-						mime_type: mimeType,
-						sample_rate: input.sampleRateHz,
-						channels: input.channels,
+						data: providerAudio.bytes.toString("base64"),
+						mime_type: providerAudio.mimeType,
 					},
-					{ type: "text", text: "Transcribe this candidate response." },
 				],
-				response_format: { type: "text", mime_type: "text/plain" },
 				generation_config: { max_output_tokens: 2_000 },
 			},
 			geminiRequestOptions(

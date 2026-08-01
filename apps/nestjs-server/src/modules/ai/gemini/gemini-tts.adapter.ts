@@ -39,12 +39,7 @@ export class GeminiTextToSpeechAdapter implements TextToSpeechPort {
 						].join("\n"),
 					},
 				],
-				response_format: {
-					type: "audio",
-					mime_type: "audio/l16",
-					sample_rate: 24_000,
-					delivery: "inline",
-				},
+				response_format: { type: "audio" },
 				generation_config: {
 					speech_config: [{ voice }],
 				},
