@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-interview_app}
+      POSTGRES_USER: ${POSTGRES_USER:-interview_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-interview_app}
+    ports:
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - interview-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/nestjs-server/Dockerfile
+    restart: unless-stopped
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      APP_NAME: ${APP_NAME:-Interview App}
+      APP_WEB_URL: ${APP_WEB_URL:-http://localhost:5173}
+      API_PREFIX: api
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://localhost:5173}
+      API_DOCS_FILE_PATH: docs/api-info.md
+      SWAGGER_ENABLE: ${SWAGGER_ENABLE:-true}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-docker-local-secret-change-before-public-deployment}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${BACKEND_PORT:-3000}}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-interview_app}
+      DB_USERNAME: ${POSTGRES_USER:-interview_app}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-interview_app}
+      DB_CONNECT_TIMEOUT_MS: 10000
+      DB_AUTO_MIGRATE: "true"
+      PGSSLMODE: disable
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-replace-with-a-google-gemini-api-key}
+      GEMINI_LLM_MODEL: ${GEMINI_LLM_MODEL:-gemini-3.6-flash}
+      GEMINI_STT_MODEL: ${GEMINI_STT_MODEL:-gemini-3.6-flash}
+      GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-3.1-flash-tts-preview}
+      GEMINI_TTS_VOICE: ${GEMINI_TTS_VOICE:-Kore}
+      GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-45000}
+      AUDIO_SILENCE_MS: ${AUDIO_SILENCE_MS:-1800}
+      AUDIO_MAX_BYTES: ${AUDIO_MAX_BYTES:-10485760}
+      MEDIA_MAX_CHUNK_BYTES: ${MEDIA_MAX_CHUNK_BYTES:-524288}
+    ports:
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/ready').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    stop_grace_period: 15s
+
+volumes:
+  interview-postgres-data:

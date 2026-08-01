@@ -1,0 +1,22 @@
+{
+	"extensionsToTreatAsEsm": [".ts"],
+	"moduleFileExtensions": ["js", "json", "ts"],
+	"rootDir": ".",
+	"testEnvironment": "node",
+	"testRegex": ".e2e-spec.ts$",
+	"testTimeout": 30000,
+	"globalSetup": "<rootDir>/global-setup.ts",
+	"setupFiles": ["<rootDir>/setup-env.ts"],
+	"moduleNameMapper": {
+		"^(\\.{1,2}/.*)\\.js$": "$1"
+	},
+	"transform": {
+		"^.+\\.ts$": [
+			"ts-jest",
+			{
+				"useESM": true,
+				"tsconfig": "<rootDir>/../tsconfig.spec.json"
+			}
+		]
+	}
+}

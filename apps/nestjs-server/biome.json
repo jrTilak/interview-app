@@ -1,0 +1,32 @@
+{
+	"root": false,
+	"extends": "//",
+	"files": {
+		"includes": ["**", "!!**/coverage", "!!**/dist"]
+	},
+	"javascript": {
+		"parser": {
+			"unsafeParameterDecoratorsEnabled": true
+		}
+	},
+	"linter": {
+		"rules": {
+			"style": {
+				"useImportType": "off",
+				"useExportType": "error"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.spec.ts", "test/**/*.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off"
+					}
+				}
+			}
+		}
+	]
+}

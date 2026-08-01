@@ -1,0 +1,7 @@
+Interview creation and realtime candidate-attempt API.
+
+Application routes require a Better Auth session cookie unless explicitly documented as public. Request bodies and parameters are strictly validated. Validation failures use HTTP 422, ownership checks hide foreign resources as 404, and unexpected server failures are sanitized.
+
+Use a UUID `clientRequestId` when creating an interview so network retries are idempotent. Hidden questions are only returned to their creator; a share-link preview exposes title, description, duration, and question count.
+
+The Socket.IO interview protocol is documented in the repository's `docs/REALTIME_PROTOCOL.md` file.

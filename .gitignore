@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build and test output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*.local
+!.env.example
+
+# Logs and caches
+*.log
+.cache/
+.eslintcache
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+
+# Drizzle local artifacts
+drizzle-local/

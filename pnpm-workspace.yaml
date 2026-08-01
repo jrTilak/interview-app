@@ -1,0 +1,14 @@
+packages:
+  - "apps/*"
+
+overrides:
+  "esbuild@<=0.24.2": "0.25.12"
+  "js-yaml@>=5.0.0 <=5.2.1": "5.2.2"
+
+allowBuilds:
+  "@google/genai": true
+  "@nestjs/core": true
+  "@scarf/scarf": false
+  "esbuild": true
+  "protobufjs": true
+  "unrs-resolver": true
