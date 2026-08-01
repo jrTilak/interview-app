@@ -17,12 +17,12 @@
 - Authenticated Socket.IO namespace with strict event validation
 - Ordered/bounded in-memory candidate audio turns and inactivity fallback
 - Single microphone ownership per attempt and bounded per-process media traffic
-- Independent Gemini LLM, WAV-wrapped buffered STT, and live streaming TTS adapters
+- Independent Gemini LLM, WAV-wrapped buffered STT, and non-streaming completed-response TTS adapters
 - First-turn greeting with candidate name and interview context
 - Natural interviewer prompt that does not teach, score, correct, or expose answers
 - Server-validated mark-question/end-interview tools and no-repeat progress
 - Active-task-only model context so future questions and candidate email stay private
-- Subtitle and TTS audio streaming to the client
+- Subtitle delivery and complete-turn TTS audio playback
 - Camera/screen acceptance with immediate discard
 - Reconnection snapshots and replay-safe client turn IDs
 - Scalar/OpenAPI references for domain and authentication APIs

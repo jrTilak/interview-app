@@ -37,7 +37,7 @@ The repository Docker Compose stack runs the frontend, backend, and PostgreSQL t
 - `interviews`: creator ownership, idempotent creation, Gemini structuring, share preview
 - `interview-attempts`: one candidate attempt per interview, durable state/progress/transcript
 - `interview-attempts/realtime`: authenticated Socket.IO gateway and bounded ephemeral buffers
-- `ai`: provider-neutral ports plus independent Gemini LLM, PCM-to-WAV STT, and streamed TTS adapters
+- `ai`: provider-neutral ports plus independent Gemini LLM, PCM-to-WAV STT, and completed-response TTS adapters
 - `db`: Drizzle schema, PostgreSQL provider, lifecycle, and migrations
 - `open-api`: separate application and Better Auth documents
 - `common`: Zod validation, response wrapping, safe exceptions, and decorators
@@ -81,7 +81,7 @@ The process keeps a small in-memory running set to reject duplicate local work. 
 - Camera/screen bytes are authorized and immediately discarded. Candidate mic bytes exist only in memory until STT returns, then are dropped.
 - Only text transcripts, media-active flags, progress, and timing state persist.
 - Raw microphone bytes are adapted to the configured STT provider in memory (RIFF/WAV for Gemini in this phase); candidate email and future hidden tasks do not go to the model.
-- Gemini TTS stream events are normalized to provider-neutral speech chunks before the realtime gateway emits ordered client audio.
+- Gemini TTS is requested without streaming. The completed raw PCM response is normalized to one provider-neutral speech block before the realtime gateway emits it to the client.
 - Creator raw questions and hidden task details are never exposed by share preview or candidate snapshots.
 - Model transcript text is treated as untrusted data, and model action IDs are restricted to server-provided task IDs.
 - Unexpected HTTP failures and provider failures return provider-neutral messages.

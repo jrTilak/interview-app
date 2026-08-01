@@ -5,7 +5,6 @@ import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
 	SPEECH_TO_TEXT,
-	type SpeechChunk,
 	type SpeechToTextPort,
 	TEXT_TO_SPEECH,
 	type TextToSpeechPort,
@@ -63,7 +62,7 @@ export class InterviewOrchestratorService {
 		}
 	}
 
-	/** Buffers one bounded utterance for gapless playback, then advances state. */
+	/** Emits one completed utterance for gapless playback, then advances state. */
 	private async _speak(
 		attemptId: string,
 		candidate: User,
@@ -76,52 +75,25 @@ export class InterviewOrchestratorService {
 			text: turn.text,
 			isFinal: true,
 		});
-		let totalBytes = 0;
-		const audioParts: Buffer[] = [];
-		let audioFormat: Omit<SpeechChunk, "bytes"> | undefined;
 		try {
-			for await (const chunk of this._textToSpeech.synthesize({
+			const audio = await this._textToSpeech.synthesize({
 				text: turn.text,
-			})) {
-				totalBytes += chunk.bytes.byteLength;
-				if (totalBytes > InterviewOrchestratorService._MAX_TTS_BYTES) {
-					throw new Error("Text-to-speech output exceeded the server limit");
-				}
-
-				const chunkFormat = {
-					mimeType: chunk.mimeType,
-					sampleRateHz: chunk.sampleRateHz,
-					channels: chunk.channels,
-				};
-				if (
-					audioFormat &&
-					(audioFormat.mimeType !== chunkFormat.mimeType ||
-						audioFormat.sampleRateHz !== chunkFormat.sampleRateHz ||
-						audioFormat.channels !== chunkFormat.channels)
-				) {
-					throw new Error("Text-to-speech format changed during an utterance");
-				}
-				audioFormat ??= chunkFormat;
-				audioParts.push(Buffer.from(chunk.bytes));
+			});
+			if (
+				audio.bytes.byteLength === 0 ||
+				audio.bytes.byteLength > InterviewOrchestratorService._MAX_TTS_BYTES
+			) {
+				throw new Error("Text-to-speech output violated the server size limit");
 			}
 
-			if (!audioFormat || audioParts.length === 0) {
-				this._emitFailure(
-					emit,
-					"AUDIO_UNAVAILABLE",
-					"Interviewer audio was unavailable; use the subtitle for this turn.",
-					true,
-				);
-			} else {
-				// Provider chunks can arrive slower than playback. One turn-sized block
-				// prevents the browser audio queue from underrunning between chunks.
-				emit("assistant:audio:chunk", {
-					turnId: turn.id,
-					sequence: 0,
-					...audioFormat,
-					data: Buffer.concat(audioParts, totalBytes),
-				});
-			}
+			emit("assistant:audio:chunk", {
+				turnId: turn.id,
+				sequence: 0,
+				mimeType: audio.mimeType,
+				sampleRateHz: audio.sampleRateHz,
+				channels: audio.channels,
+				data: audio.bytes,
+			});
 		} catch (error) {
 			this._logger.warn("Text-to-speech failed for an interview turn", error);
 			this._emitFailure(

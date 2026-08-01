@@ -46,11 +46,11 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [x] Accept bounded camera/screen chunks, authorize them, and immediately discard them
 - [x] Accept ordered, bounded microphone turns with explicit end and no-chunk timeout fallback
 - [x] Allow only one active microphone owner per attempt
-- [x] Transcribe candidate audio, persist text, and stream subtitles plus assistant audio
+- [x] Transcribe candidate audio, persist text, and deliver subtitles plus complete-turn assistant audio
 - [x] Add replaceable LLM, STT, and TTS ports with separate Gemini adapters
-- [x] Validate Gemini status, tool calls, structured data, audio formats, timeouts, and stream errors
-- [x] Wrap socket PCM as in-memory WAV for Gemini STT and normalize live Gemini TTS audio events
-- [x] Coalesce each bounded TTS utterance before delivery to prevent client playback underruns
+- [x] Validate Gemini status, tool calls, structured data, audio formats, timeouts, and provider errors
+- [x] Wrap socket PCM as in-memory WAV for Gemini STT and request one completed Gemini TTS response
+- [x] Deliver each bounded, completed TTS utterance as one client audio payload
 - [x] Avoid sending candidate email or future hidden questions to the model
 
 ## Quality and documentation
@@ -60,7 +60,7 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [x] Make E2E setup isolated and repeatable with Docker Compose
 - [x] Add lint, build, test typecheck, dependency audit, and test commands
 - [x] Document setup, architecture, API, realtime protocol, privacy, and deployment constraints
-- [x] Run a real Gemini streaming-TTS-to-WAV-STT smoke test with the compiled Docker adapters
+- [x] Run a real Gemini TTS-to-WAV-STT smoke test with the compiled Docker adapters
 
 ## React desktop client
 
@@ -71,6 +71,7 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [x] Build email signup/login/logout and authenticated application navigation
 - [x] Build interview listing, creation, detail, copy-link, and shared-link join flows
 - [x] Build the realtime interview room with preflight, camera/screen transport, PCM microphone VAD, audio playback, and subtitles
+- [x] Delay browser TTS playback until the complete assistant turn is buffered, then play one continuous source
 - [x] Hard-block mobile/tablet layouts and finish the zero-radius desktop design system
 - [x] Add frontend unit/component edge-case coverage
 - [x] Add desktop Chromium product-journey coverage

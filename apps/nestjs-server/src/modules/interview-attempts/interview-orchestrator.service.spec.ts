@@ -96,16 +96,10 @@ function modelContext() {
 	};
 }
 
-/** Produces provider-sized chunks that must become one client audio block. */
-async function* speechStream() {
-	yield {
-		bytes: Buffer.from("continuous "),
-		mimeType: "audio/l16",
-		sampleRateHz: 24_000,
-		channels: 1,
-	};
-	yield {
-		bytes: Buffer.from("voice"),
+/** Produces one completed provider-neutral TTS response. */
+async function speechResponse() {
+	return {
+		bytes: Buffer.from("continuous voice"),
 		mimeType: "audio/l16",
 		sampleRateHz: 24_000,
 		channels: 1,
@@ -113,7 +107,7 @@ async function* speechStream() {
 }
 
 describe("InterviewOrchestratorService", () => {
-	it("starts with a greeting, scopes model tool IDs, coalesces TTS, and listens", async () => {
+	it("starts with a greeting, scopes model tool IDs, emits complete TTS, and listens", async () => {
 		const attempts = {
 			start: asyncMock({
 				snapshot: snapshot("ASSISTANT_SPEAKING"),
@@ -138,7 +132,7 @@ describe("InterviewOrchestratorService", () => {
 				},
 			],
 		});
-		const tts: TextToSpeechPort = { synthesize: speechStream };
+		const tts: TextToSpeechPort = { synthesize: speechResponse };
 		const service = new InterviewOrchestratorService(
 			attempts as unknown as InterviewAttemptsService,
 			llm,
@@ -202,7 +196,7 @@ describe("InterviewOrchestratorService", () => {
 			attempts as unknown as InterviewAttemptsService,
 			createLlm(),
 			{ transcribe: rejectedAsyncMock(new Error("STT unavailable")) },
-			{ synthesize: speechStream },
+			{ synthesize: speechResponse },
 		);
 
 		await service.processCandidateAudio(
@@ -257,7 +251,7 @@ describe("InterviewOrchestratorService", () => {
 				actions: [{ type: "end_interview", reason: "done" }],
 			}),
 			{ transcribe: asyncMock("My candidate answer") },
-			{ synthesize: speechStream },
+			{ synthesize: speechResponse },
 		);
 		const events: string[] = [];
 
@@ -291,7 +285,7 @@ describe("InterviewOrchestratorService", () => {
 			attempts as unknown as InterviewAttemptsService,
 			llm,
 			{ transcribe: asyncMock("   ") },
-			{ synthesize: speechStream },
+			{ synthesize: speechResponse },
 		);
 
 		await service.processCandidateAudio(
@@ -344,7 +338,7 @@ describe("InterviewOrchestratorService", () => {
 				],
 			}),
 			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
-			{ synthesize: speechStream },
+			{ synthesize: speechResponse },
 		);
 
 		await service.start(attemptId, candidate, jest.fn());
@@ -393,7 +387,7 @@ describe("InterviewOrchestratorService", () => {
 			attempts as unknown as InterviewAttemptsService,
 			llm,
 			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
-			{ synthesize: speechStream },
+			{ synthesize: speechResponse },
 		);
 
 		await service.start(attemptId, candidate, (event) => events.push(event));
@@ -415,7 +409,7 @@ describe("InterviewOrchestratorService", () => {
 			attempts as unknown as InterviewAttemptsService,
 			createLlm(),
 			stt,
-			{ synthesize: speechStream },
+			{ synthesize: speechResponse },
 		);
 
 		await service.processCandidateAudio(

@@ -86,5 +86,5 @@ export type SpeechChunk = {
 };
 
 export interface TextToSpeechPort {
-	synthesize(input: SynthesizeSpeechInput): AsyncIterable<SpeechChunk>;
+	synthesize(input: SynthesizeSpeechInput): Promise<SpeechChunk>;
 }

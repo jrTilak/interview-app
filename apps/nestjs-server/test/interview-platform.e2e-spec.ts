@@ -89,9 +89,9 @@ const fakeSpeechToText: SpeechToTextPort = {
 };
 
 const fakeTextToSpeech: TextToSpeechPort = {
-	/** Emits one deterministic PCM-like chunk for realtime event assertions. */
-	async *synthesize() {
-		yield {
+	/** Returns one deterministic PCM-like response for realtime assertions. */
+	async synthesize() {
+		return {
 			bytes: Buffer.from("fake-pcm"),
 			mimeType: "audio/l16",
 			sampleRateHz: 24_000,

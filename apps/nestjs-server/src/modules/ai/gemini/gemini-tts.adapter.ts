@@ -7,8 +7,12 @@ import type {
 	SynthesizeSpeechInput,
 	TextToSpeechPort,
 } from "../ai.ports.js";
+import { normalizeAudioMimeType } from "../audio-formats.js";
 import { GEMINI_CLIENT } from "./gemini.constants.js";
-import { geminiRequestOptions } from "./gemini-request.js";
+
+const GEMINI_PCM_MIME_TYPE = "audio/l16";
+const GEMINI_PCM_SAMPLE_RATE_HZ = 24_000;
+const GEMINI_PCM_CHANNELS = 1;
 
 @Injectable()
 export class GeminiTextToSpeechAdapter implements TextToSpeechPort {
@@ -19,79 +23,67 @@ export class GeminiTextToSpeechAdapter implements TextToSpeechPort {
 		private readonly _config: AppConfigService,
 	) {}
 
-	/** Streams Gemini's interviewer speech chunks in their declared audio format. */
-	async *synthesize(input: SynthesizeSpeechInput): AsyncIterable<SpeechChunk> {
+	/** Fetches and returns one complete Gemini raw PCM utterance. */
+	async synthesize(input: SynthesizeSpeechInput): Promise<SpeechChunk> {
 		const voice =
 			input.voice ?? this._config.get("GEMINI_TTS_VOICE", { infer: true });
-		const stream = await this._client.interactions.create(
-			{
-				model: this._config.get("GEMINI_TTS_MODEL", { infer: true }),
-				store: false,
-				stream: true,
-				input: [
-					{
-						type: "text",
-						text: [
-							"Speak the following interviewer transcript naturally and professionally.",
-							"Do not read these directions or add any words.",
-							"TRANSCRIPT:",
-							input.text,
-						].join("\n"),
+		const timeoutMs = this._config.get("GEMINI_TIMEOUT_MS", { infer: true });
+		const timeoutSignal = AbortSignal.timeout(timeoutMs);
+		const abortSignal = input.signal
+			? AbortSignal.any([input.signal, timeoutSignal])
+			: timeoutSignal;
+		const response = await this._client.models.generateContent({
+			model: this._config.get("GEMINI_TTS_MODEL", { infer: true }),
+			contents: [
+				{
+					parts: [
+						{
+							text: [
+								"Speak the following interviewer transcript naturally and professionally.",
+								"Do not read these directions or add any words.",
+								"TRANSCRIPT:",
+								input.text,
+							].join("\n"),
+						},
+					],
+				},
+			],
+			config: {
+				abortSignal,
+				httpOptions: {
+					timeout: timeoutMs,
+					retryOptions: { attempts: 2 },
+				},
+				responseModalities: ["AUDIO"],
+				speechConfig: {
+					voiceConfig: {
+						prebuiltVoiceConfig: { voiceName: voice },
 					},
-				],
-				response_format: { type: "audio" },
-				generation_config: {
-					speech_config: [{ voice }],
 				},
 			},
-			geminiRequestOptions(
-				this._config.get("GEMINI_TIMEOUT_MS", { infer: true }),
-				input.signal,
-			),
-		);
+		});
 
-		let emitted = false;
-		let completed = false;
-		for await (const event of stream) {
-			if (event.event_type === "error") {
-				throw new Error(event.error?.message ?? "Gemini TTS stream failed");
-			}
-			if (event.event_type === "interaction.status_update") {
-				if (
-					["failed", "cancelled", "incomplete", "budget_exceeded"].includes(
-						event.status,
-					)
-				) {
-					throw new Error(`Gemini TTS ended with status: ${event.status}`);
-				}
-				continue;
-			}
-			if (event.event_type === "interaction.completed") {
-				if (event.interaction.status !== "completed") {
-					throw new Error(
-						`Gemini TTS ended with status: ${event.interaction.status}`,
-					);
-				}
-				completed = true;
-				continue;
-			}
-			if (
-				event.event_type !== "step.delta" ||
-				event.delta.type !== "audio" ||
-				!event.delta.data
-			) {
-				continue;
-			}
-			emitted = true;
-			yield {
-				bytes: Buffer.from(event.delta.data, "base64"),
-				mimeType: event.delta.mime_type ?? "audio/l16",
-				sampleRateHz: event.delta.sample_rate ?? 24_000,
-				channels: event.delta.channels ?? 1,
-			};
+		const inlineData = response.candidates?.[0]?.content?.parts?.find(
+			(part) => part.inlineData?.data,
+		)?.inlineData;
+		if (!inlineData?.data) {
+			throw new Error("Gemini TTS returned no completed audio");
 		}
-		if (!completed || !emitted) {
-			throw new Error("Gemini TTS stream ended without completed audio");
+		const mimeType = inlineData.mimeType ?? GEMINI_PCM_MIME_TYPE;
+		if (normalizeAudioMimeType(mimeType) !== GEMINI_PCM_MIME_TYPE) {
+			throw new Error(
+				`Gemini TTS returned unsupported audio type: ${mimeType}`,
+			);
 		}
+		const bytes = Buffer.from(inlineData.data, "base64");
+		if (bytes.byteLength === 0 || bytes.byteLength % 2 !== 0) {
+			throw new Error("Gemini TTS returned invalid PCM audio");
+		}
+		return {
+			bytes,
+			mimeType,
+			sampleRateHz: GEMINI_PCM_SAMPLE_RATE_HZ,
+			channels: GEMINI_PCM_CHANNELS,
+		};
 	}
 }

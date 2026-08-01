@@ -7,7 +7,7 @@ Connect a Socket.IO client to namespace `/interviews` with the Better Auth cooki
 1. Create or resume an attempt over REST.
 2. Emit `attempt:join` and wait for its acknowledgement.
 3. Subscribe to server events before emitting `attempt:start`.
-4. Play each assistant audio chunk in sequence while displaying subtitles.
+4. Buffer assistant audio through `assistant:turn:end`, then play the complete utterance once while displaying subtitles.
 5. When state becomes `LISTENING`, open one mic turn, send ordered binary chunks, then explicitly close it.
 6. Repeat until `attempt:ended`.
 
@@ -59,7 +59,7 @@ Camera and screen chunks are accepted only for an active interview when their re
 | `attempt:ended` | `{ reason: "AI_COMPLETED" | "TIME_LIMIT", endedAt }` |
 | `attempt:error` | `{ code, message, retryable }` |
 
-TTS requests Gemini's provider-selected audio format and validates each live audio event. The server buffers one size-limited assistant utterance and emits it as a single `assistant:audio:chunk`, preventing browser playback underruns when provider chunks arrive slower than real time. Gemini currently yields mono 24 kHz signed little-endian PCM (`audio/l16`); clients should still use the payload metadata. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
+TTS uses one non-streaming Gemini `generateContent` request per assistant utterance. The server validates the completed, size-limited raw PCM response and emits one `assistant:audio:chunk`. The browser buffers through `assistant:turn:end`, then creates and plays exactly one audio source, so neither provider nor network chunk timing can interrupt playback. Gemini currently returns mono 24 kHz signed little-endian PCM (`audio/l16`); clients should still use the payload metadata. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
 
 ## Reconnection
 

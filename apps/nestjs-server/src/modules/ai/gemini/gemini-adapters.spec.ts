@@ -7,6 +7,7 @@ import { GeminiSpeechToTextAdapter } from "./gemini-stt.adapter.js";
 import { GeminiTextToSpeechAdapter } from "./gemini-tts.adapter.js";
 
 type CreateFunction = (...args: any[]) => Promise<any>;
+type GenerateContentFunction = (...args: any[]) => Promise<any>;
 
 /** Creates typed provider configuration for adapter contract tests. */
 function config(): AppConfigService {
@@ -30,6 +31,20 @@ function client(create: jest.Mock<CreateFunction>): GoogleGenAI {
 /** Creates a fully typed async Interactions mock for test typechecking. */
 function createMock(response?: any): jest.Mock<CreateFunction> {
 	return jest.fn<CreateFunction>().mockResolvedValue(response);
+}
+
+/** Wraps one mocked non-streaming model call as a Google client. */
+function ttsClient(
+	generateContent: jest.Mock<GenerateContentFunction>,
+): GoogleGenAI {
+	return { models: { generateContent } } as unknown as GoogleGenAI;
+}
+
+/** Creates a typed non-streaming model mock for completed TTS responses. */
+function generateContentMock(
+	response?: any,
+): jest.Mock<GenerateContentFunction> {
+	return jest.fn<GenerateContentFunction>().mockResolvedValue(response);
 }
 
 describe("Gemini adapters", () => {
@@ -335,83 +350,91 @@ describe("Gemini adapters", () => {
 		},
 	);
 
-	it("maps streamed audio deltas to the replaceable TTS port", async () => {
-		async function* events() {
-			yield {
-				event_type: "step.delta",
-				delta: {
-					type: "audio",
-					data: Buffer.from("pcm").toString("base64"),
+	it("maps one completed audio response to one TTS port chunk", async () => {
+		const generateContent = generateContentMock({
+			candidates: [
+				{
+					content: {
+						parts: [
+							{
+								inlineData: {
+									data: Buffer.from("pcm!").toString("base64"),
+									mimeType: "audio/L16;codec=pcm;rate=24000",
+								},
+							},
+						],
+					},
+					finishReason: "STOP",
 				},
-			};
-			yield {
-				event_type: "interaction.completed",
-				interaction: { id: "interaction-1", status: "completed" },
-			};
-		}
-		const create = createMock(events());
-		const adapter = new GeminiTextToSpeechAdapter(client(create), config());
-		const chunks = [];
+			],
+		});
+		const adapter = new GeminiTextToSpeechAdapter(
+			ttsClient(generateContent),
+			config(),
+		);
+		const chunk = await adapter.synthesize({ text: "Hello" });
 
-		for await (const chunk of adapter.synthesize({ text: "Hello" })) {
-			chunks.push(chunk);
-		}
-
-		expect(chunks).toEqual([
+		expect(chunk).toEqual(
 			expect.objectContaining({
 				channels: 1,
-				mimeType: "audio/l16",
+				mimeType: "audio/L16;codec=pcm;rate=24000",
 				sampleRateHz: 24_000,
 			}),
-		]);
-		expect(Buffer.from(chunks[0]?.bytes ?? []).toString()).toBe("pcm");
-		expect(create).toHaveBeenCalledWith(
-			expect.not.objectContaining({ response_modalities: expect.anything() }),
-			expect.any(Object),
 		);
-		const request = create.mock.calls[0]?.[0];
+		expect(Buffer.from(chunk.bytes).toString()).toBe("pcm!");
+		expect(generateContent).toHaveBeenCalledTimes(1);
+		const request = generateContent.mock.calls[0]?.[0];
 		expect(request).toEqual(
 			expect.objectContaining({
-				generation_config: { speech_config: [{ voice: "Kore" }] },
-				store: false,
-				stream: true,
+				config: expect.objectContaining({
+					httpOptions: {
+						retryOptions: { attempts: 2 },
+						timeout: 10_000,
+					},
+					responseModalities: ["AUDIO"],
+					speechConfig: {
+						voiceConfig: {
+							prebuiltVoiceConfig: { voiceName: "Kore" },
+						},
+					},
+				}),
 			}),
 		);
-		expect(request.response_format).toEqual({ type: "audio" });
+		expect(request).not.toHaveProperty("stream");
 	});
 
-	it("rejects explicit and incomplete TTS stream failures", async () => {
-		async function* errorEvents() {
-			yield {
-				event_type: "error",
-				error: { message: "provider rejected audio" },
-			};
-		}
-		const failed = new GeminiTextToSpeechAdapter(
-			client(createMock(errorEvents())),
+	it("rejects missing and unsupported completed TTS audio", async () => {
+		const missing = new GeminiTextToSpeechAdapter(
+			ttsClient(generateContentMock({ candidates: [] })),
 			config(),
 		);
-		await expect(async () => {
-			for await (const _chunk of failed.synthesize({ text: "Hello" })) {
-				// The provider fails before yielding audio.
-			}
-		}).rejects.toThrow(/provider rejected audio/);
+		await expect(missing.synthesize({ text: "Hello" })).rejects.toThrow(
+			/no completed audio/,
+		);
 
-		async function* incompleteEvents() {
-			yield {
-				event_type: "interaction.status_update",
-				interaction_id: "interaction-1",
-				status: "incomplete",
-			};
-		}
-		const incomplete = new GeminiTextToSpeechAdapter(
-			client(createMock(incompleteEvents())),
+		const unsupported = new GeminiTextToSpeechAdapter(
+			ttsClient(
+				generateContentMock({
+					candidates: [
+						{
+							content: {
+								parts: [
+									{
+										inlineData: {
+											data: Buffer.from("wave").toString("base64"),
+											mimeType: "audio/wav",
+										},
+									},
+								],
+							},
+						},
+					],
+				}),
+			),
 			config(),
 		);
-		await expect(async () => {
-			for await (const _chunk of incomplete.synthesize({ text: "Hello" })) {
-				// The provider fails before yielding audio.
-			}
-		}).rejects.toThrow(/status: incomplete/);
+		await expect(unsupported.synthesize({ text: "Hello" })).rejects.toThrow(
+			/unsupported audio type/,
+		);
 	});
 });

@@ -74,7 +74,7 @@ class FakeAudioContext implements PcmAudioContextLike {
 }
 
 describe("RawPcmAudioQueuePlayer", () => {
-	it("decodes strict sequences and drains only after scheduled audio ends", async () => {
+	it("waits for turn end, then plays all transport chunks as one source", async () => {
 		const context = new FakeAudioContext();
 		const player = new RawPcmAudioQueuePlayer({
 			contextFactory: () => context,
@@ -100,28 +100,26 @@ describe("RawPcmAudioQueuePlayer", () => {
 			turnId: "assistant-1",
 		});
 
-		expect(context.sources).toHaveLength(2);
-		expect(context.sources[0]?.startTime).toBe(10);
-		expect(context.sources[1]?.startTime).toBeCloseTo(10.00025, 8);
-		const firstBuffer = context.sources[0]?.buffer as FakeAudioBuffer;
-		expect(Array.from(firstBuffer.channelData[0] ?? [])).toEqual([1, -1]);
+		expect(context.sources).toHaveLength(0);
 
 		let drained = false;
 		const ending = player.endTurn("assistant-1").then(() => {
 			drained = true;
 		});
+		expect(context.sources).toHaveLength(1);
+		expect(context.sources[0]?.startTime).toBe(10);
+		const firstBuffer = context.sources[0]?.buffer as FakeAudioBuffer;
+		expect(Array.from(firstBuffer.channelData[0] ?? [])).toEqual([1, -1, 0]);
+
 		await Promise.resolve();
 		expect(drained).toBe(false);
 		context.sources[0]?.end();
-		await Promise.resolve();
-		expect(drained).toBe(false);
-		context.sources[1]?.end();
 		await ending;
 		expect(drained).toBe(true);
 		expect(player.activeTurnId).toBeUndefined();
 	});
 
-	it("carries a partial PCM sample across chunks with stable metadata", async () => {
+	it("joins a PCM sample split across transport chunks", async () => {
 		const context = new FakeAudioContext();
 		const player = new RawPcmAudioQueuePlayer({
 			contextFactory: () => context,
@@ -144,16 +142,17 @@ describe("RawPcmAudioQueuePlayer", () => {
 			sequence: 1,
 			turnId: "assistant-2",
 		});
+		expect(context.sources).toHaveLength(0);
+		const ending = player.endTurn("assistant-2");
 		expect(context.sources).toHaveLength(1);
 		const buffer = context.sources[0]?.buffer as FakeAudioBuffer;
 		expect(Array.from(buffer.channelData[0] ?? [])).toEqual([1]);
 
-		const ending = player.endTurn("assistant-2");
 		context.sources[0]?.end();
 		await ending;
 	});
 
-	it("rejects gaps, changed partial-frame metadata, and truncated turn ends", async () => {
+	it("rejects gaps, changed turn metadata, and truncated turn ends", async () => {
 		const context = new FakeAudioContext();
 		const player = new RawPcmAudioQueuePlayer({
 			contextFactory: () => context,
@@ -171,7 +170,7 @@ describe("RawPcmAudioQueuePlayer", () => {
 		).toThrow("Expected PCM chunk 0");
 		player.enqueue({
 			channels: 1,
-			data: new Uint8Array([0x7f]),
+			data: new Uint8Array([0x7f, 0xff]),
 			mimeType: "audio/l16",
 			sampleRateHz: 8_000,
 			sequence: 0,
@@ -180,14 +179,24 @@ describe("RawPcmAudioQueuePlayer", () => {
 		expect(() =>
 			player.enqueue({
 				channels: 1,
-				data: new Uint8Array([0xff]),
+				data: new Uint8Array([0, 0]),
 				mimeType: "audio/l16",
 				sampleRateHz: 16_000,
 				sequence: 1,
 				turnId: "assistant-3",
 			}),
 		).toThrow("metadata changed");
-		await expect(player.endTurn("assistant-3")).rejects.toThrow(
+		player.stop();
+		player.beginTurn("assistant-truncated");
+		player.enqueue({
+			channels: 1,
+			data: new Uint8Array([0x7f]),
+			mimeType: "audio/l16",
+			sampleRateHz: 8_000,
+			sequence: 0,
+			turnId: "assistant-truncated",
+		});
+		await expect(player.endTurn("assistant-truncated")).rejects.toThrow(
 			"partial PCM frame",
 		);
 		player.stop();
@@ -210,8 +219,11 @@ describe("RawPcmAudioQueuePlayer", () => {
 			sequence: 0,
 			turnId: "assistant-4",
 		});
+		const ending = player.endTurn("assistant-4");
+		expect(context.sources).toHaveLength(1);
 		await player.dispose();
 		expect(context.sources[0]?.stopped).toBe(true);
+		await ending;
 		expect(context.closed).toBe(true);
 		expect(player.isRunning).toBe(false);
 		expect(() => player.beginTurn("later")).toThrow("disposed");
