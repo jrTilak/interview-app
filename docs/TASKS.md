@@ -64,6 +64,7 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [x] Make E2E setup isolated and repeatable with Docker Compose
 - [x] Add lint, build, test typecheck, dependency audit, and test commands
 - [x] Document setup, architecture, API, realtime protocol, privacy, and deployment constraints
+- [x] Document the minimum local LLM, STT, and TTS service behavior and handoff contracts
 - [x] Run a real Gemini TTS-to-WAV-STT smoke test with the compiled Docker adapters
 
 ## React desktop client
