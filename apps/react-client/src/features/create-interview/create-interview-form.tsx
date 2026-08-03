@@ -1,4 +1,12 @@
-import { Box, Button, Grid, NativeSelect, Stack, Text } from "@chakra-ui/react";
+import {
+	Box,
+	Button,
+	Grid,
+	NativeSelect,
+	Stack,
+	Switch,
+	Text,
+} from "@chakra-ui/react";
 import { useForm } from "@tanstack/react-form";
 import { useRouter } from "@tanstack/react-router";
 import { ArrowRight, Sparkles } from "lucide-react";
@@ -22,6 +30,7 @@ export function CreateInterviewForm() {
 	const router = useRouter();
 	const form = useForm({
 		defaultValues: {
+			allowMultipleAttempts: false,
 			description: "",
 			durationMinutes: 30,
 			rawQuestions: "",
@@ -133,6 +142,34 @@ export function CreateInterviewForm() {
 									<NativeSelect.Indicator />
 								</NativeSelect.Root>
 							</FieldShell>
+						)}
+					</form.Field>
+					<form.Field name="allowMultipleAttempts">
+						{(field) => (
+							<Box bg="surface" borderColor="line" borderWidth="1px" p="5">
+								<Switch.Root
+									checked={field.state.value}
+									display="flex"
+									justifyContent="space-between"
+									onBlur={field.handleBlur}
+									onCheckedChange={({ checked }) => field.handleChange(checked)}
+									w="full"
+								>
+									<Switch.HiddenInput name={field.name} />
+									<Box pr="6">
+										<Switch.Label fontWeight="700">
+											Allow repeat attempts
+										</Switch.Label>
+										<Text color="muted" fontSize="sm" lineHeight="1.55" mt="1">
+											When enabled, a candidate can start another attempt after
+											finishing. Active attempts are always resumed.
+										</Text>
+									</Box>
+									<Switch.Control mt="1">
+										<Switch.Thumb />
+									</Switch.Control>
+								</Switch.Root>
+							</Box>
 						)}
 					</form.Field>
 					<form.Field name="rawQuestions">

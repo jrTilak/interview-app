@@ -70,6 +70,11 @@ export const CreateInterviewSchema = z
 				description: "Hard interview time limit in minutes.",
 				example: 30,
 			}),
+		allowMultipleAttempts: z.boolean().default(false).meta({
+			description:
+				"Whether a candidate may start another attempt after a previous attempt finishes.",
+			example: false,
+		}),
 	})
 	.strict();
 

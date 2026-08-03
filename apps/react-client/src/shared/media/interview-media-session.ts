@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { RawPcmAudioQueuePlayer } from "./raw-pcm-audio-player.js";
+import { CompletedAudioTurnPlayer } from "./raw-pcm-audio-player.js";
 
 export type InterviewMediaSnapshot = {
 	cameraActive: boolean;
@@ -114,10 +114,8 @@ export class InterviewMediaSession {
 
 export const interviewMediaSession = new InterviewMediaSession();
 
-/** Gemini raw PCM input and output use signed 16-bit little-endian samples. */
-export const interviewAudioPlayer = new RawPcmAudioQueuePlayer({
-	endianness: "little",
-});
+/** Plays each completed server-provided WAV through native browser decoding. */
+export const interviewAudioPlayer = new CompletedAudioTurnPlayer();
 
 /** Subscribes React UI to track readiness without persisting stream objects. */
 export function useInterviewMediaSession(): InterviewMediaSnapshot {

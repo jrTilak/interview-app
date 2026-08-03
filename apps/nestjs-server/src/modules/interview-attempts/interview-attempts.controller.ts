@@ -8,9 +8,16 @@ import {
 import { ApiSessionAuth } from "../../common/decorators/api-session-auth.decorator.js";
 import { ApiSuccess } from "../../common/decorators/api-success.decorator.js";
 import { ApiResponse } from "../../common/dto/api-response.dto.js";
-import { ShareCodeParamsDto } from "../interviews/dto/request.dto.js";
+import {
+	InterviewIdParamsDto,
+	ShareCodeParamsDto,
+} from "../interviews/dto/request.dto.js";
 import { AttemptIdParamsDto } from "./dto/request.dto.js";
-import { AttemptSnapshotResponseDto } from "./dto/response.dto.js";
+import {
+	AttemptSnapshotResponseDto,
+	CandidateInterviewHistoryResponseDto,
+	CreatorAttemptHistoryResponseDto,
+} from "./dto/response.dto.js";
 import { InterviewAttemptsService } from "./interview-attempts.service.js";
 
 @Controller()
@@ -20,7 +27,7 @@ import { InterviewAttemptsService } from "./interview-attempts.service.js";
 export class InterviewAttemptsController {
 	constructor(private readonly _attemptsService: InterviewAttemptsService) {}
 
-	/** Creates or resumes the authenticated candidate's one attempt per link. */
+	/** Creates a permitted attempt or resumes the candidate's active one. */
 	@Post("shared-interviews/:shareCode/attempts")
 	@ApiOperation({ summary: "Join a shared interview" })
 	@ApiSuccess({
@@ -34,6 +41,39 @@ export class InterviewAttemptsController {
 	): Promise<ApiResponse<AttemptSnapshotResponseDto>> {
 		return new ApiResponse({
 			data: await this._attemptsService.createOrResume(shareCode, session.user),
+		});
+	}
+
+	/** Lists all candidate-safe participant attempts for an interview creator. */
+	@Get("interviews/:id/attempts")
+	@ApiOperation({ summary: "List participant attempts for my interview" })
+	@ApiSuccess({
+		description: "Creator-owned participant attempt history.",
+		type: CreatorAttemptHistoryResponseDto,
+		isArray: true,
+	})
+	async findAttempts(
+		@Param() { id }: InterviewIdParamsDto,
+		@Session() session: UserSession,
+	): Promise<ApiResponse<CreatorAttemptHistoryResponseDto[]>> {
+		return new ApiResponse({
+			data: await this._attemptsService.findAllForCreator(id, session.user),
+		});
+	}
+
+	/** Lists the authenticated candidate's complete attempt history. */
+	@Get("interview-attempts")
+	@ApiOperation({ summary: "List my taken interview history" })
+	@ApiSuccess({
+		description: "Candidate attempts grouped by interview.",
+		type: CandidateInterviewHistoryResponseDto,
+		isArray: true,
+	})
+	async findAllHistory(
+		@Session() session: UserSession,
+	): Promise<ApiResponse<CandidateInterviewHistoryResponseDto[]>> {
+		return new ApiResponse({
+			data: await this._attemptsService.findAllForCandidate(session.user),
 		});
 	}
 

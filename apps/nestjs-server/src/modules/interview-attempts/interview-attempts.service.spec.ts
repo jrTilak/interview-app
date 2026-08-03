@@ -25,9 +25,11 @@ const clientTurnId = "19ad8c03-9e89-4d23-b393-d3cd6a654900";
 type QueryChain<T> = PromiseLike<T> & {
 	from: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
 	innerJoin: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
+	leftJoin: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
 	where: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
 	limit: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
 	orderBy: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
+	groupBy: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
 	for: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
 	values: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
 	set: jest.Mock<(...args: unknown[]) => QueryChain<T>>;
@@ -40,9 +42,11 @@ function query<T>(result: T): QueryChain<T> {
 	const chain = {} as QueryChain<T>;
 	chain.from = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
 	chain.innerJoin = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
+	chain.leftJoin = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
 	chain.where = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
 	chain.limit = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
 	chain.orderBy = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
+	chain.groupBy = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
 	chain.for = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
 	chain.values = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
 	chain.set = jest.fn<(...args: unknown[]) => QueryChain<T>>(() => chain);
@@ -152,12 +156,15 @@ function snapshot(state: AttemptSnapshot["state"]): AttemptSnapshot {
 
 describe("InterviewAttemptsService", () => {
 	it("creates one attempt, initializes every question, and returns its snapshot", async () => {
-		const definitionQuery = query([{ id: interviewId }]);
+		const definitionQuery = query([
+			{ id: interviewId, allowMultipleAttempts: false },
+		]);
+		const noExistingQuery = query([]);
 		const createdQuery = query([{ id: attemptId }]);
 		const questionsQuery = query([{ id: questionId }]);
 		const progressQuery = query([]);
 		const { database, service } = databaseMock({
-			select: [definitionQuery, questionsQuery],
+			select: [definitionQuery, noExistingQuery, questionsQuery],
 			insert: [createdQuery, progressQuery],
 		});
 		const expected = snapshot("READY");
@@ -171,7 +178,7 @@ describe("InterviewAttemptsService", () => {
 			interviewId,
 			candidateId: candidate.id,
 		});
-		expect(createdQuery.onConflictDoNothing).toHaveBeenCalledTimes(1);
+		expect(createdQuery.onConflictDoNothing).toHaveBeenCalledWith();
 		expect(progressQuery.values).toHaveBeenCalledWith([
 			{ attemptId, questionId },
 		]);
@@ -179,12 +186,12 @@ describe("InterviewAttemptsService", () => {
 	});
 
 	it("resumes the same nonterminal attempt without duplicating question progress", async () => {
-		const definitionQuery = query([{ id: interviewId }]);
-		const conflictQuery = query([]);
+		const definitionQuery = query([
+			{ id: interviewId, allowMultipleAttempts: true },
+		]);
 		const existingQuery = query([{ id: attemptId, state: "LISTENING" }]);
 		const { database, service } = databaseMock({
 			select: [definitionQuery, existingQuery],
-			insert: [conflictQuery],
 		});
 		const expected = snapshot("LISTENING");
 		jest.spyOn(service, "findSnapshot").mockResolvedValue(expected);
@@ -193,22 +200,156 @@ describe("InterviewAttemptsService", () => {
 			service.createOrResume("shared-code", candidate),
 		).resolves.toBe(expected);
 
-		expect(database.insert).toHaveBeenCalledTimes(1);
+		expect(database.insert).not.toHaveBeenCalled();
 		expect(service.findSnapshot).toHaveBeenCalledWith(attemptId, candidate);
 	});
 
-	it("rejects resuming an already completed attempt", async () => {
+	it.each(["COMPLETED", "FAILED"] as const)(
+		"rejects a new single-use attempt after terminal state %s",
+		async (state) => {
+			const { service } = databaseMock({
+				select: [
+					query([{ id: interviewId, allowMultipleAttempts: false }]),
+					query([{ id: attemptId, state }]),
+				],
+			});
+
+			await expect(
+				service.createOrResume("shared-code", candidate),
+			).rejects.toThrow(ConflictException);
+		},
+	);
+
+	it("creates a fresh attempt after completion when repeats are enabled", async () => {
+		const nextAttemptId = "62c70e0a-41e3-41e4-8918-d6b198a2da9f";
+		const createdQuery = query([{ id: nextAttemptId }]);
+		const progressQuery = query([]);
 		const { service } = databaseMock({
 			select: [
-				query([{ id: interviewId }]),
+				query([{ id: interviewId, allowMultipleAttempts: true }]),
 				query([{ id: attemptId, state: "COMPLETED" }]),
+				query([{ id: questionId }]),
 			],
-			insert: [query([])],
+			insert: [createdQuery, progressQuery],
 		});
+		const expected = { ...snapshot("READY"), id: nextAttemptId };
+		jest.spyOn(service, "findSnapshot").mockResolvedValue(expected);
 
 		await expect(
 			service.createOrResume("shared-code", candidate),
-		).rejects.toThrow(ConflictException);
+		).resolves.toBe(expected);
+
+		expect(createdQuery.values).toHaveBeenCalledWith({
+			interviewId,
+			candidateId: candidate.id,
+		});
+		expect(progressQuery.values).toHaveBeenCalledWith([
+			{ attemptId: nextAttemptId, questionId },
+		]);
+	});
+
+	it("resumes a concurrently created active attempt after an insert race", async () => {
+		const concurrentAttemptId = "62c70e0a-41e3-41e4-8918-d6b198a2da9f";
+		const racedInsert = query([]);
+		const { service } = databaseMock({
+			select: [
+				query([{ id: interviewId, allowMultipleAttempts: true }]),
+				query([{ id: attemptId, state: "COMPLETED" }]),
+				query([{ id: concurrentAttemptId }]),
+			],
+			insert: [racedInsert],
+		});
+		const expected = { ...snapshot("READY"), id: concurrentAttemptId };
+		jest.spyOn(service, "findSnapshot").mockResolvedValue(expected);
+
+		await expect(
+			service.createOrResume("shared-code", candidate),
+		).resolves.toBe(expected);
+		expect(racedInsert.onConflictDoNothing).toHaveBeenCalledWith();
+		expect(service.findSnapshot).toHaveBeenCalledWith(
+			concurrentAttemptId,
+			candidate,
+		);
+	});
+
+	it("returns creator-safe participant progress for an owned interview", async () => {
+		const createdAt = new Date("2026-08-01T00:00:00.000Z");
+		const { service } = databaseMock({
+			select: [
+				query([{ id: interviewId }]),
+				query([
+					{
+						id: attemptId,
+						candidateId: candidate.id,
+						candidateName: candidate.name,
+						candidateEmail: candidate.email,
+						state: "COMPLETED",
+						endReason: "AI_COMPLETED",
+						createdAt,
+						startedAt: createdAt,
+						deadlineAt: new Date("2026-08-01T00:30:00.000Z"),
+						endedAt: new Date("2026-08-01T00:10:00.000Z"),
+						completedQuestionCount: "2",
+						totalQuestionCount: "2",
+					},
+				]),
+			],
+		});
+
+		await expect(
+			service.findAllForCreator(interviewId, candidate),
+		).resolves.toEqual([
+			expect.objectContaining({
+				id: attemptId,
+				candidate: {
+					id: candidate.id,
+					name: candidate.name,
+					email: candidate.email,
+				},
+				completedQuestionCount: 2,
+				totalQuestionCount: 2,
+			}),
+		]);
+	});
+
+	it("groups every candidate attempt under its interview", async () => {
+		const secondAttemptId = "62c70e0a-41e3-41e4-8918-d6b198a2da9f";
+		const createdAt = new Date("2026-08-01T00:00:00.000Z");
+		const base = {
+			interviewId,
+			interviewTitle: "Junior React Developer",
+			interviewDescription: null,
+			shareCode: "shared-code",
+			durationMinutes: 30,
+			allowMultipleAttempts: true,
+			state: "COMPLETED" as const,
+			endReason: "AI_COMPLETED" as const,
+			createdAt,
+			startedAt: createdAt,
+			deadlineAt: new Date("2026-08-01T00:30:00.000Z"),
+			endedAt: new Date("2026-08-01T00:10:00.000Z"),
+			completedQuestionCount: 2,
+			totalQuestionCount: 2,
+		};
+		const { service } = databaseMock({
+			select: [
+				query([
+					{ ...base, attemptId: secondAttemptId },
+					{ ...base, attemptId },
+				]),
+			],
+		});
+
+		const histories = await service.findAllForCandidate(candidate);
+
+		expect(histories).toHaveLength(1);
+		expect(histories[0]?.interview).toEqual(
+			expect.objectContaining({ id: interviewId, allowMultipleAttempts: true }),
+		);
+		expect(histories[0]?.attempts.map((attempt) => attempt.id)).toEqual([
+			secondAttemptId,
+			attemptId,
+		]);
 	});
 
 	it("does not steal a fresh PROCESSING attempt during reconnect", async () => {

@@ -7,3 +7,4 @@ The current release is a final-year-project interview demonstration, not a produ
 - Camera and screen-share chunks are authorized, bounded, and discarded by the server. They are not recorded or analyzed, so the system does not provide production-grade identity checks, cheating detection, or proctor review.
 - Realtime attempt ownership and media coordination are process-local. Horizontal scaling requires sticky routing, distributed leases, and a shared Socket.IO adapter.
 - The interview flow records transcripts and task completion only. Candidate scoring, answer evaluation, reports, and post-interview analysis are outside the current scope.
+- Creator participant history is intentionally unpaginated, and the dashboard loads it once per owned interview. This is acceptable for project-sized presentation data; pagination and a creator-wide aggregate endpoint can be added later if the dataset grows.

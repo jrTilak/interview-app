@@ -9,6 +9,7 @@ import type {
 } from "../ai.ports.js";
 import { normalizeAudioMimeType } from "../audio-formats.js";
 import { GEMINI_CLIENT } from "./gemini.constants.js";
+import { wrapPcm16LittleEndianInWave } from "./pcm-wav.js";
 
 const GEMINI_PCM_MIME_TYPE = "audio/l16";
 const GEMINI_PCM_SAMPLE_RATE_HZ = 24_000;
@@ -23,7 +24,7 @@ export class GeminiTextToSpeechAdapter implements TextToSpeechPort {
 		private readonly _config: AppConfigService,
 	) {}
 
-	/** Fetches and returns one complete Gemini raw PCM utterance. */
+	/** Fetches one complete Gemini PCM utterance and returns a browser-safe WAV. */
 	async synthesize(input: SynthesizeSpeechInput): Promise<SpeechChunk> {
 		const voice =
 			input.voice ?? this._config.get("GEMINI_TTS_VOICE", { infer: true });
@@ -75,13 +76,17 @@ export class GeminiTextToSpeechAdapter implements TextToSpeechPort {
 				`Gemini TTS returned unsupported audio type: ${mimeType}`,
 			);
 		}
-		const bytes = Buffer.from(inlineData.data, "base64");
-		if (bytes.byteLength === 0 || bytes.byteLength % 2 !== 0) {
+		const pcmBytes = Buffer.from(inlineData.data, "base64");
+		if (pcmBytes.byteLength === 0 || pcmBytes.byteLength % 2 !== 0) {
 			throw new Error("Gemini TTS returned invalid PCM audio");
 		}
 		return {
-			bytes,
-			mimeType,
+			bytes: wrapPcm16LittleEndianInWave({
+				bytes: pcmBytes,
+				channels: GEMINI_PCM_CHANNELS,
+				sampleRateHz: GEMINI_PCM_SAMPLE_RATE_HZ,
+			}),
+			mimeType: "audio/wav",
 			sampleRateHz: GEMINI_PCM_SAMPLE_RATE_HZ,
 			channels: GEMINI_PCM_CHANNELS,
 		};

@@ -12,7 +12,8 @@
 - Per-user creation quotas and same-request single-flight protection
 - Gemini structured question conversion with validated output and atomic persistence
 - Unguessable authenticated share links with candidate-safe previews
-- One resumable interview attempt per authenticated candidate
+- Creator-selected single-use or repeat-attempt interviews with one resumable active attempt per candidate
+- Creator participant activity plus candidate-isolated, grouped attempt history
 - Durable state, deadlines, asked-question progress, and text transcript
 - Authenticated Socket.IO namespace with strict event validation
 - Ordered/bounded in-memory candidate audio turns and inactivity fallback
@@ -22,7 +23,8 @@
 - Natural interviewer prompt that does not teach, score, correct, or expose answers
 - Server-validated mark-question/end-interview tools and no-repeat progress
 - Active-task-only model context so future questions and candidate email stay private
-- Subtitle delivery and complete-turn TTS audio playback
+- Subtitle delivery and one native-decoded complete-WAV TTS playback
+- Automatic disposable video-encoder pause/resume around assistant speech
 - Camera/screen acceptance with immediate discard
 - Reconnection snapshots and replay-safe client turn IDs
 - Scalar/OpenAPI references for domain and authentication APIs
@@ -31,6 +33,7 @@
 - Desktop React PWA with zero-radius Chakra theme and a hard mobile/tablet gate
 - Generated Orval clients, Axios cookies, TanStack Router guards, Query caching, Form validation, and ephemeral Zustand room state
 - Creator dashboard, creation/detail/share flows, and authenticated candidate join flow
+- Repeat-attempt creation controls, participant attempt tables, and taken-interview history
 - Device preflight, disposable camera/screen transport, PCM microphone VAD, realtime subtitles, and ordered audio playback
 - Required interview fullscreen, concealed exit warning/re-entry flow, and ephemeral exit count
 - Authenticated realtime round-trip latency indicator
@@ -47,7 +50,6 @@
 - Recording or storing camera, screen, or raw microphone media
 - Human observer dashboard
 - Inescapable kiosk controls or operating-system/browser lockdown (the Fullscreen API always preserves a user escape path)
-- Multiple attempts by the same candidate for one interview link
 
 ## Later integration work
 

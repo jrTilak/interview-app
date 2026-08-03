@@ -47,11 +47,15 @@ All paths below are under `/api`. Better Auth responses use its native response 
 | `POST /interviews` | AI-structure and atomically create an interview |
 | `GET /interviews` | List interviews owned by the creator |
 | `GET /interviews/:id` | Read creator-only raw and structured questions |
+| `GET /interviews/:id/attempts` | List metadata for every participant attempt on an owned interview |
 | `GET /shared-interviews/:shareCode` | Read candidate-safe link metadata |
-| `POST /shared-interviews/:shareCode/attempts` | Create or resume a candidate attempt |
+| `POST /shared-interviews/:shareCode/attempts` | Resume the active attempt or create one allowed by the interview policy |
+| `GET /interview-attempts` | List the candidate's interviews with every attempt grouped as history |
 | `GET /interview-attempts/:id` | Reconnect with durable state/transcript |
 
-`POST /interviews` requires a client-generated UUID in `clientRequestId`. Retrying the same ID returns the original interview without a second Gemini call, including concurrent identical requests handled by one server process. Expensive creation is limited per user and only one distinct structuring request may run for that user at a time. A provider or transaction failure leaves no partial interview.
+`POST /interviews` requires a client-generated UUID in `clientRequestId`. `allowMultipleAttempts` defaults to `false` and is fixed when the interview is created. Retrying the same ID returns the original interview without a second Gemini call, including concurrent identical requests handled by one server process. Expensive creation is limited per user and only one distinct structuring request may run for that user at a time. A provider or transaction failure leaves no partial interview.
+
+Joining always resumes an existing nonterminal attempt. After a completed or failed attempt, the server creates a fresh one only when `allowMultipleAttempts` is enabled; otherwise it returns a conflict. A partial unique database index and locked creation transaction prevent two active attempts for the same interview/candidate. History endpoints expose identity, state, timestamps, and question counts only—no scoring, analysis, hidden questions, or other candidates' transcripts.
 
 Password reset, email verification mail, social login, account/profile mutation, and account deletion are intentionally disabled.
 

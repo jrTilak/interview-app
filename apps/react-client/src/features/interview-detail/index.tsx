@@ -14,6 +14,8 @@ import { ArrowLeft, Copy, ExternalLink } from "lucide-react";
 import { ErrorState } from "@/components/atoms/error-state";
 import { LoadingState } from "@/components/atoms/loading-state";
 import { CreatorAppShell } from "@/components/layouts/app-shell";
+import { AttemptHistoryTable } from "@/components/molecules/attempt-history-table";
+import { interviewParticipantAttemptsQueryOptions } from "@/shared/api/modules/attempts/queries";
 import { interviewDetailQueryOptions } from "@/shared/api/modules/interviews/queries";
 import { copyText } from "@/shared/lib/copy-text";
 import { formatDate, formatDuration } from "@/shared/lib/format";
@@ -28,6 +30,9 @@ export function InterviewDetailScreen({
 	interviewId: string;
 }) {
 	const interview = useQuery(interviewDetailQueryOptions(interviewId));
+	const participantAttempts = useQuery(
+		interviewParticipantAttemptsQueryOptions(interviewId),
+	);
 
 	if (interview.isPending) {
 		return (
@@ -113,7 +118,10 @@ export function InterviewDetailScreen({
 					/>
 					<Meta label="Questions" value={String(detail.questionCount)} />
 					<Meta label="Created" value={formatDate(detail.createdAt)} />
-					<Meta label="Status" value="Ready" />
+					<Meta
+						label="Attempt policy"
+						value={detail.allowMultipleAttempts ? "Repeat allowed" : "One each"}
+					/>
 				</Grid>
 			</Flex>
 
@@ -143,6 +151,49 @@ export function InterviewDetailScreen({
 					</a>
 				</Button>
 			</Grid>
+
+			<Box mt="12">
+				<Flex align="baseline" justify="space-between">
+					<Box>
+						<Heading fontFamily="display" fontSize="2xl">
+							Participant attempts
+						</Heading>
+						<Text color="muted" fontSize="sm" mt="1">
+							Candidate identity, live state, question progress, and timing.
+						</Text>
+					</Box>
+					<Text color="muted" fontFamily="mono" fontSize="xs">
+						{detail.allowMultipleAttempts
+							? "REPEAT ATTEMPTS ENABLED"
+							: "ONE ATTEMPT PER CANDIDATE"}
+					</Text>
+				</Flex>
+				<Box mt="5">
+					{participantAttempts.isPending && (
+						<LoadingState label="Loading participant attempts" />
+					)}
+					{participantAttempts.isError && (
+						<ErrorState
+							description={parseError(
+								participantAttempts.error,
+								"Participant attempts could not be loaded.",
+							)}
+							onRetry={() => void participantAttempts.refetch()}
+							title="Attempts unavailable"
+						/>
+					)}
+					{participantAttempts.data && (
+						<AttemptHistoryTable
+							emptyMessage="No candidate has started this interview yet."
+							rows={participantAttempts.data.map((attempt) => ({
+								...attempt,
+								primary: attempt.candidate.name,
+								secondary: attempt.candidate.email,
+							}))}
+						/>
+					)}
+				</Box>
+			</Box>
 
 			<Box mt="12">
 				<Flex align="baseline" justify="space-between">

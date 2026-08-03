@@ -1,0 +1,3 @@
+DROP INDEX "interview_attempt_candidate_unique";--> statement-breakpoint
+ALTER TABLE "interview" ADD COLUMN "allow_multiple_attempts" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "interview_attempt_active_candidate_unique" ON "interview_attempt" USING btree ("interview_id","candidate_id") WHERE "interview_attempt"."state" not in ('COMPLETED'::interview_attempt_state, 'FAILED'::interview_attempt_state);

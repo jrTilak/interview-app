@@ -74,6 +74,7 @@ export class InterviewsService {
 				description: interview.description,
 				rawQuestions: interview.rawQuestions,
 				durationMinutes: interview.durationMinutes,
+				allowMultipleAttempts: interview.allowMultipleAttempts,
 				shareCode: interview.shareCode,
 				createdAt: interview.createdAt,
 			})
@@ -151,6 +152,7 @@ export class InterviewsService {
 					description: data.description ?? null,
 					rawQuestions: data.rawQuestions,
 					durationMinutes: data.durationMinutes,
+					allowMultipleAttempts: data.allowMultipleAttempts,
 					shareCode,
 				})
 				.onConflictDoNothing({
@@ -210,6 +212,7 @@ export class InterviewsService {
 				title: interview.title,
 				description: interview.description,
 				durationMinutes: interview.durationMinutes,
+				allowMultipleAttempts: interview.allowMultipleAttempts,
 				shareCode: interview.shareCode,
 				createdAt: interview.createdAt,
 				questionCount: count(interviewQuestion.id),
@@ -254,6 +257,7 @@ export class InterviewsService {
 				title: interview.title,
 				description: interview.description,
 				durationMinutes: interview.durationMinutes,
+				allowMultipleAttempts: interview.allowMultipleAttempts,
 				questionCount: count(interviewQuestion.id),
 			})
 			.from(interview)

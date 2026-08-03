@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CreateInterviewSchema } from "./create-interview.validation";
 
 const validDraft = {
+	allowMultipleAttempts: false,
 	description: "A final round interview",
 	durationMinutes: 30,
 	rawQuestions: "Ask for an introduction.",
@@ -18,11 +19,27 @@ describe("CreateInterviewSchema", () => {
 				title: "  Final round  ",
 			}),
 		).toEqual({
+			allowMultipleAttempts: false,
 			description: undefined,
 			durationMinutes: 30,
 			rawQuestions: "Ask about testing.",
 			title: "Final round",
 		});
+	});
+
+	it("requires an explicit boolean attempt policy", () => {
+		expect(
+			CreateInterviewSchema.parse({
+				...validDraft,
+				allowMultipleAttempts: true,
+			}),
+		).toMatchObject({ allowMultipleAttempts: true });
+		expect(
+			CreateInterviewSchema.safeParse({
+				...validDraft,
+				allowMultipleAttempts: "true",
+			}).success,
+		).toBe(false);
 	});
 
 	it.each([3, 160])(

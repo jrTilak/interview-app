@@ -43,4 +43,6 @@ export interface CreateInterviewDto {
      * @maximum 120
      */
   durationMinutes?: number;
+  /** Whether a candidate may start another attempt after a previous attempt finishes. */
+  allowMultipleAttempts?: boolean;
 }

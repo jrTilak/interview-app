@@ -12,20 +12,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ApiSuccessResponseDto } from './apiSuccessResponseDto';
+import type { CandidateInterviewHistoryResponseDto } from './candidateInterviewHistoryResponseDto';
 
-export interface SharedInterviewPreviewResponseDto {
-  title: string;
-  /** @nullable */
-  description: string | null;
-  /**
-     * @minimum -9007199254740991
-     * @maximum 9007199254740991
-     */
-  durationMinutes: number;
-  allowMultipleAttempts: boolean;
-  /**
-     * @minimum 0
-     * @maximum 9007199254740991
-     */
-  questionCount: number;
-}
+export type InterviewAttemptsControllerFindAllHistory200 = ApiSuccessResponseDto & {
+  data?: CandidateInterviewHistoryResponseDto[];
+};

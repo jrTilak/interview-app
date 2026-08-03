@@ -350,7 +350,8 @@ describe("Gemini adapters", () => {
 		},
 	);
 
-	it("maps one completed audio response to one TTS port chunk", async () => {
+	it("wraps one completed PCM response in one byte-preserving WAV", async () => {
+		const pcmBytes = Buffer.from([0x00, 0x80, 0xff, 0x7f]);
 		const generateContent = generateContentMock({
 			candidates: [
 				{
@@ -358,7 +359,7 @@ describe("Gemini adapters", () => {
 						parts: [
 							{
 								inlineData: {
-									data: Buffer.from("pcm!").toString("base64"),
+									data: pcmBytes.toString("base64"),
 									mimeType: "audio/L16;codec=pcm;rate=24000",
 								},
 							},
@@ -377,11 +378,20 @@ describe("Gemini adapters", () => {
 		expect(chunk).toEqual(
 			expect.objectContaining({
 				channels: 1,
-				mimeType: "audio/L16;codec=pcm;rate=24000",
+				mimeType: "audio/wav",
 				sampleRateHz: 24_000,
 			}),
 		);
-		expect(Buffer.from(chunk.bytes).toString()).toBe("pcm!");
+		const wave = Buffer.from(chunk.bytes);
+		expect(wave.subarray(0, 4).toString("ascii")).toBe("RIFF");
+		expect(wave.readUInt32LE(4)).toBe(36 + pcmBytes.byteLength);
+		expect(wave.subarray(8, 12).toString("ascii")).toBe("WAVE");
+		expect(wave.readUInt16LE(20)).toBe(1);
+		expect(wave.readUInt16LE(22)).toBe(1);
+		expect(wave.readUInt32LE(24)).toBe(24_000);
+		expect(wave.readUInt16LE(34)).toBe(16);
+		expect(wave.readUInt32LE(40)).toBe(pcmBytes.byteLength);
+		expect(wave.subarray(44)).toEqual(pcmBytes);
 		expect(generateContent).toHaveBeenCalledTimes(1);
 		const request = generateContent.mock.calls[0]?.[0];
 		expect(request).toEqual(

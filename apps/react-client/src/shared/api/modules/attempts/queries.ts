@@ -1,6 +1,10 @@
 import { queryOptions } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/shared/api/query-keys";
-import { getAttempt } from "./lib";
+import {
+	getAttempt,
+	listAttemptHistory,
+	listInterviewParticipantAttempts,
+} from "./lib";
 
 export function attemptQueryOptions(id: string) {
 	return queryOptions({
@@ -10,5 +14,22 @@ export function attemptQueryOptions(id: string) {
 		queryKey: QUERY_KEYS.attempts.detail(id),
 		refetchOnMount: "always",
 		staleTime: 0,
+	});
+}
+
+export function attemptHistoryQueryOptions() {
+	return queryOptions({
+		meta: { persist: false },
+		queryFn: listAttemptHistory,
+		queryKey: QUERY_KEYS.attempts.history(),
+	});
+}
+
+export function interviewParticipantAttemptsQueryOptions(interviewId: string) {
+	return queryOptions({
+		enabled: interviewId.length > 0,
+		meta: { persist: false },
+		queryFn: () => listInterviewParticipantAttempts(interviewId),
+		queryKey: QUERY_KEYS.interviews.participantAttempts(interviewId),
 	});
 }

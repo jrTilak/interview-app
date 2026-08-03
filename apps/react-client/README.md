@@ -27,10 +27,10 @@ Orval generates the application API from `http://localhost:3000/api-docs.json` a
 
 ## Interview media
 
-- Camera and screen tracks are encoded with `MediaRecorder`, acknowledged in order, and discarded by the server.
+- Camera and screen tracks are encoded with `MediaRecorder`, acknowledged in order, and discarded by the server. The disposable encoders pause while assistant audio plays, then resume without stopping their live tracks.
 - The microphone is converted in the browser to mono 16 kHz signed little-endian PCM16 for the socket protocol; the server wraps each completed turn as WAV at the Gemini STT boundary.
 - Acoustic silence detection ends a candidate turn; the server also retains its inactivity timeout as a network fallback.
-- Assistant PCM chunks are queued in sequence through the Web Audio API while final subtitle text remains visible.
+- The server sends one completed assistant WAV. The client waits for turn end, native-decodes the complete file once, and plays one Web Audio source while final subtitle text remains visible.
 - Raw media is never written to Query cache, Zustand persistence, local storage, or IndexedDB.
 
 The lobby enters application fullscreen from the candidate's explicit Begin gesture. If Escape or another browser action exits fullscreen, the live question and transcript are removed from the rendered view and a blocking re-entry screen records an ephemeral exit count. Browsers intentionally retain an escape path for user safety, so this is a deterrence and recovery workflow—not an inescapable kiosk or a security boundary. The server deadline continues during an interruption.

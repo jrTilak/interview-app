@@ -20,6 +20,7 @@ export const InterviewSummaryResponseSchema = z
 		title: z.string(),
 		description: z.string().nullable(),
 		durationMinutes: z.number().int(),
+		allowMultipleAttempts: z.boolean(),
 		questionCount: z.number().int().nonnegative(),
 		shareCode: z.string(),
 		shareUrl: z.url(),
@@ -38,6 +39,7 @@ export const SharedInterviewPreviewResponseSchema = z
 		title: z.string(),
 		description: z.string().nullable(),
 		durationMinutes: z.number().int(),
+		allowMultipleAttempts: z.boolean(),
 		questionCount: z.number().int().nonnegative(),
 	})
 	.strict();

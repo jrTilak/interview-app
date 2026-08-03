@@ -25,6 +25,7 @@ export interface InterviewDetailsResponseDto {
      * @maximum 9007199254740991
      */
   durationMinutes: number;
+  allowMultipleAttempts: boolean;
   /**
      * @minimum 0
      * @maximum 9007199254740991

@@ -99,8 +99,8 @@ function modelContext() {
 /** Produces one completed provider-neutral TTS response. */
 async function speechResponse() {
 	return {
-		bytes: Buffer.from("continuous voice"),
-		mimeType: "audio/l16",
+		bytes: Buffer.from("complete wave"),
+		mimeType: "audio/wav",
 		sampleRateHz: 24_000,
 		channels: 1,
 	};
@@ -170,10 +170,10 @@ describe("InterviewOrchestratorService", () => {
 		expect(audioEvents[0]?.payload).toEqual({
 			turnId,
 			sequence: 0,
-			mimeType: "audio/l16",
+			mimeType: "audio/wav",
 			sampleRateHz: 24_000,
 			channels: 1,
-			data: Buffer.from("continuous voice"),
+			data: Buffer.from("complete wave"),
 		});
 		expect(
 			events.findIndex(({ event }) => event === "assistant:audio:chunk"),

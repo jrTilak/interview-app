@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const CreateInterviewSchema = z.object({
+	allowMultipleAttempts: z.boolean(),
 	title: z
 		.string()
 		.trim()

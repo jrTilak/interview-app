@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import { eq } from "drizzle-orm";
 import { io, type Socket } from "socket.io-client";
 import request from "supertest";
 import { AppModule } from "../src/app.module.js";
 import { configureApplication } from "../src/bootstrap/bootstrap.js";
+import { type AppDatabase, DATABASE } from "../src/db/database.provider.js";
+import { interviewAttempt } from "../src/db/schema/index.js";
 import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
@@ -293,6 +296,7 @@ describe("interview platform end to end", () => {
 			description: "A focused project interview",
 			rawQuestions: "Ask about state and then about a difficult bug.",
 			durationMinutes: 30,
+			allowMultipleAttempts: true,
 		};
 		const created = await request(app.getHttpServer())
 			.post("/api/interviews")
@@ -302,6 +306,7 @@ describe("interview platform end to end", () => {
 		ownerInterviewId = created.body.data.id;
 		shareCode = created.body.data.shareCode;
 		expect(created.body.data.questions).toHaveLength(2);
+		expect(created.body.data.allowMultipleAttempts).toBe(true);
 		expect(created.body.data.shareUrl).toBe(
 			`http://localhost:5173/interviews/${shareCode}`,
 		);
@@ -341,6 +346,7 @@ describe("interview platform end to end", () => {
 			.expect(200);
 		expect(list.body.data).toHaveLength(1);
 		expect(list.body.data[0].questionCount).toBe(2);
+		expect(list.body.data[0].allowMultipleAttempts).toBe(true);
 
 		await request(app.getHttpServer())
 			.get(`/api/interviews/${ownerInterviewId}`)
@@ -351,6 +357,7 @@ describe("interview platform end to end", () => {
 			.set("Cookie", candidateCookie)
 			.expect(200);
 		expect(preview.body.data.questionCount).toBe(2);
+		expect(preview.body.data.allowMultipleAttempts).toBe(true);
 		expect(preview.body.data).not.toHaveProperty("questions");
 		expect(preview.body.data).not.toHaveProperty("rawQuestions");
 		await request(app.getHttpServer())
@@ -575,9 +582,137 @@ describe("interview platform end to end", () => {
 		);
 		expect(fakeLlm.turnCalls).toBe(3);
 
+		const ownerAttempts = await request(app.getHttpServer())
+			.get(`/api/interviews/${ownerInterviewId}/attempts`)
+			.set("Cookie", ownerCookie)
+			.expect(200);
+		expect(ownerAttempts.body.data).toEqual([
+			expect.objectContaining({
+				id: attemptId,
+				state: "COMPLETED",
+				candidate: expect.objectContaining({
+					email: "candidate-ada@example.com",
+				}),
+				completedQuestionCount: 2,
+				totalQuestionCount: 2,
+			}),
+		]);
+		expect(ownerAttempts.body.data[0]).not.toHaveProperty("turns");
 		await request(app.getHttpServer())
+			.get(`/api/interviews/${ownerInterviewId}/attempts`)
+			.set("Cookie", candidateCookie)
+			.expect(404);
+
+		const initialHistory = await request(app.getHttpServer())
+			.get("/api/interview-attempts")
+			.set("Cookie", candidateCookie)
+			.expect(200);
+		expect(initialHistory.body.data).toEqual([
+			expect.objectContaining({
+				interview: expect.objectContaining({
+					id: ownerInterviewId,
+					allowMultipleAttempts: true,
+				}),
+				attempts: [
+					expect.objectContaining({ id: attemptId, state: "COMPLETED" }),
+				],
+			}),
+		]);
+
+		const repeated = await request(app.getHttpServer())
 			.post(`/api/shared-interviews/${shareCode}/attempts`)
 			.set("Cookie", candidateCookie)
+			.expect(201);
+		expect(repeated.body.data.id).not.toBe(attemptId);
+		expect(repeated.body.data.state).toBe("READY");
+
+		const repeatedHistory = await request(app.getHttpServer())
+			.get("/api/interview-attempts")
+			.set("Cookie", candidateCookie)
+			.expect(200);
+		expect(repeatedHistory.body.data[0].attempts).toHaveLength(2);
+
+		const ownerCandidateHistory = await request(app.getHttpServer())
+			.get("/api/interview-attempts")
+			.set("Cookie", ownerCookie)
+			.expect(200);
+		expect(ownerCandidateHistory.body.data).toEqual([]);
+
+		const singleInterview = await request(app.getHttpServer())
+			.post("/api/interviews")
+			.set("Cookie", ownerCookie)
+			.send({
+				clientRequestId: randomUUID(),
+				title: "Single attempt interview",
+				rawQuestions: "Ask one focused project question.",
+				durationMinutes: 15,
+			})
+			.expect(201);
+		expect(singleInterview.body.data.allowMultipleAttempts).toBe(false);
+		const singleAttempt = await request(app.getHttpServer())
+			.post(
+				`/api/shared-interviews/${singleInterview.body.data.shareCode}/attempts`,
+			)
+			.set("Cookie", candidateCookie)
+			.expect(201);
+		await app
+			.get<AppDatabase>(DATABASE)
+			.update(interviewAttempt)
+			.set({
+				state: "COMPLETED",
+				startedAt: new Date(),
+				endedAt: new Date(),
+				endReason: "AI_COMPLETED",
+			})
+			.where(eq(interviewAttempt.id, singleAttempt.body.data.id));
+		await request(app.getHttpServer())
+			.post(
+				`/api/shared-interviews/${singleInterview.body.data.shareCode}/attempts`,
+			)
+			.set("Cookie", candidateCookie)
 			.expect(409);
+
+		const groupedHistory = await request(app.getHttpServer())
+			.get("/api/interview-attempts")
+			.set("Cookie", candidateCookie)
+			.expect(200);
+		expect(groupedHistory.body.data).toHaveLength(2);
+		expect(
+			groupedHistory.body.data.find(
+				(history: any) => history.interview.id === ownerInterviewId,
+			).attempts,
+		).toHaveLength(2);
+		expect(
+			groupedHistory.body.data.find(
+				(history: any) => history.interview.id === singleInterview.body.data.id,
+			).attempts,
+		).toHaveLength(1);
+
+		const otherCandidateSignup = await request(app.getHttpServer())
+			.post("/api/auth/sign-up/email")
+			.send({
+				name: "Candidate Grace",
+				email: "candidate-grace@example.com",
+				password: "candidate-password-123",
+			})
+			.expect(200);
+		const otherCandidateCookie = responseCookie(otherCandidateSignup);
+		const otherAttempt = await request(app.getHttpServer())
+			.post(`/api/shared-interviews/${shareCode}/attempts`)
+			.set("Cookie", otherCandidateCookie)
+			.expect(201);
+		const otherHistory = await request(app.getHttpServer())
+			.get("/api/interview-attempts")
+			.set("Cookie", otherCandidateCookie)
+			.expect(200);
+		expect(otherHistory.body.data).toHaveLength(1);
+		expect(otherHistory.body.data[0].attempts).toEqual([
+			expect.objectContaining({ id: otherAttempt.body.data.id }),
+		]);
+		expect(
+			groupedHistory.body.data.flatMap((history: any) =>
+				history.attempts.map((attempt: any) => attempt.id),
+			),
+		).not.toContain(otherAttempt.body.data.id);
 	});
 });

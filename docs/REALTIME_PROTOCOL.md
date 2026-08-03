@@ -59,7 +59,7 @@ Camera and screen chunks are accepted only for an active interview when their re
 | `attempt:ended` | `{ reason: "AI_COMPLETED" | "TIME_LIMIT", endedAt }` |
 | `attempt:error` | `{ code, message, retryable }` |
 
-TTS uses one non-streaming Gemini `generateContent` request per assistant utterance. The server validates the completed, size-limited raw PCM response and emits one `assistant:audio:chunk`. The browser buffers through `assistant:turn:end`, then creates and plays exactly one audio source, so neither provider nor network chunk timing can interrupt playback. Gemini currently returns mono 24 kHz signed little-endian PCM (`audio/l16`); clients should still use the payload metadata. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
+TTS uses one non-streaming Gemini `generateContent` request per assistant utterance. The server validates the completed, size-limited mono 24 kHz signed little-endian PCM response, wraps it as `audio/wav`, and emits one `assistant:audio:chunk`. The browser waits through `assistant:turn:end`, native-decodes the complete WAV once, and plays exactly one audio source with a playback-oriented Web Audio context. Camera and screen `MediaRecorder` encoders pause during this playback and resume after drain, cancellation, or failure; their device tracks are not stopped. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
 
 ## Reconnection
 

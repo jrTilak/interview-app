@@ -12,20 +12,10 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { CandidateInterviewHistoryResponseDtoAttemptsItem } from './candidateInterviewHistoryResponseDtoAttemptsItem';
+import type { CandidateInterviewHistoryResponseDtoInterview } from './candidateInterviewHistoryResponseDtoInterview';
 
-export interface SharedInterviewPreviewResponseDto {
-  title: string;
-  /** @nullable */
-  description: string | null;
-  /**
-     * @minimum -9007199254740991
-     * @maximum 9007199254740991
-     */
-  durationMinutes: number;
-  allowMultipleAttempts: boolean;
-  /**
-     * @minimum 0
-     * @maximum 9007199254740991
-     */
-  questionCount: number;
+export interface CandidateInterviewHistoryResponseDto {
+  interview: CandidateInterviewHistoryResponseDtoInterview;
+  attempts: CandidateInterviewHistoryResponseDtoAttemptsItem[];
 }

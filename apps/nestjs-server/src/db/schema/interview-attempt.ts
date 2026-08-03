@@ -62,10 +62,11 @@ export const interviewAttempt = pgTable(
 		microphoneActive: boolean("microphone_active").notNull().default(false),
 	},
 	(table) => [
-		uniqueIndex("interview_attempt_candidate_unique").on(
-			table.interviewId,
-			table.candidateId,
-		),
+		uniqueIndex("interview_attempt_active_candidate_unique")
+			.on(table.interviewId, table.candidateId)
+			.where(
+				sql`${table.state} not in ('COMPLETED'::interview_attempt_state, 'FAILED'::interview_attempt_state)`,
+			),
 		index("interview_attempt_candidate_idx").on(
 			table.candidateId,
 			table.createdAt,

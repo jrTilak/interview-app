@@ -58,6 +58,7 @@ test("shows an authenticated candidate only the safe lobby brief and device gate
 					title: "Platform engineering interview",
 					description: "A focused conversation about resilient systems.",
 					durationMinutes: 45,
+					allowMultipleAttempts: false,
 					questionCount: 4,
 				},
 			},
@@ -72,6 +73,7 @@ test("shows an authenticated candidate only the safe lobby brief and device gate
 	).toBeVisible();
 	await expect(page.getByText("45 min", { exact: true })).toBeVisible();
 	await expect(page.getByText("4 tasks", { exact: true })).toBeVisible();
+	await expect(page.getByText("One attempt", { exact: true })).toBeVisible();
 	await expect(page.getByText(hiddenCreatorName)).toHaveCount(0);
 	await expect(page.getByText(hiddenRawQuestion)).toHaveCount(0);
 	expect(unexpectedApiRequests).toEqual([]);

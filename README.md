@@ -5,9 +5,9 @@ A desktop-first AI interview platform built as a pnpm workspace. Creators turn r
 ## What works
 
 - Desktop React PWA with email/password signup, login, guarded routes, and session-aware caching
-- Creator dashboard, AI-assisted interview creation, private detail view, and copyable share links
-- Candidate device preflight and one resumable attempt per interview
-- Realtime Socket.IO room with latency status, camera/screen transport, acoustic turn detection, raw PCM microphone input, subtitles, and complete-turn audio playback
+- Creator dashboard, AI-assisted interview creation, repeat-attempt policy, participant history, private detail view, and copyable share links
+- Candidate device preflight, active-attempt resume, and grouped history for every interview taken
+- Realtime Socket.IO room with latency status, camera/screen transport, acoustic turn detection, raw PCM microphone input, subtitles, and native-decoded complete-WAV playback
 - Required application fullscreen with a concealed interruption screen and explicit re-entry after every exit
 - NestJS API with Better Auth, strict Zod boundaries, Drizzle ORM, PostgreSQL, and OpenAPI references
 - Durable transcripts, question progress, hard deadlines, reconnect snapshots, and server-controlled completion

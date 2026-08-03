@@ -25,7 +25,7 @@ The repository Docker Compose stack runs the frontend, backend, and PostgreSQL t
 - Orval generates separate Better Auth and application clients. A small Axios boundary supplies cookies, base URLs, and consistent response errors.
 - TanStack Query caches HTTP data in memory only. Zustand contains ephemeral room connection/media state and is never persisted.
 - TanStack Form and Zod validate login, signup, and interview creation at the client boundary; the server remains authoritative.
-- Camera and screen streams are disposable. Browser microphone frames are converted to mono 16 kHz signed little-endian PCM16 and ended by acoustic silence detection; the Gemini STT adapter wraps each completed turn as an in-memory WAV file.
+- Camera and screen streams are disposable. Their encoders pause while assistant speech plays to avoid competing with audio rendering, while the live tracks remain available. Browser microphone frames are converted to mono 16 kHz signed little-endian PCM16 and ended by acoustic silence detection; the Gemini STT adapter wraps each completed turn as an in-memory WAV file.
 - The PWA precaches only its static shell. API and Socket.IO paths are network-only, and updates are deferred while an interview attempt is active.
 - A desktop capability gate runs before the router can issue protected API work or activate media features.
 - The lobby unlocks Web Audio and application fullscreen from one user gesture. Leaving fullscreen removes the question/transcript UI until the candidate explicitly restores it; this cannot override the browser's mandatory Escape behavior.
@@ -35,7 +35,7 @@ The repository Docker Compose stack runs the frontend, backend, and PostgreSQL t
 
 - `auth`: Better Auth configuration and Nest bridge; email/password only
 - `interviews`: creator ownership, idempotent creation, Gemini structuring, share preview
-- `interview-attempts`: one candidate attempt per interview, durable state/progress/transcript
+- `interview-attempts`: creator-selected repeat policy, one active candidate attempt, durable state/progress/transcript, and metadata-only histories
 - `interview-attempts/realtime`: authenticated Socket.IO gateway and bounded ephemeral buffers
 - `ai`: provider-neutral ports plus independent Gemini LLM, PCM-to-WAV STT, and completed-response TTS adapters
 - `db`: Drizzle schema, PostgreSQL provider, lifecycle, and migrations
@@ -46,7 +46,8 @@ The repository Docker Compose stack runs the frontend, backend, and PostgreSQL t
 
 - An interview belongs to one creator and stores both the raw notes and normalized tasks.
 - A cryptographically random 32-character share code locates a candidate-safe preview.
-- A unique database constraint permits one attempt for each `(interview, candidate)` pair.
+- An interview stores an immutable creation-time choice that either permits or rejects later attempts by the same candidate.
+- A partial unique database constraint permits only one nonterminal attempt for each `(interview, candidate)` pair; completed and failed rows remain history.
 - Per-attempt question progress prevents repetition across reconnects.
 - Candidate and assistant text turns have monotonic sequence numbers. Raw audio/video is never persisted.
 - A client request UUID uniquely identifies an interview create operation for safe retries.
@@ -81,7 +82,7 @@ The process keeps a small in-memory running set to reject duplicate local work. 
 - Camera/screen bytes are authorized and immediately discarded. Candidate mic bytes exist only in memory until STT returns, then are dropped.
 - Only text transcripts, media-active flags, progress, and timing state persist.
 - Raw microphone bytes are adapted to the configured STT provider in memory (RIFF/WAV for Gemini in this phase); candidate email and future hidden tasks do not go to the model.
-- Gemini TTS is requested without streaming. The completed raw PCM response is normalized to one provider-neutral speech block before the realtime gateway emits it to the client.
+- Gemini TTS is requested without streaming. The completed raw PCM response is wrapped as one in-memory WAV before the realtime gateway emits it to the client; the browser native-decodes and plays one source after the turn ends.
 - Creator raw questions and hidden task details are never exposed by share preview or candidate snapshots.
 - Model transcript text is treated as untrusted data, and model action IDs are restricted to server-provided task IDs.
 - Unexpected HTTP failures and provider failures return provider-neutral messages.

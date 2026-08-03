@@ -14,6 +14,25 @@ type DisposableMediaStreamerOptions = {
 
 const MAX_CLIENT_MEDIA_CHUNK_BYTES = 480 * 1024;
 
+type PlaybackPausableStreamer = Pick<
+	DisposableMediaStreamer,
+	"pause" | "resume"
+>;
+
+/** Pauses every available disposable encoder for assistant playback. */
+export function pauseDisposableMediaStreamers(
+	...streamers: Array<PlaybackPausableStreamer | undefined>
+): void {
+	for (const streamer of streamers) streamer?.pause();
+}
+
+/** Resumes every available disposable encoder after playback or cancellation. */
+export function resumeDisposableMediaStreamers(
+	...streamers: Array<PlaybackPausableStreamer | undefined>
+): void {
+	for (const streamer of streamers) streamer?.resume();
+}
+
 /** Sends low-bitrate video chunks with single-flight backpressure for disposal. */
 export class DisposableMediaStreamer {
 	private _inFlight = false;
@@ -48,6 +67,16 @@ export class DisposableMediaStreamer {
 		this._recorder.addEventListener("dataavailable", this._handleData);
 		this._recorder.addEventListener("error", this._handleRecorderError);
 		this._recorder.start(1_000);
+	}
+
+	/** Suspends video encoding while interviewer audio is playing. */
+	pause(): void {
+		if (this._recorder?.state === "recording") this._recorder.pause();
+	}
+
+	/** Continues video encoding after interviewer audio has drained. */
+	resume(): void {
+		if (this._recorder?.state === "paused") this._recorder.resume();
 	}
 
 	stop(): void {

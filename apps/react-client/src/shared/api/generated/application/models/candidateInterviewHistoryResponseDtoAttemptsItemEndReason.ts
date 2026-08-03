@@ -13,19 +13,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SharedInterviewPreviewResponseDto {
-  title: string;
-  /** @nullable */
-  description: string | null;
-  /**
-     * @minimum -9007199254740991
-     * @maximum 9007199254740991
-     */
-  durationMinutes: number;
-  allowMultipleAttempts: boolean;
-  /**
-     * @minimum 0
-     * @maximum 9007199254740991
-     */
-  questionCount: number;
-}
+/**
+ * @nullable
+ */
+export type CandidateInterviewHistoryResponseDtoAttemptsItemEndReason = typeof CandidateInterviewHistoryResponseDtoAttemptsItemEndReason[keyof typeof CandidateInterviewHistoryResponseDtoAttemptsItemEndReason] | null;
+
+
+export const CandidateInterviewHistoryResponseDtoAttemptsItemEndReason = {
+  AI_COMPLETED: 'AI_COMPLETED',
+  TIME_LIMIT: 'TIME_LIMIT',
+} as const;

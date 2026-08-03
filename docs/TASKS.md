@@ -22,6 +22,7 @@ This is the living implementation checklist for the end-to-end interview platfor
 ## Interview creation and sharing
 
 - [x] Create creator-owned interviews from title, description, duration, and raw question notes
+- [x] Let creators choose a single-use or repeat-attempt policy when creating an interview
 - [x] Convert raw notes into strict structured tasks through the LLM port
 - [x] Validate provider output and save interviews/questions atomically
 - [x] Make create requests idempotent with `clientRequestId`
@@ -31,7 +32,8 @@ This is the living implementation checklist for the end-to-end interview platfor
 
 ## Interview execution
 
-- [x] Create or resume one attempt per interview and candidate
+- [x] Resume one active attempt and create later attempts only when the interview permits repeats
+- [x] Preserve creator-safe participant attempt history and candidate-isolated taken-interview history
 - [x] Persist the attempt state, deadline, transcript, media flags, and per-question progress
 - [x] Greet the candidate with their name and interview context
 - [x] Give the model only the current pending task and reject unknown tool-action IDs
@@ -50,13 +52,15 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [x] Add replaceable LLM, STT, and TTS ports with separate Gemini adapters
 - [x] Validate Gemini status, tool calls, structured data, audio formats, timeouts, and provider errors
 - [x] Wrap socket PCM as in-memory WAV for Gemini STT and request one completed Gemini TTS response
-- [x] Deliver each bounded, completed TTS utterance as one client audio payload
+- [x] Wrap completed Gemini TTS PCM as one WAV and native-decode it once in the browser
+- [x] Pause disposable camera/screen encoding while assistant audio plays and resume it on every exit path
 - [x] Avoid sending candidate email or future hidden questions to the model
 
 ## Quality and documentation
 
 - [x] Add focused unit tests for validation, buffering, attempt state, gateway safety, orchestration, creation limits, Gemini audio events, and WAV payloads
 - [x] Add PostgreSQL-backed REST, authentication, authorization, realtime, media, and interview-flow E2E tests
+- [x] Cover repeat policy, active-attempt uniqueness, history ownership/isolation, and completed-WAV playback edge cases
 - [x] Make E2E setup isolated and repeatable with Docker Compose
 - [x] Add lint, build, test typecheck, dependency audit, and test commands
 - [x] Document setup, architecture, API, realtime protocol, privacy, and deployment constraints
@@ -70,6 +74,7 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [x] Add TanStack Query caching, Router guards, Form validation, and Zustand room state
 - [x] Build email signup/login/logout and authenticated application navigation
 - [x] Build interview listing, creation, detail, copy-link, and shared-link join flows
+- [x] Add the repeat-attempt creation toggle, creator participant activity, and grouped candidate history
 - [x] Build the realtime interview room with preflight, camera/screen transport, PCM microphone VAD, audio playback, and subtitles
 - [x] Delay browser TTS playback until the complete assistant turn is buffered, then play one continuous source
 - [x] Hard-block mobile/tablet layouts and finish the zero-radius desktop design system

@@ -11,10 +11,13 @@ import {
 	PcmMicrophoneCaptureController,
 	WebAudioMicrophoneFrameSource,
 } from "@/shared/media";
-import { DisposableMediaStreamer } from "@/shared/realtime/disposable-media-streamer";
+import {
+	DisposableMediaStreamer,
+	pauseDisposableMediaStreamers,
+	resumeDisposableMediaStreamers,
+} from "@/shared/realtime/disposable-media-streamer";
 import type {
 	AcceptedPayload,
-	AssistantAudioChunkPayload,
 	AttemptMedia,
 	AttemptSnapshot,
 	ConnectionPingAckData,
@@ -217,6 +220,7 @@ export function useInterviewRoom(
 			const room = useInterviewRoomStore.getState();
 			const turnId = room.playback.turnId;
 			interviewAudioPlayer.stop();
+			resumeDisposableMediaStreamers(cameraStreamer, screenStreamer);
 			if (turnId) room.finishPlayback(turnId);
 		};
 
@@ -499,6 +503,7 @@ export function useInterviewRoom(
 		});
 		socket.on("assistant:subtitle", ({ text }) => setAssistantSubtitle(text));
 		socket.on("assistant:audio:chunk", (chunk) => {
+			pauseDisposableMediaStreamers(cameraStreamer, screenStreamer);
 			const generation = playbackGeneration;
 			playbackChain = playbackChain
 				.then(async () => {
@@ -506,10 +511,8 @@ export function useInterviewRoom(
 					const data = await toUint8Array(chunk.data);
 					if (disposed || generation !== playbackGeneration) return;
 					interviewAudioPlayer.enqueue({
-						channels: chunk.channels ?? 1,
 						data,
 						mimeType: chunk.mimeType,
-						sampleRateHz: chunk.sampleRateHz ?? 24_000,
 						sequence: chunk.sequence,
 						turnId: chunk.turnId,
 					});
@@ -533,6 +536,7 @@ export function useInterviewRoom(
 					if (disposed || generation !== playbackGeneration) return;
 					await interviewAudioPlayer.endTurn(turnId);
 					if (disposed || generation !== playbackGeneration) return;
+					resumeDisposableMediaStreamers(cameraStreamer, screenStreamer);
 					useInterviewRoomStore.getState().finishPlayback(turnId);
 					await maybeStartMicrophone();
 				})
@@ -686,16 +690,5 @@ export function useInterviewRoom(
 		playback,
 		retryAssistant,
 		unlockAudio,
-	};
-}
-
-/** Normalizes optional audio metadata before playback at the call site. */
-export function normalizeAssistantAudioChunk(
-	chunk: AssistantAudioChunkPayload,
-) {
-	return {
-		...chunk,
-		channels: chunk.channels ?? 1,
-		sampleRateHz: chunk.sampleRateHz ?? 24_000,
 	};
 }

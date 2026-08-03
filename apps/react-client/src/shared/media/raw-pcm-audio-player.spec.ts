@@ -1,32 +1,15 @@
-import { describe, expect, it } from "vitest";
-import type {
-	PcmAudioBufferLike,
-	PcmAudioBufferSourceLike,
-	PcmAudioContextLike,
+import { describe, expect, it, vi } from "vitest";
+import {
+	CompletedAudioTurnPlayer,
+	type DecodedAudioBufferLike,
+	type DecodedAudioBufferSourceLike,
+	type PlaybackAudioContextLike,
 } from "./raw-pcm-audio-player.js";
-import { RawPcmAudioQueuePlayer } from "./raw-pcm-audio-player.js";
 
-class FakeAudioBuffer implements PcmAudioBufferLike {
-	readonly channelData: Float32Array[];
-
-	constructor(channels: number, frameCount: number) {
-		this.channelData = Array.from(
-			{ length: channels },
-			() => new Float32Array(frameCount),
-		);
-	}
-
-	getChannelData(channel: number): Float32Array {
-		const data = this.channelData[channel];
-		if (!data) throw new RangeError("Unknown channel");
-		return data;
-	}
-}
-
-class FakeAudioSource implements PcmAudioBufferSourceLike {
-	buffer: PcmAudioBufferLike | null = null;
+class FakeAudioSource implements DecodedAudioBufferSourceLike {
+	buffer: DecodedAudioBufferLike | null = null;
 	onended: (() => void) | null = null;
-	startTime?: number;
+	startCalls = 0;
 	stopped = false;
 
 	connect(): void {}
@@ -37,8 +20,8 @@ class FakeAudioSource implements PcmAudioBufferSourceLike {
 		this.onended?.();
 	}
 
-	start(when?: number): void {
-		this.startTime = when;
+	start(): void {
+		this.startCalls += 1;
 	}
 
 	stop(): void {
@@ -46,9 +29,12 @@ class FakeAudioSource implements PcmAudioBufferSourceLike {
 	}
 }
 
-class FakeAudioContext implements PcmAudioContextLike {
+class FakeAudioContext implements PlaybackAudioContextLike {
 	closed = false;
-	currentTime = 10;
+	readonly decodedBuffer = {};
+	readonly decodeAudioData = vi.fn(
+		async (_audioData: ArrayBuffer) => this.decodedBuffer,
+	);
 	readonly destination = {};
 	readonly sources: FakeAudioSource[] = [];
 	state: AudioContextState = "suspended";
@@ -58,11 +44,7 @@ class FakeAudioContext implements PcmAudioContextLike {
 		this.state = "closed";
 	}
 
-	createBuffer(channels: number, length: number): PcmAudioBufferLike {
-		return new FakeAudioBuffer(channels, length);
-	}
-
-	createBufferSource(): PcmAudioBufferSourceLike {
+	createBufferSource(): DecodedAudioBufferSourceLike {
 		const source = new FakeAudioSource();
 		this.sources.push(source);
 		return source;
@@ -73,159 +55,99 @@ class FakeAudioContext implements PcmAudioContextLike {
 	}
 }
 
-describe("RawPcmAudioQueuePlayer", () => {
-	it("waits for turn end, then plays all transport chunks as one source", async () => {
+describe("CompletedAudioTurnPlayer", () => {
+	it("native-decodes the complete WAV once and starts one source only after turn end", async () => {
 		const context = new FakeAudioContext();
-		const player = new RawPcmAudioQueuePlayer({
+		const player = new CompletedAudioTurnPlayer({
 			contextFactory: () => context,
 		});
-		expect(player.isRunning).toBe(false);
 		await player.resume();
-		expect(player.isRunning).toBe(true);
 		player.beginTurn("assistant-1");
 		player.enqueue({
-			channels: 1,
-			data: new Uint8Array([0x7f, 0xff, 0x80, 0x00]),
-			mimeType: "audio/l16",
-			sampleRateHz: 8_000,
+			data: new Uint8Array([0x52, 0x49]),
+			mimeType: "audio/wav",
 			sequence: 0,
 			turnId: "assistant-1",
 		});
 		player.enqueue({
-			channels: 1,
-			data: new Uint8Array([0x00, 0x00]),
-			mimeType: "audio/l16; rate=8000",
-			sampleRateHz: 8_000,
+			data: new Uint8Array([0x46, 0x46]),
+			mimeType: "audio/wav",
 			sequence: 1,
 			turnId: "assistant-1",
 		});
 
+		expect(context.decodeAudioData).not.toHaveBeenCalled();
 		expect(context.sources).toHaveLength(0);
 
 		let drained = false;
 		const ending = player.endTurn("assistant-1").then(() => {
 			drained = true;
 		});
-		expect(context.sources).toHaveLength(1);
-		expect(context.sources[0]?.startTime).toBe(10);
-		const firstBuffer = context.sources[0]?.buffer as FakeAudioBuffer;
-		expect(Array.from(firstBuffer.channelData[0] ?? [])).toEqual([1, -1, 0]);
+		await vi.waitFor(() => expect(context.sources).toHaveLength(1));
 
-		await Promise.resolve();
+		expect(context.decodeAudioData).toHaveBeenCalledTimes(1);
+		expect(
+			Array.from(
+				new Uint8Array(
+					context.decodeAudioData.mock.calls[0]?.[0] as ArrayBuffer,
+				),
+			),
+		).toEqual([0x52, 0x49, 0x46, 0x46]);
+		expect(context.sources[0]?.buffer).toBe(context.decodedBuffer);
+		expect(context.sources[0]?.startCalls).toBe(1);
 		expect(drained).toBe(false);
+
 		context.sources[0]?.end();
 		await ending;
 		expect(drained).toBe(true);
 		expect(player.activeTurnId).toBeUndefined();
 	});
 
-	it("joins a PCM sample split across transport chunks", async () => {
+	it("supports subtitle-only turns and cancels decoded playback", async () => {
 		const context = new FakeAudioContext();
-		const player = new RawPcmAudioQueuePlayer({
-			contextFactory: () => context,
-		});
-		player.beginTurn("assistant-2");
-		player.enqueue({
-			channels: 1,
-			data: new Uint8Array([0x7f]),
-			mimeType: "audio/l16",
-			sampleRateHz: 24_000,
-			sequence: 0,
-			turnId: "assistant-2",
-		});
-		expect(context.sources).toHaveLength(0);
-		player.enqueue({
-			channels: 1,
-			data: new Uint8Array([0xff]),
-			mimeType: "audio/l16",
-			sampleRateHz: 24_000,
-			sequence: 1,
-			turnId: "assistant-2",
-		});
-		expect(context.sources).toHaveLength(0);
-		const ending = player.endTurn("assistant-2");
-		expect(context.sources).toHaveLength(1);
-		const buffer = context.sources[0]?.buffer as FakeAudioBuffer;
-		expect(Array.from(buffer.channelData[0] ?? [])).toEqual([1]);
-
-		context.sources[0]?.end();
-		await ending;
-	});
-
-	it("rejects gaps, changed turn metadata, and truncated turn ends", async () => {
-		const context = new FakeAudioContext();
-		const player = new RawPcmAudioQueuePlayer({
-			contextFactory: () => context,
-		});
-		player.beginTurn("assistant-3");
-		expect(() =>
-			player.enqueue({
-				channels: 1,
-				data: new Uint8Array([0, 0]),
-				mimeType: "audio/l16",
-				sampleRateHz: 8_000,
-				sequence: 1,
-				turnId: "assistant-3",
-			}),
-		).toThrow("Expected PCM chunk 0");
-		player.enqueue({
-			channels: 1,
-			data: new Uint8Array([0x7f, 0xff]),
-			mimeType: "audio/l16",
-			sampleRateHz: 8_000,
-			sequence: 0,
-			turnId: "assistant-3",
-		});
-		expect(() =>
-			player.enqueue({
-				channels: 1,
-				data: new Uint8Array([0, 0]),
-				mimeType: "audio/l16",
-				sampleRateHz: 16_000,
-				sequence: 1,
-				turnId: "assistant-3",
-			}),
-		).toThrow("metadata changed");
-		player.stop();
-		player.beginTurn("assistant-truncated");
-		player.enqueue({
-			channels: 1,
-			data: new Uint8Array([0x7f]),
-			mimeType: "audio/l16",
-			sampleRateHz: 8_000,
-			sequence: 0,
-			turnId: "assistant-truncated",
-		});
-		await expect(player.endTurn("assistant-truncated")).rejects.toThrow(
-			"partial PCM frame",
-		);
-		player.stop();
-	});
-
-	it("supports subtitle-only turns and stops pending sources on disposal", async () => {
-		const context = new FakeAudioContext();
-		const player = new RawPcmAudioQueuePlayer({
+		const player = new CompletedAudioTurnPlayer({
 			contextFactory: () => context,
 		});
 		player.beginTurn("subtitle-only");
 		await expect(player.endTurn("subtitle-only")).resolves.toBeUndefined();
+		expect(context.decodeAudioData).not.toHaveBeenCalled();
 
-		player.beginTurn("assistant-4");
+		player.beginTurn("assistant-2");
 		player.enqueue({
-			channels: 1,
-			data: new Uint8Array([0, 0]),
-			mimeType: "audio/l16",
-			sampleRateHz: 8_000,
+			data: new Uint8Array([1, 2, 3, 4]),
+			mimeType: "audio/wav",
 			sequence: 0,
-			turnId: "assistant-4",
+			turnId: "assistant-2",
 		});
-		const ending = player.endTurn("assistant-4");
-		expect(context.sources).toHaveLength(1);
+		const ending = player.endTurn("assistant-2");
+		await vi.waitFor(() => expect(context.sources).toHaveLength(1));
 		await player.dispose();
 		expect(context.sources[0]?.stopped).toBe(true);
 		await ending;
 		expect(context.closed).toBe(true);
-		expect(player.isRunning).toBe(false);
 		expect(() => player.beginTurn("later")).toThrow("disposed");
+	});
+
+	it("rejects non-WAV input and out-of-order file parts", () => {
+		const player = new CompletedAudioTurnPlayer({
+			contextFactory: () => new FakeAudioContext(),
+		});
+		player.beginTurn("assistant-3");
+		expect(() =>
+			player.enqueue({
+				data: new Uint8Array([1]),
+				mimeType: "audio/wav",
+				sequence: 1,
+				turnId: "assistant-3",
+			}),
+		).toThrow("Expected audio part 0");
+		expect(() =>
+			player.enqueue({
+				data: new Uint8Array([1]),
+				mimeType: "audio/l16",
+				sequence: 0,
+				turnId: "assistant-3",
+			}),
+		).toThrow("Unsupported assistant audio type");
 	});
 });

@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+	boolean,
 	check,
 	index,
 	integer,
@@ -24,6 +25,9 @@ export const interview = pgTable(
 		description: text("description"),
 		rawQuestions: text("raw_questions").notNull(),
 		durationMinutes: integer("duration_minutes").notNull().default(30),
+		allowMultipleAttempts: boolean("allow_multiple_attempts")
+			.notNull()
+			.default(false),
 		shareCode: varchar("share_code", { length: 32 }).notNull(),
 	},
 	(table) => [

@@ -9,6 +9,9 @@ export function useJoinInterview() {
 		mutationFn: joinInterview,
 		onSuccess(snapshot) {
 			cache.setQueryData(QUERY_KEYS.attempts.detail(snapshot.id), snapshot);
+			void cache.invalidateQueries({
+				queryKey: QUERY_KEYS.attempts.history(),
+			});
 		},
 	});
 }

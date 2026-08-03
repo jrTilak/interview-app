@@ -14,6 +14,8 @@
  */
 import type {
   InterviewAttemptsControllerCreateOrResume201,
+  InterviewAttemptsControllerFindAllHistory200,
+  InterviewAttemptsControllerFindAttempts200,
   InterviewAttemptsControllerFindSnapshot200
 } from '../models';
 
@@ -36,6 +38,28 @@ const interviewAttemptsControllerCreateOrResume = (
       options);
     }
   /**
+ * @summary List participant attempts for my interview
+ */
+const interviewAttemptsControllerFindAttempts = (
+    id: string,
+ options?: SecondParameter<typeof apiClient<InterviewAttemptsControllerFindAttempts200>>,) => {
+      return apiClient<InterviewAttemptsControllerFindAttempts200>(
+      {url: `/api/interviews/${id}/attempts`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * @summary List my taken interview history
+ */
+const interviewAttemptsControllerFindAllHistory = (
+
+ options?: SecondParameter<typeof apiClient<InterviewAttemptsControllerFindAllHistory200>>,) => {
+      return apiClient<InterviewAttemptsControllerFindAllHistory200>(
+      {url: `/api/interview-attempts`, method: 'GET'
+    },
+      options);
+    }
+  /**
  * @summary Get my interview attempt snapshot
  */
 const interviewAttemptsControllerFindSnapshot = (
@@ -46,6 +70,8 @@ const interviewAttemptsControllerFindSnapshot = (
     },
       options);
     }
-  return {interviewAttemptsControllerCreateOrResume,interviewAttemptsControllerFindSnapshot}};
+  return {interviewAttemptsControllerCreateOrResume,interviewAttemptsControllerFindAttempts,interviewAttemptsControllerFindAllHistory,interviewAttemptsControllerFindSnapshot}};
 export type InterviewAttemptsControllerCreateOrResumeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviewAttempts>['interviewAttemptsControllerCreateOrResume']>>>
+export type InterviewAttemptsControllerFindAttemptsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviewAttempts>['interviewAttemptsControllerFindAttempts']>>>
+export type InterviewAttemptsControllerFindAllHistoryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviewAttempts>['interviewAttemptsControllerFindAllHistory']>>>
 export type InterviewAttemptsControllerFindSnapshotResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviewAttempts>['interviewAttemptsControllerFindSnapshot']>>>

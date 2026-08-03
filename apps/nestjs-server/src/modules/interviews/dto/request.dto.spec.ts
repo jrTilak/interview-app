@@ -7,7 +7,7 @@ const validInput = {
 };
 
 describe("interview request schemas", () => {
-	it("normalizes a valid create request and supplies duration", () => {
+	it("normalizes a valid create request and supplies safe defaults", () => {
 		const result = CreateInterviewSchema.parse({
 			...validInput,
 			title: "  Frontend interview  ",
@@ -15,6 +15,7 @@ describe("interview request schemas", () => {
 
 		expect(result.title).toBe("Frontend interview");
 		expect(result.durationMinutes).toBe(30);
+		expect(result.allowMultipleAttempts).toBe(false);
 	});
 
 	it("rejects unknown fields and out-of-range durations", () => {

@@ -19,6 +19,7 @@ import {
 	ListChecks,
 	type Mic,
 	MonitorUp,
+	Repeat2,
 	ShieldCheck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -226,6 +227,15 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 									icon={ListChecks}
 									label="Question set"
 									value={`${preview.data.questionCount} tasks`}
+								/>
+								<BriefStat
+									icon={Repeat2}
+									label="Attempt policy"
+									value={
+										preview.data.allowMultipleAttempts
+											? "Repeat allowed"
+											: "One attempt"
+									}
 								/>
 							</Flex>
 

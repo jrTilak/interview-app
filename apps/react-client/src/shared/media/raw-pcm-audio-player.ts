@@ -1,66 +1,47 @@
-import {
-	assertL16MimeType,
-	assertPcmSampleRate,
-	decodePcm16Interleaved,
-	PCM16_BYTES_PER_SAMPLE,
-	type Pcm16Endianness,
-} from "./pcm16.js";
-
-export type RawPcmPlaybackChunk = {
-	channels: number;
+export type CompletedAudioPlaybackChunk = {
 	data: ArrayBuffer | Uint8Array;
 	mimeType: string;
-	sampleRateHz: number;
 	sequence: number;
 	turnId: string;
 };
 
-export interface PcmAudioBufferLike {
-	getChannelData(channel: number): Float32Array;
-}
+export type DecodedAudioBufferLike = object;
 
-export interface PcmAudioBufferSourceLike {
-	buffer: PcmAudioBufferLike | null;
+export interface DecodedAudioBufferSourceLike {
+	buffer: DecodedAudioBufferLike | null;
 	onended: (() => void) | null;
 	connect(destination: unknown): unknown;
 	disconnect(): void;
-	start(when?: number): void;
+	start(): void;
 	stop(): void;
 }
 
-export interface PcmAudioContextLike {
-	readonly currentTime: number;
+export interface PlaybackAudioContextLike {
 	readonly destination: unknown;
 	readonly state: AudioContextState;
 	close(): Promise<void>;
-	createBuffer(
-		numberOfChannels: number,
-		length: number,
-		sampleRate: number,
-	): PcmAudioBufferLike;
-	createBufferSource(): PcmAudioBufferSourceLike;
+	createBufferSource(): DecodedAudioBufferSourceLike;
+	decodeAudioData(audioData: ArrayBuffer): Promise<DecodedAudioBufferLike>;
 	resume(): Promise<void>;
 }
 
-export type RawPcmAudioPlayerOptions = {
-	contextFactory?: () => PcmAudioContextLike;
-	endianness?: Pcm16Endianness;
-};
-
-type PcmTurnMetadata = {
-	channels: number;
-	sampleRateHz: number;
+export type CompletedAudioPlayerOptions = {
+	contextFactory?: () => PlaybackAudioContextLike;
 };
 
 type WindowWithWebkitAudio = Window & {
 	webkitAudioContext?: typeof AudioContext;
 };
 
-function createBrowserAudioContext(): PcmAudioContextLike {
+const WAVE_MIME_TYPES = new Set(["audio/wav", "audio/wave", "audio/x-wav"]);
+
+function createBrowserAudioContext(): PlaybackAudioContextLike {
 	const Constructor =
 		window.AudioContext ?? (window as WindowWithWebkitAudio).webkitAudioContext;
 	if (!Constructor) throw new Error("Web Audio is unavailable in this browser");
-	return new Constructor() as unknown as PcmAudioContextLike;
+	return new Constructor({
+		latencyHint: "playback",
+	}) as unknown as PlaybackAudioContextLike;
 }
 
 function copyBytes(data: ArrayBuffer | Uint8Array): Uint8Array {
@@ -68,37 +49,38 @@ function copyBytes(data: ArrayBuffer | Uint8Array): Uint8Array {
 	return new Uint8Array(data.slice(0));
 }
 
-function sameMetadata(left: PcmTurnMetadata, right: PcmTurnMetadata): boolean {
-	return (
-		left.channels === right.channels && left.sampleRateHz === right.sampleRateHz
-	);
+function normalizeMimeType(mimeType: string): string {
+	return mimeType.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+	const copied = new ArrayBuffer(bytes.byteLength);
+	new Uint8Array(copied).set(bytes);
+	return copied;
 }
 
 /**
- * Buffers one server-provided L16 turn, then plays it through Web Audio.
+ * Buffers one complete WAV turn and lets the browser decode and play it once.
  *
- * A turn must begin before sequence zero and end after its final chunk. The end
- * signal creates exactly one browser audio source after every byte has arrived.
- * Its promise resolves only when playback has actually drained, allowing callers
- * to delay microphone capture even if the server has already entered LISTENING.
+ * Native decoding avoids JavaScript PCM conversion and starts exactly one audio
+ * source only after the server's turn-end event confirms the file is complete.
  */
-export class RawPcmAudioQueuePlayer {
+export class CompletedAudioTurnPlayer {
 	private _activeTurnId?: string;
 	private _bufferedByteLength = 0;
 	private _bufferedParts: Uint8Array[] = [];
-	private _context?: PcmAudioContextLike;
-	private readonly _contextFactory: () => PcmAudioContextLike;
+	private _context?: PlaybackAudioContextLike;
+	private readonly _contextFactory: () => PlaybackAudioContextLike;
 	private _disposed = false;
 	private readonly _drainResolvers = new Set<() => void>();
-	private readonly _endianness: Pcm16Endianness;
 	private _expectedSequence = 0;
+	private _generation = 0;
 	private _inputEnded = false;
-	private readonly _pendingSources = new Set<PcmAudioBufferSourceLike>();
-	private _turnMetadata?: PcmTurnMetadata;
+	private _mimeType?: string;
+	private readonly _pendingSources = new Set<DecodedAudioBufferSourceLike>();
 
-	constructor(options: RawPcmAudioPlayerOptions = {}) {
+	constructor(options: CompletedAudioPlayerOptions = {}) {
 		this._contextFactory = options.contextFactory ?? createBrowserAudioContext;
-		this._endianness = options.endianness ?? "big";
 	}
 
 	get activeTurnId(): string | undefined {
@@ -120,64 +102,58 @@ export class RawPcmAudioQueuePlayer {
 		if (context.state !== "running") await context.resume();
 	}
 
-	/** Opens one independent assistant turn whose first chunk must be sequence zero. */
+	/** Opens one assistant turn whose first file part must be sequence zero. */
 	beginTurn(turnId: string): void {
-		if (this._disposed) throw new Error("The PCM player has been disposed");
+		if (this._disposed) throw new Error("The audio player has been disposed");
 		if (!turnId.trim()) throw new TypeError("Assistant turn ID is required");
 		if (this._activeTurnId || this._pendingSources.size > 0) {
 			throw new Error("Another assistant audio turn is still active");
 		}
 
+		this._generation += 1;
 		this._activeTurnId = turnId;
 		this._bufferedByteLength = 0;
 		this._bufferedParts = [];
 		this._expectedSequence = 0;
 		this._inputEnded = false;
-		this._turnMetadata = undefined;
+		this._mimeType = undefined;
 	}
 
-	/** Validates and stores exactly the next transport chunk without playing it. */
-	enqueue(chunk: RawPcmPlaybackChunk): void {
+	/** Validates and stores exactly the next WAV file part without playing it. */
+	enqueue(chunk: CompletedAudioPlaybackChunk): void {
 		if (!this._activeTurnId || chunk.turnId !== this._activeTurnId) {
-			throw new Error("PCM chunk does not match the active assistant turn");
+			throw new Error("Audio does not match the active assistant turn");
 		}
 		if (this._inputEnded) {
 			throw new Error("Assistant audio input has already ended");
 		}
 		if (chunk.sequence !== this._expectedSequence) {
 			throw new RangeError(
-				`Expected PCM chunk ${this._expectedSequence}, received ${chunk.sequence}`,
+				`Expected audio part ${this._expectedSequence}, received ${chunk.sequence}`,
 			);
 		}
-		assertL16MimeType(chunk.mimeType);
-		assertPcmSampleRate(chunk.sampleRateHz);
-		if (
-			!Number.isInteger(chunk.channels) ||
-			chunk.channels < 1 ||
-			chunk.channels > 2
-		) {
-			throw new RangeError("PCM playback supports one or two channels");
+
+		const mimeType = normalizeMimeType(chunk.mimeType);
+		if (!WAVE_MIME_TYPES.has(mimeType)) {
+			throw new TypeError(
+				`Unsupported assistant audio type: ${chunk.mimeType}`,
+			);
+		}
+		if (this._mimeType && this._mimeType !== mimeType) {
+			throw new Error("Audio type changed during an assistant turn");
 		}
 
 		const incoming = copyBytes(chunk.data);
 		if (incoming.byteLength === 0) {
-			throw new RangeError("PCM playback chunks cannot be empty");
+			throw new RangeError("Assistant audio parts cannot be empty");
 		}
-		const metadata: PcmTurnMetadata = {
-			channels: chunk.channels,
-			sampleRateHz: chunk.sampleRateHz,
-		};
-		if (this._turnMetadata && !sameMetadata(this._turnMetadata, metadata)) {
-			throw new Error("PCM metadata changed during an assistant turn");
-		}
-
-		this._turnMetadata ??= metadata;
+		this._mimeType ??= mimeType;
 		this._bufferedParts.push(incoming);
 		this._bufferedByteLength += incoming.byteLength;
 		this._expectedSequence += 1;
 	}
 
-	/** Plays the fully received turn once, then resolves after it has drained. */
+	/** Decodes the fully received WAV once and resolves after playback drains. */
 	async endTurn(turnId: string): Promise<void> {
 		if (!this._activeTurnId || turnId !== this._activeTurnId) {
 			throw new Error("Assistant turn end does not match the active turn");
@@ -185,38 +161,33 @@ export class RawPcmAudioQueuePlayer {
 		if (this._inputEnded) {
 			throw new Error("Assistant audio input has already ended");
 		}
-		const metadata = this._turnMetadata;
-		if (
-			metadata &&
-			this._bufferedByteLength %
-				(PCM16_BYTES_PER_SAMPLE * metadata.channels) !==
-				0
-		) {
-			throw new RangeError("Assistant audio ended with a partial PCM frame");
-		}
 
+		const generation = this._generation;
 		this._inputEnded = true;
-		if (metadata && this._bufferedByteLength > 0) {
+		if (this._bufferedByteLength > 0) {
 			const bytes = new Uint8Array(this._bufferedByteLength);
 			let offset = 0;
 			for (const part of this._bufferedParts) {
 				bytes.set(part, offset);
 				offset += part.byteLength;
 			}
-			this._play(bytes, metadata.channels, metadata.sampleRateHz);
+			await this._decodeAndPlay(bytes, turnId, generation);
 		}
 		await this.waitUntilDrained();
-		if (this._activeTurnId === turnId) this._resetTurn();
+		if (this._activeTurnId === turnId && this._generation === generation) {
+			this._resetTurn();
+		}
 	}
 
-	/** Resolves immediately when idle or after every currently scheduled source ends. */
+	/** Resolves immediately when idle or after the current source ends. */
 	waitUntilDrained(): Promise<void> {
 		if (this._pendingSources.size === 0) return Promise.resolve();
 		return new Promise((resolve) => this._drainResolvers.add(resolve));
 	}
 
-	/** Stops queued playback and clears the current turn without closing Web Audio. */
+	/** Stops playback and clears the current turn without closing Web Audio. */
 	stop(): void {
+		this._generation += 1;
 		for (const source of this._pendingSources) {
 			source.onended = null;
 			try {
@@ -242,26 +213,19 @@ export class RawPcmAudioQueuePlayer {
 		this._context = undefined;
 	}
 
-	private _getContext(): PcmAudioContextLike {
-		if (this._disposed) throw new Error("The PCM player has been disposed");
-		this._context ??= this._contextFactory();
-		return this._context;
-	}
-
-	private _play(
+	private async _decodeAndPlay(
 		bytes: Uint8Array,
-		channels: number,
-		sampleRateHz: number,
-	): void {
-		const decoded = decodePcm16Interleaved(bytes, channels, this._endianness);
-		const frameCount = decoded[0]?.length ?? 0;
-		if (frameCount === 0) return;
-
+		turnId: string,
+		generation: number,
+	): Promise<void> {
 		const context = this._getContext();
-		const buffer = context.createBuffer(channels, frameCount, sampleRateHz);
-		for (let channel = 0; channel < channels; channel += 1) {
-			const channelData = decoded[channel];
-			if (channelData) buffer.getChannelData(channel).set(channelData);
+		const buffer = await context.decodeAudioData(toArrayBuffer(bytes));
+		if (
+			this._disposed ||
+			this._activeTurnId !== turnId ||
+			this._generation !== generation
+		) {
+			return;
 		}
 
 		const source = context.createBufferSource();
@@ -274,7 +238,7 @@ export class RawPcmAudioQueuePlayer {
 		};
 		this._pendingSources.add(source);
 		try {
-			source.start(context.currentTime);
+			source.start();
 		} catch (error) {
 			source.onended = null;
 			source.disconnect();
@@ -282,6 +246,12 @@ export class RawPcmAudioQueuePlayer {
 			this._resolveDrained();
 			throw error;
 		}
+	}
+
+	private _getContext(): PlaybackAudioContextLike {
+		if (this._disposed) throw new Error("The audio player has been disposed");
+		this._context ??= this._contextFactory();
+		return this._context;
 	}
 
 	private _resolveDrained(): void {
@@ -296,6 +266,6 @@ export class RawPcmAudioQueuePlayer {
 		this._bufferedParts = [];
 		this._expectedSequence = 0;
 		this._inputEnded = false;
-		this._turnMetadata = undefined;
+		this._mimeType = undefined;
 	}
 }
