@@ -1,0 +1,12 @@
+# Voice model files - large binaries, download separately (see README)
+*.onnx
+*.onnx.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Test output
+*.wav
