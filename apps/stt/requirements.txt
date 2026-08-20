@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+faster-whisper
+numpy
+scipy
+python-multipart
