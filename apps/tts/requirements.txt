@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+piper-tts
+numpy
+scipy
