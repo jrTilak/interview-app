@@ -4,11 +4,11 @@
 
 The repository includes an optional FastAPI/faster-whisper service in `apps/stt`. It transcribes one completed candidate answer and returns text; it does not decide when a turn ends, generate interviewer content, manage attempts, or retain audio.
 
-Gemini remains the default for every AI port. Selecting local STT changes only candidate transcription. The Gemini LLM is still required, and TTS also remains Gemini unless selected independently.
+Gemini remains the default for every AI port. Selecting local STT changes only candidate transcription; the LLM and TTS retain their independently configured providers.
 
 ## Docker Compose
 
-Export a valid `GEMINI_API_KEY`, then run local STT from the repository root:
+When the LLM or TTS remains on Gemini, export a valid `GEMINI_API_KEY`, then run local STT from the repository root:
 
 ```bash
 STT_PROVIDER=local docker compose --profile local-stt up --build --wait
@@ -20,9 +20,17 @@ To run both local speech providers while retaining the Gemini LLM:
 STT_PROVIDER=local TTS_PROVIDER=local docker compose --profile local-stt --profile local-tts up --build --wait
 ```
 
+To run LLM, STT, and TTS locally without a real Gemini key or Google API calls:
+
+```bash
+LLM_PROVIDER=local STT_PROVIDER=local TTS_PROVIDER=local \
+  docker compose --profile local-llm --profile local-stt --profile local-tts \
+  up --build --wait
+```
+
 The `local-stt` profile builds `apps/stt/Dockerfile`, starts one Uvicorn worker, and publishes `http://127.0.0.1:18083` by default. Compose connects the backend to it at `http://stt:8002`. The image health check calls `/health` and becomes healthy only after Whisper is loaded.
 
-The backend has no hard dependency on the profiled service. Ordinary `docker compose up --build --wait` therefore stays backward-compatible and uses Gemini STT. Do not set `STT_PROVIDER=local` unless the local service is running and reachable.
+The backend has no hard dependency on the profiled service. Ordinary `docker compose up --build --wait` therefore stays backward-compatible and uses Gemini STT. Do not set `STT_PROVIDER=local` unless the local service is running and reachable. See the [local LLM guide](LOCAL_LLM_SERVICE.md) for model download and hardware requirements when enabling the full local stack.
 
 Check readiness directly with:
 

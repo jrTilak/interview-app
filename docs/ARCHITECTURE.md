@@ -9,7 +9,9 @@ React desktop PWA (nginx in Compose)
                                          |
                                          v
                                 interview orchestrator
-                                  |-- LLM --> Gemini -----------------> Google API
+                                  |-- LLM --> provider selector
+                                  |            |-- Gemini (default) --> Google API
+                                  |            `-- local Qwen -------> FastAPI --> Ollama
                                   |-- STT --> provider selector
                                   |            |-- Gemini (default) --> Google API
                                   |            `-- local Whisper ----> FastAPI service
@@ -20,7 +22,7 @@ React desktop PWA (nginx in Compose)
 
 NestJS is the source of truth. On each turn the model receives only the current pending task, never the future hidden list. It may propose only two narrow actions: mark that known question ID as asked and request interview completion. The server validates IDs, refuses early completion while a task remains, enforces the deadline independently, and owns every state transition.
 
-The repository Docker Compose stack runs the frontend, backend, and PostgreSQL together on loopback-bound host ports. nginx serves the PWA and proxies same-origin API and WebSocket traffic to NestJS. PostgreSQL must pass its health check before NestJS starts; with `DB_AUTO_MIGRATE=true`, the server applies its bundled Drizzle migrations before it begins listening. The backend readiness check also queries PostgreSQL so dependency loss is reflected in container health, and the frontend waits for that readiness check. Loopback-published Whisper and Piper services are available independently through the `local-stt` and `local-tts` profiles. The backend does not depend on either optional service, preserving the default Gemini-only topology.
+The repository Docker Compose stack runs the frontend, backend, and PostgreSQL together on loopback-bound host ports. nginx serves the PWA and proxies same-origin API and WebSocket traffic to NestJS. PostgreSQL must pass its health check before NestJS starts; with `DB_AUTO_MIGRATE=true`, the server applies its bundled Drizzle migrations before it begins listening. The backend readiness check also queries PostgreSQL so dependency loss is reflected in container health, and the frontend waits for that readiness check. Optional `local-llm`, `local-stt`, and `local-tts` profiles publish loopback-only FastAPI endpoints. The LLM profile starts Ollama, pulls Qwen into a persistent named volume, and starts the LLM service only after the pull succeeds. The backend has no hard dependency on any optional provider, preserving the default Gemini-only topology.
 
 ## Client boundaries
 
@@ -37,10 +39,10 @@ The repository Docker Compose stack runs the frontend, backend, and PostgreSQL t
 ## Modules
 
 - `auth`: Better Auth configuration and Nest bridge; email/password only
-- `interviews`: creator ownership, idempotent creation, Gemini structuring, share preview
+- `interviews`: creator ownership, idempotent creation, configured-LLM structuring, share preview
 - `interview-attempts`: creator-selected repeat policy, one active candidate attempt, durable state/progress/transcript, and metadata-only histories
 - `interview-attempts/realtime`: authenticated Socket.IO gateway and bounded ephemeral buffers
-- `ai`: provider-neutral ports plus Gemini LLM/STT/TTS and local HTTP STT/TTS adapters; `STT_PROVIDER` and `TTS_PROVIDER` independently select speech bindings at startup
+- `ai`: provider-neutral ports plus Gemini adapters and local HTTP LLM/STT/TTS adapters; `LLM_PROVIDER`, `STT_PROVIDER`, and `TTS_PROVIDER` independently select bindings at startup
 - `db`: Drizzle schema, PostgreSQL provider, lifecycle, and migrations
 - `open-api`: separate application and Better Auth documents
 - `common`: Zod validation, response wrapping, safe exceptions, and decorators
@@ -87,9 +89,9 @@ The process keeps a small in-memory running set to reject duplicate local work. 
 - Raw microphone bytes are adapted to the configured STT provider in memory (RIFF/WAV for Gemini or multipart PCM/WAV for local Whisper); candidate email and future hidden tasks do not go to the model.
 - TTS is non-streaming. Gemini returns raw PCM that its adapter wraps as WAV; the local Piper service returns a validated mono 24 kHz, 16-bit PCM WAV directly. In either case, the realtime gateway emits one complete in-memory WAV and the browser native-decodes one source after the turn ends.
 - Creator raw questions and hidden task details are never exposed by share preview or candidate snapshots.
-- Model transcript text is treated as untrusted data, and model action IDs are restricted to server-provided task IDs.
+- Model transcript and creator text are treated as untrusted data, and model action IDs are restricted to server-provided task IDs. The local LLM receives the same active-task-only context and is not given candidate email or future questions.
 - Unexpected HTTP failures and provider failures return provider-neutral messages.
 
 ## Provider replacement
 
-The application depends only on `InterviewLlmPort`, `SpeechToTextPort`, and `TextToSpeechPort`. STT and TTS support independently selected local HTTP implementations; Gemini remains every port's default and the only implemented LLM provider. Future providers can implement the same interfaces without modifying interview domain services or the realtime gateway. Provider failures do not cross-fallback silently.
+The application depends only on `InterviewLlmPort`, `SpeechToTextPort`, and `TextToSpeechPort`. Every port supports an independently selected local HTTP implementation while Gemini remains the default. Future providers can implement the same interfaces without modifying interview domain services or the realtime gateway. Provider failures do not cross-fallback silently.

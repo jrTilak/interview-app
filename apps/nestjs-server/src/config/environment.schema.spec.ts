@@ -20,6 +20,9 @@ describe("EnvironmentSchema", () => {
 		expect(result.DB_AUTO_MIGRATE).toBe(false);
 		expect(result.AUDIO_SILENCE_MS).toBe(1800);
 		expect(result.GEMINI_LLM_MODEL).toBe("gemini-3.6-flash");
+		expect(result.LLM_PROVIDER).toBe("gemini");
+		expect(result.LOCAL_LLM_URL).toBe("http://127.0.0.1:8003");
+		expect(result.LOCAL_LLM_TIMEOUT_MS).toBe(120_000);
 		expect(result.STT_PROVIDER).toBe("gemini");
 		expect(result.LOCAL_STT_URL).toBe("http://127.0.0.1:8002");
 		expect(result.LOCAL_STT_TIMEOUT_MS).toBe(45_000);
@@ -39,6 +42,9 @@ describe("EnvironmentSchema", () => {
 			SWAGGER_ENABLE: "false",
 			DB_AUTO_MIGRATE: "true",
 			AUDIO_MAX_BYTES: "4096",
+			LLM_PROVIDER: "local",
+			LOCAL_LLM_URL: "http://llm:9002",
+			LOCAL_LLM_TIMEOUT_MS: "90000",
 			STT_PROVIDER: "local",
 			LOCAL_STT_URL: "http://stt:9001",
 			LOCAL_STT_TIMEOUT_MS: "25000",
@@ -52,6 +58,9 @@ describe("EnvironmentSchema", () => {
 		expect(result.SWAGGER_ENABLE).toBe(false);
 		expect(result.DB_AUTO_MIGRATE).toBe(true);
 		expect(result.AUDIO_MAX_BYTES).toBe(4096);
+		expect(result.LLM_PROVIDER).toBe("local");
+		expect(result.LOCAL_LLM_URL).toBe("http://llm:9002");
+		expect(result.LOCAL_LLM_TIMEOUT_MS).toBe(90_000);
 		expect(result.STT_PROVIDER).toBe("local");
 		expect(result.LOCAL_STT_URL).toBe("http://stt:9001");
 		expect(result.LOCAL_STT_TIMEOUT_MS).toBe(25_000);
@@ -72,6 +81,15 @@ describe("EnvironmentSchema", () => {
 	});
 
 	it.each(["cloud", "LOCAL", ""])(
+		"rejects the unsupported LLM provider %j",
+		(LLM_PROVIDER) => {
+			expect(() =>
+				EnvironmentSchema.parse({ ...validEnvironment, LLM_PROVIDER }),
+			).toThrow();
+		},
+	);
+
+	it.each(["cloud", "LOCAL", ""])(
 		"rejects the unsupported STT provider %j",
 		(STT_PROVIDER) => {
 			expect(() =>
@@ -85,6 +103,18 @@ describe("EnvironmentSchema", () => {
 		(TTS_PROVIDER) => {
 			expect(() =>
 				EnvironmentSchema.parse({ ...validEnvironment, TTS_PROVIDER }),
+			).toThrow();
+		},
+	);
+
+	it.each(["999", "120001"])(
+		"rejects the out-of-range local LLM timeout %s",
+		(LOCAL_LLM_TIMEOUT_MS) => {
+			expect(() =>
+				EnvironmentSchema.parse({
+					...validEnvironment,
+					LOCAL_LLM_TIMEOUT_MS,
+				}),
 			).toThrow();
 		},
 	);

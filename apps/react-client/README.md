@@ -28,7 +28,7 @@ Orval generates the application API from `http://localhost:3000/api-docs.json` a
 ## Interview media
 
 - Camera and screen tracks are encoded with `MediaRecorder`, acknowledged in order, and discarded by the server. The disposable encoders pause while assistant audio plays, then resume without stopping their live tracks.
-- The microphone is converted in the browser to mono 16 kHz signed little-endian PCM16 for the socket protocol; the server wraps each completed turn as WAV at the Gemini STT boundary.
+- The microphone is converted in the browser to mono 16 kHz signed little-endian PCM16 for the socket protocol; the server adapts each completed turn for the selected STT provider.
 - Acoustic silence detection ends a candidate turn; the server also retains its inactivity timeout as a network fallback.
 - The server sends one completed assistant WAV. The client waits for turn end, native-decodes the complete file once, and plays one Web Audio source while final subtitle text remains visible.
 - Raw media is never written to Query cache, Zustand persistence, local storage, or IndexedDB.

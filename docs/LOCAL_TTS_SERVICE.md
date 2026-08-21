@@ -4,11 +4,11 @@
 
 The repository includes an optional FastAPI/Piper service in `apps/tts`. It converts the exact interviewer sentence to audio; it does not generate content, transcribe candidates, manage interviews, or store audio.
 
-Gemini remains the default for all three AI ports. Selecting local TTS changes only speech synthesis—the Gemini LLM still handles interview structuring and turns, while STT keeps its independently configured provider.
+Gemini remains the default for all three AI ports. Selecting local TTS changes only speech synthesis; the LLM and STT retain their independently configured providers.
 
 ## Docker Compose
 
-Export a valid `GEMINI_API_KEY`, then run from the repository root:
+When the LLM or STT remains on Gemini, export a valid `GEMINI_API_KEY`, then run from the repository root:
 
 ```bash
 TTS_PROVIDER=local docker compose --profile local-tts up --build --wait
@@ -20,9 +20,17 @@ To run both local speech providers while retaining the Gemini LLM:
 STT_PROVIDER=local TTS_PROVIDER=local docker compose --profile local-stt --profile local-tts up --build --wait
 ```
 
+To run LLM, STT, and TTS locally without a real Gemini key or Google API calls:
+
+```bash
+LLM_PROVIDER=local STT_PROVIDER=local TTS_PROVIDER=local \
+  docker compose --profile local-llm --profile local-stt --profile local-tts \
+  up --build --wait
+```
+
 The `local-tts` profile builds `apps/tts/Dockerfile`, starts one Uvicorn worker, and publishes `http://127.0.0.1:18082` by default. Compose connects the backend to the service at `http://tts:8001`. The image health check calls `/health` and becomes healthy only after the configured voice is loaded.
 
-The backend has no hard dependency on the profiled container. Consequently, ordinary `docker compose up --build --wait` remains backward-compatible and uses Gemini TTS. Do not set `TTS_PROVIDER=local` unless the local service is running and reachable.
+The backend has no hard dependency on the profiled container. Consequently, ordinary `docker compose up --build --wait` remains backward-compatible and uses Gemini TTS. Do not set `TTS_PROVIDER=local` unless the local service is running and reachable. See the [local LLM guide](LOCAL_LLM_SERVICE.md) for model download and hardware requirements when enabling the full local stack.
 
 Check the profiled service directly with:
 

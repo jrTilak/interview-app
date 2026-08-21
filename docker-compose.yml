@@ -55,6 +55,9 @@ services:
       GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-3.1-flash-tts-preview}
       GEMINI_TTS_VOICE: ${GEMINI_TTS_VOICE:-Kore}
       GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-45000}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      LOCAL_LLM_URL: ${LOCAL_LLM_URL:-http://local-llm:8003}
+      LOCAL_LLM_TIMEOUT_MS: ${LOCAL_LLM_TIMEOUT_MS:-120000}
       STT_PROVIDER: ${STT_PROVIDER:-gemini}
       LOCAL_STT_URL: ${LOCAL_STT_URL:-http://stt:8002}
       LOCAL_STT_TIMEOUT_MS: ${LOCAL_STT_TIMEOUT_MS:-45000}
@@ -79,6 +82,62 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+    stop_grace_period: 15s
+
+  ollama:
+    profiles: ["local-llm"]
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    volumes:
+      - interview-ollama-data:/root/.ollama
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "OLLAMA_HOST=127.0.0.1:11434 ollama list >/dev/null 2>&1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    stop_grace_period: 15s
+
+  ollama-pull:
+    profiles: ["local-llm"]
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
+    init: true
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull"]
+    command: ["${OLLAMA_MODEL:-qwen3:8b}"]
+    restart: "no"
+
+  local-llm:
+    profiles: ["local-llm"]
+    build:
+      context: ./apps/local-llm-service
+      dockerfile: Dockerfile
+      network: ${DOCKER_BUILD_NETWORK:-host}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      ollama:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-110}
+      OLLAMA_HEALTH_TIMEOUT_SECONDS: ${OLLAMA_HEALTH_TIMEOUT_SECONDS:-3}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-8192}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-10m}
+    ports:
+      - "127.0.0.1:${LLM_PORT:-18084}:8003"
     stop_grace_period: 15s
 
   stt:
@@ -143,3 +202,4 @@ services:
 
 volumes:
   interview-postgres-data:
+  interview-ollama-data:

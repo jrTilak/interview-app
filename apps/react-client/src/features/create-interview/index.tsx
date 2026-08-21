@@ -7,7 +7,7 @@ export function CreateInterviewScreen() {
 	return (
 		<CreatorAppShell>
 			<PageHeader
-				description="Give the interviewer context and rough notes. Gemini structures them into a private task list before anything is shared."
+				description="Give the interviewer context and rough notes. The configured AI service structures them into a private task list before anything is shared."
 				eyebrow="New interview"
 				title="Design the conversation"
 			/>
