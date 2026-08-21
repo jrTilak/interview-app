@@ -1,5 +1,5 @@
-fastapi
-uvicorn
-piper-tts
-numpy
-scipy
+fastapi==0.141.1
+uvicorn==0.52.4
+piper-tts==1.7.0
+numpy==2.5.2
+scipy==1.18.0

@@ -8,3 +8,4 @@ The current release is a final-year-project interview demonstration, not a produ
 - Realtime attempt ownership and media coordination are process-local. Horizontal scaling requires sticky routing, distributed leases, and a shared Socket.IO adapter.
 - The interview flow records transcripts and task completion only. Candidate scoring, answer evaluation, reports, and post-interview analysis are outside the current scope.
 - Creator participant history is intentionally unpaginated, and the dashboard loads it once per owned interview. This is acceptable for project-sized presentation data; pagination and a creator-wide aggregate endpoint can be added later if the dataset grows.
+- The optional Piper TTS service supports one bundled `professional-default` voice and one synthesis at a time. It rejects concurrent synthesis instead of queueing it, requires Python 3.12+ when run natively, and has a model-loading cold start; Gemini remains the default for broader deployments.

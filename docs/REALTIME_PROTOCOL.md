@@ -59,7 +59,9 @@ Camera and screen chunks are accepted only for an active interview when their re
 | `attempt:ended` | `{ reason: "AI_COMPLETED" | "TIME_LIMIT", endedAt }` |
 | `attempt:error` | `{ code, message, retryable }` |
 
-TTS uses one non-streaming Gemini `generateContent` request per assistant utterance. The server validates the completed, size-limited mono 24 kHz signed little-endian PCM response, wraps it as `audio/wav`, and emits one `assistant:audio:chunk`. The browser waits through `assistant:turn:end`, native-decodes the complete WAV once, and plays exactly one audio source with a playback-oriented Web Audio context. Camera and screen `MediaRecorder` encoders pause during this playback and resume after drain, cancellation, or failure; their device tracks are not stopped. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
+TTS is selected at server startup with `TTS_PROVIDER`. The default Gemini path uses one non-streaming `generateContent` request per assistant utterance, validates the completed mono 24 kHz signed little-endian PCM response, and wraps it as `audio/wav`. The opt-in local path posts the same exact text and configured voice to Piper and validates its complete mono 24 kHz, 16-bit PCM WAV response. Neither provider silently falls back to the other.
+
+Both paths emit one size-limited `assistant:audio:chunk`. The browser waits through `assistant:turn:end`, native-decodes the complete WAV once, and plays exactly one audio source with a playback-oriented Web Audio context. Camera and screen `MediaRecorder` encoders pause during this playback and resume after drain, cancellation, or failure; their device tracks are not stopped. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
 
 ## Reconnection
 

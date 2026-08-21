@@ -49,10 +49,12 @@ This is the living implementation checklist for the end-to-end interview platfor
 - [x] Accept ordered, bounded microphone turns with explicit end and no-chunk timeout fallback
 - [x] Allow only one active microphone owner per attempt
 - [x] Transcribe candidate audio, persist text, and deliver subtitles plus complete-turn assistant audio
-- [x] Add replaceable LLM, STT, and TTS ports with separate Gemini adapters
+- [x] Add replaceable LLM, STT, and TTS ports with Gemini adapters and startup-selectable Gemini/local TTS
 - [x] Validate Gemini status, tool calls, structured data, audio formats, timeouts, and provider errors
 - [x] Wrap socket PCM as in-memory WAV for Gemini STT and request one completed Gemini TTS response
 - [x] Wrap completed Gemini TTS PCM as one WAV and native-decode it once in the browser
+- [x] Integrate the Piper/Lessac HTTP TTS service without changing the Gemini default or the Gemini LLM/STT bindings
+- [x] Add an opt-in, health-checked Compose profile with the voice model bundled into the local TTS image
 - [x] Pause disposable camera/screen encoding while assistant audio plays and resume it on every exit path
 - [x] Avoid sending candidate email or future hidden questions to the model
 
@@ -91,7 +93,7 @@ This is the living implementation checklist for the end-to-end interview platfor
 ## Deliberately deferred
 
 - [ ] Harden cross-account session teardown and in-memory client cache isolation
-- [ ] Replace Gemini adapters with the planned local LLM/STT/TTS services
+- [ ] Add the planned local LLM and STT services; local TTS is already available as an opt-in provider
 - [ ] Add server-side decoded-audio VAD as a fallback to the browser/client acoustic VAD
 - [ ] Add WebM transcoding if the chosen browser recorder cannot emit a supported STT format
 - [ ] Add distributed work leases, sticky routing, and a shared Socket.IO adapter before horizontal scaling

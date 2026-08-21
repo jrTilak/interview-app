@@ -9,15 +9,16 @@ React desktop PWA (nginx in Compose)
                                          |
                                          v
                                 interview orchestrator
-                                  |       |       |
-                                LLM      STT      TTS
-                                  `-- Gemini adapters -- Google API
-                                      (replaceable ports)
+                                  |-- LLM --> Gemini -----------------> Google API
+                                  |-- STT --> Gemini -----------------> Google API
+                                  `-- TTS --> provider selector
+                                               |-- Gemini (default) --> Google API
+                                               `-- local Piper ------> FastAPI service
 ```
 
 NestJS is the source of truth. On each turn the model receives only the current pending task, never the future hidden list. It may propose only two narrow actions: mark that known question ID as asked and request interview completion. The server validates IDs, refuses early completion while a task remains, enforces the deadline independently, and owns every state transition.
 
-The repository Docker Compose stack runs the frontend, backend, and PostgreSQL together on loopback-bound host ports. nginx serves the PWA and proxies same-origin API and WebSocket traffic to NestJS. PostgreSQL must pass its health check before NestJS starts; with `DB_AUTO_MIGRATE=true`, the server applies its bundled Drizzle migrations before it begins listening. The backend readiness check also queries PostgreSQL so dependency loss is reflected in container health, and the frontend waits for that readiness check.
+The repository Docker Compose stack runs the frontend, backend, and PostgreSQL together on loopback-bound host ports. nginx serves the PWA and proxies same-origin API and WebSocket traffic to NestJS. PostgreSQL must pass its health check before NestJS starts; with `DB_AUTO_MIGRATE=true`, the server applies its bundled Drizzle migrations before it begins listening. The backend readiness check also queries PostgreSQL so dependency loss is reflected in container health, and the frontend waits for that readiness check. A fourth, loopback-published Piper service is available only through the `local-tts` profile. The backend does not depend on that optional service, preserving the default Gemini-only topology.
 
 ## Client boundaries
 
@@ -37,7 +38,7 @@ The repository Docker Compose stack runs the frontend, backend, and PostgreSQL t
 - `interviews`: creator ownership, idempotent creation, Gemini structuring, share preview
 - `interview-attempts`: creator-selected repeat policy, one active candidate attempt, durable state/progress/transcript, and metadata-only histories
 - `interview-attempts/realtime`: authenticated Socket.IO gateway and bounded ephemeral buffers
-- `ai`: provider-neutral ports plus independent Gemini LLM, PCM-to-WAV STT, and completed-response TTS adapters
+- `ai`: provider-neutral ports plus Gemini LLM/STT, Gemini TTS, and local HTTP TTS adapters; `TTS_PROVIDER` selects the TTS binding at startup
 - `db`: Drizzle schema, PostgreSQL provider, lifecycle, and migrations
 - `open-api`: separate application and Better Auth documents
 - `common`: Zod validation, response wrapping, safe exceptions, and decorators
@@ -82,11 +83,11 @@ The process keeps a small in-memory running set to reject duplicate local work. 
 - Camera/screen bytes are authorized and immediately discarded. Candidate mic bytes exist only in memory until STT returns, then are dropped.
 - Only text transcripts, media-active flags, progress, and timing state persist.
 - Raw microphone bytes are adapted to the configured STT provider in memory (RIFF/WAV for Gemini in this phase); candidate email and future hidden tasks do not go to the model.
-- Gemini TTS is requested without streaming. The completed raw PCM response is wrapped as one in-memory WAV before the realtime gateway emits it to the client; the browser native-decodes and plays one source after the turn ends.
+- TTS is non-streaming. Gemini returns raw PCM that its adapter wraps as WAV; the local Piper service returns a validated mono 24 kHz, 16-bit PCM WAV directly. In either case, the realtime gateway emits one complete in-memory WAV and the browser native-decodes one source after the turn ends.
 - Creator raw questions and hidden task details are never exposed by share preview or candidate snapshots.
 - Model transcript text is treated as untrusted data, and model action IDs are restricted to server-provided task IDs.
 - Unexpected HTTP failures and provider failures return provider-neutral messages.
 
 ## Provider replacement
 
-The application depends only on `InterviewLlmPort`, `SpeechToTextPort`, and `TextToSpeechPort`. A future local service can implement these interfaces over HTTP, gRPC, or another transport and replace the bindings without modifying interview domain services or the realtime gateway.
+The application depends only on `InterviewLlmPort`, `SpeechToTextPort`, and `TextToSpeechPort`. TTS already supports a startup-selected local HTTP implementation; Gemini remains the default and the only implemented LLM/STT provider. Future providers can implement the same interfaces over HTTP, gRPC, or another transport without modifying interview domain services or the realtime gateway. Provider failures do not cross-fallback silently.
