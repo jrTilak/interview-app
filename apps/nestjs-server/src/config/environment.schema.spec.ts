@@ -20,6 +20,9 @@ describe("EnvironmentSchema", () => {
 		expect(result.DB_AUTO_MIGRATE).toBe(false);
 		expect(result.AUDIO_SILENCE_MS).toBe(1800);
 		expect(result.GEMINI_LLM_MODEL).toBe("gemini-3.6-flash");
+		expect(result.STT_PROVIDER).toBe("gemini");
+		expect(result.LOCAL_STT_URL).toBe("http://127.0.0.1:8002");
+		expect(result.LOCAL_STT_TIMEOUT_MS).toBe(45_000);
 		expect(result.TTS_PROVIDER).toBe("gemini");
 		expect(result.LOCAL_TTS_URL).toBe("http://127.0.0.1:8001");
 		expect(result.LOCAL_TTS_VOICE).toBe("professional-default");
@@ -36,6 +39,9 @@ describe("EnvironmentSchema", () => {
 			SWAGGER_ENABLE: "false",
 			DB_AUTO_MIGRATE: "true",
 			AUDIO_MAX_BYTES: "4096",
+			STT_PROVIDER: "local",
+			LOCAL_STT_URL: "http://stt:9001",
+			LOCAL_STT_TIMEOUT_MS: "25000",
 			TTS_PROVIDER: "local",
 			LOCAL_TTS_URL: "http://tts:9000",
 			LOCAL_TTS_VOICE: "warm-female",
@@ -46,6 +52,9 @@ describe("EnvironmentSchema", () => {
 		expect(result.SWAGGER_ENABLE).toBe(false);
 		expect(result.DB_AUTO_MIGRATE).toBe(true);
 		expect(result.AUDIO_MAX_BYTES).toBe(4096);
+		expect(result.STT_PROVIDER).toBe("local");
+		expect(result.LOCAL_STT_URL).toBe("http://stt:9001");
+		expect(result.LOCAL_STT_TIMEOUT_MS).toBe(25_000);
 		expect(result.TTS_PROVIDER).toBe("local");
 		expect(result.LOCAL_TTS_URL).toBe("http://tts:9000");
 		expect(result.LOCAL_TTS_VOICE).toBe("warm-female");
@@ -63,10 +72,31 @@ describe("EnvironmentSchema", () => {
 	});
 
 	it.each(["cloud", "LOCAL", ""])(
+		"rejects the unsupported STT provider %j",
+		(STT_PROVIDER) => {
+			expect(() =>
+				EnvironmentSchema.parse({ ...validEnvironment, STT_PROVIDER }),
+			).toThrow();
+		},
+	);
+
+	it.each(["cloud", "LOCAL", ""])(
 		"rejects the unsupported TTS provider %j",
 		(TTS_PROVIDER) => {
 			expect(() =>
 				EnvironmentSchema.parse({ ...validEnvironment, TTS_PROVIDER }),
+			).toThrow();
+		},
+	);
+
+	it.each(["999", "120001"])(
+		"rejects the out-of-range local STT timeout %s",
+		(LOCAL_STT_TIMEOUT_MS) => {
+			expect(() =>
+				EnvironmentSchema.parse({
+					...validEnvironment,
+					LOCAL_STT_TIMEOUT_MS,
+				}),
 			).toThrow();
 		},
 	);

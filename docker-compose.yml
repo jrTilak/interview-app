@@ -55,6 +55,9 @@ services:
       GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-3.1-flash-tts-preview}
       GEMINI_TTS_VOICE: ${GEMINI_TTS_VOICE:-Kore}
       GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-45000}
+      STT_PROVIDER: ${STT_PROVIDER:-gemini}
+      LOCAL_STT_URL: ${LOCAL_STT_URL:-http://stt:8002}
+      LOCAL_STT_TIMEOUT_MS: ${LOCAL_STT_TIMEOUT_MS:-45000}
       TTS_PROVIDER: ${TTS_PROVIDER:-gemini}
       LOCAL_TTS_URL: ${LOCAL_TTS_URL:-http://tts:8001}
       LOCAL_TTS_VOICE: ${LOCAL_TTS_VOICE:-professional-default}
@@ -77,6 +80,25 @@ services:
       retries: 5
       start_period: 10s
     stop_grace_period: 15s
+
+  stt:
+    profiles: ["local-stt"]
+    build:
+      context: ./apps/stt
+      dockerfile: Dockerfile
+      network: ${DOCKER_BUILD_NETWORK:-host}
+    restart: unless-stopped
+    init: true
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+      STT_MAX_AUDIO_BYTES: ${STT_MAX_AUDIO_BYTES:-10485760}
+      STT_MAX_AUDIO_SECONDS: ${STT_MAX_AUDIO_SECONDS:-180}
+      STT_TIMEOUT_SECONDS: ${STT_TIMEOUT_SECONDS:-45}
+    ports:
+      - "127.0.0.1:${STT_PORT:-18083}:8002"
+    stop_grace_period: 10s
 
   tts:
     profiles: ["local-tts"]

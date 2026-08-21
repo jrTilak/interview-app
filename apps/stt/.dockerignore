@@ -1,8 +1,8 @@
 __pycache__/
 *.py[cod]
-.venv/
-venv/
-models/
 *.wav
 *.mp3
 *.webm
+.venv/
+venv/
+test_*.py

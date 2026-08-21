@@ -39,7 +39,9 @@ The client may periodically emit `connection:ping` with `{ probeId: uuid }`. Its
 | `camera:chunk` | `{ attemptId, sequence, mimeType, data }` | Bounded, authorized, immediately discarded |
 | `screen:chunk` | `{ attemptId, sequence, mimeType, data }` | Bounded, authorized, immediately discarded |
 
-Supported socket STT MIME types are `audio/wav`, `audio/mpeg`, `audio/mp3`, `audio/aiff`, `audio/aac`, `audio/ogg`, `audio/flac`, `audio/m4a`, and `audio/l16`. In this application, socket `audio/l16` means raw signed 16-bit little-endian PCM and requires `sampleRateHz`; the React client sends mono 16 kHz audio. The Gemini adapter wraps a completed PCM turn in a RIFF/WAV container and sends it as `audio/wav`, because raw L16 is not a supported Gemini transcription input. Browser WebM microphone audio is not accepted by the current buffered-STT adapter; encode a supported format in the client or add a transcoding provider behind the STT port.
+The gateway recognizes `audio/wav`, `audio/mpeg`, `audio/mp3`, `audio/aiff`, `audio/aac`, `audio/ogg`, `audio/flac`, `audio/m4a`, and `audio/l16`, but the selected STT provider may support a narrower subset. `STT_PROVIDER` defaults to Gemini. Its adapter wraps completed PCM as RIFF/WAV because Gemini does not accept raw L16. Local STT accepts only uncompressed PCM16 WAV (`audio/wav`, `audio/wave`, or `audio/x-wav`) and `audio/l16`; it posts one multipart request and never silently falls back to Gemini.
+
+In this application, `audio/l16` means raw signed 16-bit little-endian PCM and requires `sampleRateHz`; the React client sends compatible mono 16 kHz audio with channel metadata. Browser WebM is unsupported by both current adapters. Encode a provider-supported format in the client or add a transcoding provider behind the STT port.
 
 The server also closes a mic turn after `AUDIO_SILENCE_MS` with no chunks, including a started turn that received no audio. This is a network/chunk inactivity fallback, not acoustic silence detection. The client should perform voice-activity detection or stop sending and emit `microphone:end` when the speaker finishes. Only one socket may own the active mic turn for an attempt.
 
