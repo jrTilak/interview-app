@@ -1,40 +1,79 @@
-# Local TTS Service
+# Local TTS service
 
-Converts interviewer text (from the LLM) into spoken audio. This service
-does not generate any interview content — it only speaks the exact text
-it is given.
+This optional service lets the NestJS server use local, offline speech
+synthesis instead of Gemini TTS. It speaks only the text supplied by the API;
+it does not generate interview content or retain audio.
 
-Built with [Piper](https://github.com/rhasspy/piper) (offline neural TTS)
-wrapped in FastAPI.
+The service uses the actively maintained Open Home Foundation
+[Piper project](https://github.com/OHF-Voice/piper1-gpl) behind a small FastAPI
+HTTP API. It loads `en_US-lessac-medium` once at startup and returns mono,
+16-bit PCM WAV audio at 24 kHz, matching the backend's provider contract.
 
-## Setup
+## Run natively
 
-1. **Install Python dependencies**
-   ```
-   pip install -r requirements.txt
-   ```
+Python 3.12 or newer is required by the pinned NumPy and SciPy versions.
 
-2. **Download the voice model** (not included in this repo — see .gitignore)
-   ```
-   python -m piper.download_voices en_US-lessac-medium
-   ```
-   This downloads two files, `en_US-lessac-medium.onnx` and
-   `en_US-lessac-medium.onnx.json`, into your current folder. Place both
-   directly inside this `app/tts/` folder.
+```bash
+cd apps/tts
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install --requirement requirements.txt
+mkdir -p models
+python -m piper.download_voices \
+  --download-dir models \
+  en_US-lessac-medium
+TTS_MODEL_DIR="$PWD/models" \
+  uvicorn tts_service:app --host 0.0.0.0 --port 8001 --workers 1
+```
 
-3. **Run the service**
-   ```
-   uvicorn tts_service:app --host 0.0.0.0 --port 8001
-   ```
-   On startup you should see a log confirming the voice model loaded.
-   If you don't, the `.onnx` files are probably missing or misnamed —
-   re-check step 2.
+`TTS_MODEL_DIR` must contain both `en_US-lessac-medium.onnx` and its
+`en_US-lessac-medium.onnx.json` configuration. If the variable is omitted,
+the service looks beside `tts_service.py`, regardless of the shell's current
+directory.
 
-## Endpoints
+## Run in a container
 
-### `GET /health`
-Returns which voices are currently loaded. Use this first to confirm the
-service is actually ready before calling `/synthesize`.
+Build from the service directory as the Docker build context:
+
+```bash
+docker build --tag interview-local-tts apps/tts
+docker run --rm --publish 8001:8001 interview-local-tts
+```
+
+The image downloads the voice into `/models` while building, runs as an
+unprivileged user, and starts one Uvicorn worker. Its health check calls the
+real readiness endpoint, so the container is not healthy unless a voice was
+loaded successfully.
+
+To start it with the rest of the repository instead, enable the opt-in Compose
+profile (the host port defaults to `18082`):
+
+```bash
+TTS_PROVIDER=local docker compose --profile local-tts up --build
+```
+
+## Select the provider
+
+Start the TTS service before the NestJS server, then configure the backend:
+
+```dotenv
+TTS_PROVIDER=local
+LOCAL_TTS_URL=http://127.0.0.1:8001
+LOCAL_TTS_VOICE=professional-default
+LOCAL_TTS_TIMEOUT_MS=45000
+```
+
+Use `http://tts:8001` instead when both services run in the repository's
+Docker Compose network. `TTS_PROVIDER` defaults to `gemini`; selecting `local`
+does not silently fall back to Gemini when Piper is unavailable. The backend
+expects `/synthesize` to return a non-empty mono PCM16 WAV at 24 kHz and treats
+any non-2xx response as a provider failure.
+
+## HTTP contract
+
+`GET /health` returns HTTP 200 only when at least one voice is ready. A model
+load failure returns HTTP 503 with a diagnostic readiness body:
 
 ```json
 {
@@ -44,10 +83,8 @@ service is actually ready before calling `/synthesize`.
 }
 ```
 
-### `POST /synthesize`
-Converts text to speech and returns a WAV audio file.
+`POST /synthesize` accepts JSON with up to 4,000 text characters:
 
-**Request body:**
 ```json
 {
   "text": "Hello Maya. Let us begin with your recent project.",
@@ -55,40 +92,36 @@ Converts text to speech and returns a WAV audio file.
 }
 ```
 
-**Response:** raw audio bytes, `Content-Type: audio/wav`, mono, 16-bit,
-resampled to 24kHz to match the existing Gemini audio path — no
-conversion needed on the NestJS side.
+A successful response has `Content-Type: audio/wav` plus
+`X-Sample-Rate: 24000`, `X-Channels: 1`, and `X-Bit-Depth: 16`. Empty or too
+long text and unknown voices return HTTP 400. An unloaded configured voice or
+a busy synthesizer returns HTTP 503. Internal engine details are logged by the
+service but are not exposed in HTTP 500 responses.
 
-**Error responses (400):**
-- Empty `text`
-- Unknown `voice` name (must match a key in `VOICE_MODELS` inside
-  `tts_service.py`)
+Only one synthesis runs per service process. Concurrent requests are rejected
+instead of queued, which prevents work abandoned by disconnected clients from
+building up. Keep `--workers 1`: each additional worker would load another
+model and have an independent gate. Scale with separate one-worker service
+instances if more parallel capacity is required.
 
-## Testing locally
+## Operational and licensing notes
 
-Use Postman or curl against `http://127.0.0.1:8001/synthesize` — see the
-service spec doc for expected behavior (reject empty text, consistent
-volume/speed, no audio stored after the request finishes, etc).
+- Voice loading creates a noticeable cold start. Health checks cannot succeed
+  until loading completes; a completed startup with no loaded voice returns
+  HTTP 503.
+- The downloaded model and native inference dependencies make the container
+  substantially larger than the source-only service; builds also require
+  network access to fetch the voice.
+- Piper 1.7.0 is `GPL-3.0-or-later`. Review that license before distributing
+  the image. Voice weights have separate terms; the
+  [`en_US-lessac-medium` model card](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD)
+  points to the Lessac dataset license.
+- Generated audio remains in memory and is discarded after the response.
 
-## Adding more voices
+## Tests
 
-Edit the `VOICE_MODELS` dictionary at the top of `tts_service.py`:
-```python
-VOICE_MODELS = {
-    "professional-default": "en_US-lessac-medium.onnx",
-    "warm-female": "en_US-amy-medium.onnx",
-}
+The contract suite uses `unittest` and the production dependencies only:
+
+```bash
+python -m unittest discover -s apps/tts -p 'test_*.py' -v
 ```
-Then download the corresponding model with
-`python -m piper.download_voices <voice-name>` and place the files in
-this folder. Restart the service to pick up the new voice.
-
-## Notes
-
-- The model loads once at server startup, not per-request — this is
-  intentional for performance; do not change this pattern.
-- No audio is written to disk during synthesis — everything happens in
-  memory and is discarded after the response is sent.
-- This service is stateless and does not depend on NestJS or Flutter —
-  it can be tested fully standalone via Postman/curl before any
-  integration work.

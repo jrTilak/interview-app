@@ -3,7 +3,7 @@
 ## Complete now
 
 - pnpm workspace and NestJS 11 ESM server
-- Multi-stage backend Docker image and one-command PostgreSQL/backend Compose stack
+- Multi-stage backend Docker image, one-command application Compose stack, and opt-in `local-tts` profile
 - Optional automatic startup migrations with service health checks
 - PostgreSQL/Drizzle schema and generated migration
 - Better Auth email/password signup, login, logout, and sessions
@@ -18,7 +18,8 @@
 - Authenticated Socket.IO namespace with strict event validation
 - Ordered/bounded in-memory candidate audio turns and inactivity fallback
 - Single microphone ownership per attempt and bounded per-process media traffic
-- Independent Gemini LLM, WAV-wrapped buffered STT, and non-streaming completed-response TTS adapters
+- Independent Gemini LLM and WAV-wrapped buffered STT adapters, plus startup-selectable Gemini or local Piper TTS
+- Containerized, health-checked local TTS with an image-bundled Lessac voice and validated complete-WAV responses
 - First-turn greeting with candidate name and interview context
 - Natural interviewer prompt that does not teach, score, correct, or expose answers
 - Server-validated mark-question/end-interview tools and no-repeat progress
@@ -53,7 +54,7 @@
 
 ## Later integration work
 
-- Replace any Gemini adapter independently with local LLM/STT/TTS services
+- Add local or alternative LLM and STT providers; local TTS is already integrated as an opt-in provider
 - Add an audio transcoder if a future client sends WebM microphone audio
 - Add server-side decoded-audio VAD as a fallback; the browser performs acoustic VAD and the server retains a chunk-inactivity timeout
 - Add a shared Socket.IO adapter, sticky routing, and distributed work leases before multi-instance scaling

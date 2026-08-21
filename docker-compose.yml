@@ -55,6 +55,10 @@ services:
       GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-3.1-flash-tts-preview}
       GEMINI_TTS_VOICE: ${GEMINI_TTS_VOICE:-Kore}
       GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-45000}
+      TTS_PROVIDER: ${TTS_PROVIDER:-gemini}
+      LOCAL_TTS_URL: ${LOCAL_TTS_URL:-http://tts:8001}
+      LOCAL_TTS_VOICE: ${LOCAL_TTS_VOICE:-professional-default}
+      LOCAL_TTS_TIMEOUT_MS: ${LOCAL_TTS_TIMEOUT_MS:-45000}
       AUDIO_SILENCE_MS: ${AUDIO_SILENCE_MS:-1800}
       AUDIO_MAX_BYTES: ${AUDIO_MAX_BYTES:-10485760}
       MEDIA_MAX_CHUNK_BYTES: ${MEDIA_MAX_CHUNK_BYTES:-524288}
@@ -73,6 +77,18 @@ services:
       retries: 5
       start_period: 10s
     stop_grace_period: 15s
+
+  tts:
+    profiles: ["local-tts"]
+    build:
+      context: ./apps/tts
+      dockerfile: Dockerfile
+      network: ${DOCKER_BUILD_NETWORK:-host}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${TTS_PORT:-18082}:8001"
+    stop_grace_period: 10s
 
   frontend:
     build:

@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.onnx
+*.onnx.json
+*.wav
+.venv/
+venv/
+test_*.py

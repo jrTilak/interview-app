@@ -1,18 +1,76 @@
 # Local text-to-speech service guide
 
-## Purpose
+## Status and boundary
 
-The local TTS service converts the exact interviewer sentence into audio the browser can play. It does not generate interview content; it only speaks text produced by the LLM.
+The repository includes an optional FastAPI/Piper service in `apps/tts`. It converts the exact interviewer sentence to audio; it does not generate content, transcribe candidates, manage interviews, or store audio.
 
-## What it receives
+Gemini remains the default for all three AI ports. Selecting local TTS changes only speech synthesis—Gemini is still used for interview structuring, interview turns, and speech-to-text.
 
-Each request contains:
+## Docker Compose
 
-- the exact text to speak
-- an optional voice name or voice setting
-- a cancellation or timeout signal from the server
+Export a valid `GEMINI_API_KEY`, then run from the repository root:
 
-Example conceptual request:
+```bash
+TTS_PROVIDER=local docker compose --profile local-tts up --build --wait
+```
+
+The `local-tts` profile builds `apps/tts/Dockerfile`, starts one Uvicorn worker, and publishes `http://127.0.0.1:18082` by default. Compose connects the backend to the service at `http://tts:8001`. The image health check calls `/health` and becomes healthy only after the configured voice is loaded.
+
+The backend has no hard dependency on the profiled container. Consequently, ordinary `docker compose up --build --wait` remains backward-compatible and uses Gemini TTS. Do not set `TTS_PROVIDER=local` unless the local service is running and reachable.
+
+Check the profiled service directly with:
+
+```bash
+curl --fail http://127.0.0.1:18082/health
+```
+
+Override the published host port with `TTS_PORT`; the container and Compose-network port remain `8001`.
+
+## Native setup
+
+Python 3.12 or newer is required. From the repository root:
+
+```bash
+cd apps/tts
+python3.12 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+mkdir -p models
+python -m piper.download_voices --download-dir models en_US-lessac-medium
+export TTS_MODEL_DIR="$PWD/models"
+uvicorn tts_service:app --host 127.0.0.1 --port 8001 --workers 1
+```
+
+`TTS_MODEL_DIR` must contain the downloaded `.onnx` and `.onnx.json` files. If it is omitted, the service looks beside `tts_service.py`, independently of the shell's working directory.
+
+Configure the native NestJS process with:
+
+```dotenv
+TTS_PROVIDER=local
+LOCAL_TTS_URL=http://127.0.0.1:8001
+LOCAL_TTS_VOICE=professional-default
+LOCAL_TTS_TIMEOUT_MS=45000
+```
+
+Use exactly one Uvicorn worker. Each worker loads its own model, increasing startup time and memory use, while this service is intended for the project's single-server deployment.
+
+## Provider configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TTS_PROVIDER` | `gemini` | Select `gemini` or `local`. |
+| `LOCAL_TTS_URL` | `http://127.0.0.1:8001` natively; `http://tts:8001` in Compose | Local service base URL. |
+| `LOCAL_TTS_VOICE` | `professional-default` | Voice key sent to `/synthesize`. |
+| `LOCAL_TTS_TIMEOUT_MS` | `45000` | Request timeout in milliseconds; accepted range is `1000`–`120000`. |
+| `TTS_PORT` | `18082` | Compose host port only. |
+
+The provider selection is explicit. If the selected local service is unavailable, times out, rejects a voice, or returns invalid audio, the request fails with a provider-neutral error; the backend never silently retries with Gemini.
+
+## HTTP contract
+
+`GET /health` returns the configured and loaded voice names. It reports an unavailable status until at least one model is loaded.
+
+`POST /synthesize` accepts:
 
 ```json
 {
@@ -21,30 +79,10 @@ Example conceptual request:
 }
 ```
 
-## What it returns
+It returns a complete `audio/wav` body: RIFF/WAVE PCM format 1, mono, 24 kHz, and 16-bit. `X-Sample-Rate`, `X-Channels`, and `X-Bit-Depth` describe the same format. The backend validates the body and any supplied metadata headers before sending the complete WAV to the browser. Empty text, more than 4,000 characters, and unknown voices are rejected. Generated audio stays in memory and is not persisted.
 
-Return one complete audio result with:
+## Image size, startup, and licensing
 
-- audio bytes
-- the correct MIME type
-- sample rate and channel count when useful
+The `en_US-lessac-medium` model is roughly 63 MB. Docker downloads it while building and includes it in the image, so no model download is required at container runtime; the complete image is larger because it also contains Python, Piper, NumPy, and SciPy. The first build therefore needs network access and may take longer, and each new container has a short cold start while Piper loads the model. Compose `--wait` accounts for that through the image health check.
 
-For the first version, mono PCM WAV is recommended because browsers can decode it reliably. Mono 24 kHz, 16-bit WAV matches the current Gemini path, but another clear format is acceptable if the NestJS adapter converts it.
-
-The current application does not need audio streaming. Generate the full utterance, then return it once so the browser plays one smooth audio source.
-
-## Required behavior
-
-- Speak exactly the supplied text without adding or removing words.
-- Use a calm, natural, professional interviewer voice.
-- Keep volume and speaking speed consistent between turns.
-- Return valid, non-empty audio with truthful format metadata.
-- Reject empty text or an unknown voice with a clear error.
-- Respect cancellation, timeouts, and a maximum text length.
-- Do not store generated interview audio after the request finishes.
-
-## How to deliver it
-
-Run it as a separate local process or container. A simple HTTP operation such as `/synthesize` and a `/health` check are sufficient. Returning binary audio with metadata headers is preferred; returning base64 and metadata in JSON is also acceptable initially.
-
-It is ready when the output plays smoothly in a normal browser/audio player, its duration is reasonable for the text, repeated turns have consistent volume, invalid input fails cleanly, and the health check confirms the voice model is loaded.
+Piper is provided under the GPL-3.0-or-later license. The Lessac voice model and its source dataset have their own [model-card and dataset terms](https://huggingface.co/rhasspy/piper-voices/blob/main/en/en_US/lessac/medium/MODEL_CARD). Review the Piper license and the Lessac model/dataset licenses before commercial use or distributing an image that contains them; repository integration does not establish that a planned use is license-compatible.

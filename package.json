@@ -17,7 +17,7 @@
 		"dev:web": "pnpm --filter @interview-app/react-client dev",
 		"docker:up": "docker compose up --build --wait",
 		"docker:down": "docker compose down",
-		"docker:logs": "docker compose logs --follow backend frontend",
+		"docker:logs": "docker compose logs --follow backend frontend tts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",

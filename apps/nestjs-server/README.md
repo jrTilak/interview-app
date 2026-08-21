@@ -1,6 +1,6 @@
 # NestJS interview server
 
-This package owns authentication, interview definitions, candidate attempts, realtime media coordination, and the three AI provider adapters. It follows a feature-module structure and keeps external AI SDK details behind application ports.
+This package owns authentication, interview definitions, candidate attempts, realtime media coordination, and the AI provider adapters. It follows a feature-module structure and keeps external AI SDK and HTTP details behind application ports. Gemini provides LLM and STT; TTS can use Gemini (the default) or the opt-in local Piper service.
 
 ## Run the complete Docker stack
 
@@ -10,7 +10,15 @@ From the repository root:
 GEMINI_API_KEY=your-google-api-key docker compose up --build --wait
 ```
 
-This builds the frontend and backend images, starts PostgreSQL, waits for dependencies to become healthy, and applies the checked-in Drizzle migrations from the backend process. Open the PWA on port 18080; the API remains directly available on port 18081. No host Node.js installation or manual migration command is needed beyond Docker and Compose. `docker compose down` stops all three services without deleting PostgreSQL data. The root `pnpm docker:*` scripts are optional convenience aliases.
+This builds the frontend and backend images, starts PostgreSQL, waits for dependencies to become healthy, and applies the checked-in Drizzle migrations from the backend process. Open the PWA on port 18080; the API remains directly available on port 18081. No host Node.js installation or manual migration command is needed beyond Docker and Compose. `docker compose down` stops the stack without deleting PostgreSQL data. The root `pnpm docker:*` scripts are optional convenience aliases.
+
+The optional local TTS container is not part of the default profile. Export `GEMINI_API_KEY`, then build it and select the corresponding backend adapter with:
+
+```bash
+TTS_PROVIDER=local docker compose --profile local-tts up --build --wait
+```
+
+Compose gives the backend `LOCAL_TTS_URL=http://tts:8001` and publishes the service health endpoint at `http://127.0.0.1:18082/health`. It intentionally does not make the backend depend on the profiled service, so the default Gemini-only stack remains valid. Selecting `local` without a reachable healthy service causes TTS requests to fail; there is no silent Gemini fallback.
 
 All published ports bind to `127.0.0.1` by default. Set the frontend/backend bind addresses, strong database/auth secrets, the public `BETTER_AUTH_URL`, and exact CORS origins before deliberately exposing the service to another machine. The Compose backend health check calls `/api/ready`, which verifies both the NestJS process and its PostgreSQL connection.
 
@@ -26,7 +34,11 @@ Copy `.env.example` to `.env`. Important values are:
 - `API_CORS_ORIGINS`: comma-separated exact client origins; local development defaults trust both `localhost:5173` and `127.0.0.1:5173`
 - `DB_*`: PostgreSQL connection values
 - `DB_AUTO_MIGRATE`: apply checked-in migrations during startup; enabled by Docker Compose only
-- `GEMINI_API_KEY`: Google Gemini API key
+- `GEMINI_API_KEY`: Google Gemini API key; still required for LLM and STT when local TTS is selected
+- `TTS_PROVIDER`: `gemini` (default) or `local`
+- `LOCAL_TTS_URL`: local service base URL; native default `http://127.0.0.1:8001`, overridden to `http://tts:8001` by Compose
+- `LOCAL_TTS_VOICE`: service voice name, default `professional-default`
+- `LOCAL_TTS_TIMEOUT_MS`: local synthesis request timeout, default `45000` (accepted range `1000`–`120000`)
 - `AUDIO_SILENCE_MS`: missing-chunk fallback that closes a started mic turn
 - `AUDIO_MAX_BYTES` and `MEDIA_MAX_CHUNK_BYTES`: in-memory safety limits
 
@@ -69,7 +81,9 @@ The server accepts supported buffered audio (`wav`, `mpeg`/`mp3`, `aiff`, `aac`,
 
 One attempt has one transient microphone owner at a time, even when the candidate opens multiple tabs. Camera/screen data is accepted only while the attempt is active and the corresponding media flag is enabled. Per-chunk, per-turn, rolling traffic, connection, and aggregate in-memory limits protect the single-server process.
 
-## Replace Gemini later
+## AI provider selection and replacement
+
+Set `TTS_PROVIDER=local` to bind `TEXT_TO_SPEECH` to the local HTTP adapter; otherwise it stays bound to Gemini. This switch affects only speech synthesis: interview structuring/turn generation and candidate transcription continue to use the Gemini LLM and STT adapters. Run the native service at the configured `LOCAL_TTS_URL`, or use the Compose `local-tts` profile above. See the [local TTS guide](../../docs/LOCAL_TTS_SERVICE.md) for setup and operational constraints.
 
 Implement one or more interfaces in `src/modules/ai/ai.ports.ts`:
 
@@ -77,7 +91,7 @@ Implement one or more interfaces in `src/modules/ai/ai.ports.ts`:
 - `SpeechToTextPort`
 - `TextToSpeechPort`
 
-Bind the implementation to `INTERVIEW_LLM`, `SPEECH_TO_TEXT`, or `TEXT_TO_SPEECH` in the AI module. Interview services and the gateway do not import Gemini classes.
+Bind additional implementations to `INTERVIEW_LLM`, `SPEECH_TO_TEXT`, or `TEXT_TO_SPEECH` in the AI module. Interview services and the gateway do not import provider-specific classes.
 
 ## Database and production
 
