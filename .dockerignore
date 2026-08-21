@@ -11,5 +11,11 @@ coverage
 **/coverage
 *.log
 .cache
+.ruff_cache
+**/__pycache__
+*.py[cod]
+.venv
+**/.venv
+tex
 .idea
 .vscode

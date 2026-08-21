@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.gitignore
+.venv/
+.ruff_cache/
+README.md
+test_*.py

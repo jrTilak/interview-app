@@ -1,333 +1,311 @@
-import requests
-from fastapi import FastAPI, HTTPException
+"""Local Ollama-backed interview LLM HTTP service.
 
+Run natively from this directory with::
+
+    uvicorn main:app --host 0.0.0.0 --port 8003 --workers 1
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import TypeVar
+
+import requests
+from fastapi import FastAPI, HTTPException, Response
 from models import (
-    StructureRequest,
-    StructureResponse,
+    CompleteQuestionsAction,
+    EndInterviewAction,
+    InterviewTask,
     InterviewTurnRequest,
     InterviewTurnResponse,
+    StructureRequest,
+    StructureResponse,
 )
+from prompts import interview_prompt, structure_prompt
+from pydantic import BaseModel, ValidationError
 
-from prompts import (
-    structure_prompt,
-    interview_prompt,
-)
+LOGGER = logging.getLogger(__name__)
 
+
+def _positive_float(name: str, default: float) -> float:
+    raw_value = os.getenv(name, str(default)).strip()
+    try:
+        value = float(raw_value)
+    except ValueError as error:
+        raise RuntimeError(f"{name} must be a number") from error
+    if value <= 0:
+        raise RuntimeError(f"{name} must be greater than zero")
+    return value
+
+
+def _positive_int(name: str, default: int) -> int:
+    raw_value = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw_value)
+    except ValueError as error:
+        raise RuntimeError(f"{name} must be an integer") from error
+    if value <= 0:
+        raise RuntimeError(f"{name} must be greater than zero")
+    return value
+
+
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").strip().rstrip("/")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:8b").strip() or "qwen3:8b"
+OLLAMA_TIMEOUT_SECONDS = _positive_float("OLLAMA_TIMEOUT_SECONDS", 110)
+OLLAMA_HEALTH_TIMEOUT_SECONDS = _positive_float("OLLAMA_HEALTH_TIMEOUT_SECONDS", 3)
+OLLAMA_NUM_CTX = _positive_int("OLLAMA_NUM_CTX", 8_192)
+OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "10m").strip() or "10m"
+
+
+def _api_url(operation: str) -> str:
+    """Build an Ollama API URL while accepting a base ending in `/api`."""
+
+    base = OLLAMA_URL
+    if base.endswith("/api/generate"):
+        base = base.removesuffix("/api/generate")
+    if base.endswith("/api"):
+        return f"{base}/{operation}"
+    return f"{base}/api/{operation}"
+
+
+OLLAMA_GENERATE_URL = _api_url("generate")
+OLLAMA_TAGS_URL = _api_url("tags")
+
+STRUCTURE_MAX_TOKENS = 4_000
+TURN_MAX_TOKENS = 800
 
 app = FastAPI(title="Local LLM Interview Service")
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "qwen3:8b"
+# Ollama can queue requests, but parallel generations make an 8B local model
+# unpredictably slow. The Docker image deliberately uses one Uvicorn worker so
+# this process-wide, non-blocking gate admits exactly one generation at a time.
+generation_gate = threading.Lock()
+
+ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
 
 
-# ============================================================
-# Health Check
-# ============================================================
+def _installed_model_names(payload: object) -> set[str]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("models"), list):
+        raise TypeError("Ollama tags response has an invalid shape")
+
+    names: set[str] = set()
+    for candidate in payload["models"]:
+        if not isinstance(candidate, dict):
+            continue
+        for key in ("name", "model"):
+            value = candidate.get(key)
+            if isinstance(value, str) and value.strip():
+                names.add(value.strip())
+    return names
+
+
+def _model_name_matches(installed_name: str) -> bool:
+    if installed_name == OLLAMA_MODEL:
+        return True
+    return ":" not in OLLAMA_MODEL and installed_name == f"{OLLAMA_MODEL}:latest"
+
+
+def ollama_ready() -> bool:
+    """Return whether Ollama is reachable and the configured model is installed."""
+
+    try:
+        response = requests.get(
+            OLLAMA_TAGS_URL,
+            timeout=OLLAMA_HEALTH_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        names = _installed_model_names(response.json())
+        return any(_model_name_matches(name) for name in names)
+    except (requests.RequestException, TypeError, ValueError):
+        return False
+
 
 @app.get("/health")
-def health():
+@app.get("/status")
+def health(response: Response) -> dict[str, object]:
+    """Report readiness only when Ollama has the configured model available."""
 
+    ready = ollama_ready()
+    response.status_code = 200 if ready else 503
     return {
-        "status": "ok",
-        "model": MODEL
+        "status": "ok" if ready else "degraded",
+        "model": OLLAMA_MODEL,
     }
 
 
-# ============================================================
-# Structure Interview Questions
-# ============================================================
+@contextmanager
+def _generation_admission() -> Iterator[None]:
+    if not generation_gate.acquire(blocking=False):
+        raise HTTPException(
+            status_code=503,
+            detail="Local language model is busy.",
+            headers={"Retry-After": "1"},
+        )
+    try:
+        yield
+    finally:
+        generation_gate.release()
 
-@app.post(
-    "/questions/structure",
-    response_model=StructureResponse
-)
-def structure_questions(request: StructureRequest):
 
+def _generate_structured(
+    *,
+    prompt: str,
+    response_type: type[ResponseModel],
+    max_tokens: int,
+) -> ResponseModel:
+    """Run one bounded Ollama generation and validate its structured output."""
+
+    with _generation_admission():
+        try:
+            response = requests.post(
+                OLLAMA_GENERATE_URL,
+                json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "think": False,
+                    "format": response_type.model_json_schema(),
+                    "keep_alive": OLLAMA_KEEP_ALIVE,
+                    "options": {
+                        "temperature": 0,
+                        "num_ctx": OLLAMA_NUM_CTX,
+                        "num_predict": max_tokens,
+                    },
+                },
+                timeout=OLLAMA_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+        except requests.Timeout as error:
+            LOGGER.warning("Ollama generation timed out")
+            raise HTTPException(
+                status_code=504,
+                detail="Local language model timed out.",
+            ) from error
+        except requests.RequestException as error:
+            LOGGER.warning("Ollama generation request failed")
+            raise HTTPException(
+                status_code=502,
+                detail="Local language model is unavailable.",
+            ) from error
+
+        try:
+            payload = response.json()
+            raw_output = payload["response"]
+            if not isinstance(raw_output, str):
+                raise TypeError("Ollama response text is not a string")
+            return response_type.model_validate_json(raw_output)
+        except (KeyError, TypeError, ValueError, ValidationError) as error:
+            LOGGER.warning("Ollama returned an invalid structured response")
+            raise HTTPException(
+                status_code=502,
+                detail="Local language model returned an invalid response.",
+            ) from error
+
+
+@app.post("/questions/structure", response_model=StructureResponse)
+def structure_questions(request: StructureRequest) -> StructureResponse:
     prompt = structure_prompt(
-        request.title,
-        request.description,
-        request.notes
+        title=request.title,
+        description=request.description,
+        notes=request.notes,
+        output_schema=StructureResponse.model_json_schema(),
+    )
+    return _generate_structured(
+        prompt=prompt,
+        response_type=StructureResponse,
+        max_tokens=STRUCTURE_MAX_TOKENS,
     )
 
-    try:
 
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json"
-            },
-            timeout=120
+def _end_turn(*, text: str, reason: str) -> InterviewTurnResponse:
+    return InterviewTurnResponse(
+        text=text,
+        actions=[EndInterviewAction(type="end_interview", reason=reason)],
+    )
+
+
+def _active_task(tasks: list[InterviewTask]) -> InterviewTask | None:
+    return next((task for task in tasks if not task.completed), None)
+
+
+def _clean_turn(
+    generated: InterviewTurnResponse,
+    active_task: InterviewTask,
+    request: InterviewTurnRequest,
+) -> InterviewTurnResponse:
+    """Keep server-known actions and guarantee completion-on-ask progress."""
+
+    valid_completion_ids: list[str] = []
+    early_end = False
+    for action in generated.actions:
+        if isinstance(action, CompleteQuestionsAction):
+            if (
+                active_task.id in action.questionIds
+                and active_task.id not in valid_completion_ids
+            ):
+                valid_completion_ids.append(active_task.id)
+        elif isinstance(action, EndInterviewAction):
+            early_end = True
+
+    # The NestJS orchestrator marks a task complete in the same assistant turn
+    # in which it is asked. If a small local model omits that action, use the
+    # server-owned prompt as well as adding the action so the task cannot be
+    # skipped by an unrelated generated sentence.
+    completion_missing = active_task.id not in valid_completion_ids
+    if completion_missing:
+        valid_completion_ids.append(active_task.id)
+
+    text = generated.text
+    if early_end or completion_missing:
+        text = (
+            f"Hello {request.candidateName}. Welcome to the "
+            f"{request.title} interview. {active_task.prompt}"
+            if not request.transcript.strip()
+            else active_task.prompt
         )
 
-        response.raise_for_status()
-
-        data = response.json()
-
-        result = StructureResponse.model_validate_json(
-            data["response"]
-        )
-
-        # Make sure there is at least one task
-        if not result.tasks:
-
-            raise HTTPException(
-                status_code=500,
-                detail="LLM returned no interview tasks"
+    return InterviewTurnResponse(
+        text=text,
+        actions=[
+            CompleteQuestionsAction(
+                type="complete_questions",
+                questionIds=valid_completion_ids,
             )
-
-        # Maximum allowed tasks = 30
-        if len(result.tasks) > 30:
-
-            raise HTTPException(
-                status_code=500,
-                detail="LLM returned more than 30 tasks"
-            )
-
-        return result
-
-    except HTTPException:
-        raise
-
-    except requests.RequestException as e:
-
-        raise HTTPException(
-            status_code=502,
-            detail=f"Could not connect to Ollama: {str(e)}"
-        )
-
-    except Exception as e:
-
-        raise HTTPException(
-            status_code=500,
-            detail=f"Invalid LLM response: {str(e)}"
-        )
+        ],
+    )
 
 
-# ============================================================
-# Generate Next Interview Turn
-# ============================================================
-
-@app.post(
-    "/interview/turn",
-    response_model=InterviewTurnResponse
-)
-def interview_turn(request: InterviewTurnRequest):
-
-    # --------------------------------------------------------
-    # If the server says the interview MUST end,
-    # don't ask the LLM to decide whether to continue.
-    # --------------------------------------------------------
-
+@app.post("/interview/turn", response_model=InterviewTurnResponse)
+def interview_turn(request: InterviewTurnRequest) -> InterviewTurnResponse:
     if request.mustEnd:
-
-        return InterviewTurnResponse(
-            text="Thank you for your time. That concludes the interview.",
-            actions=[
-                {
-                    "type": "end_interview",
-                    "reason": "The server requires the interview to end."
-                }
-            ]
+        return _end_turn(
+            text="Thank you for your time. The interview has reached its time limit.",
+            reason="The server requires the interview to end.",
         )
 
-    # --------------------------------------------------------
-    # If all tasks are already completed, end the interview.
-    # --------------------------------------------------------
-
-    if request.tasks and all(
-        task.completed for task in request.tasks
-    ):
-
-        return InterviewTurnResponse(
+    active_task = _active_task(request.tasks)
+    if active_task is None:
+        return _end_turn(
             text="Thank you for your time. That concludes the interview.",
-            actions=[
-                {
-                    "type": "end_interview",
-                    "reason": "All interview tasks have been completed."
-                }
-            ]
+            reason="All interview tasks have been completed.",
         )
-
-    # --------------------------------------------------------
-    # Build prompt for Qwen
-    # --------------------------------------------------------
 
     prompt = interview_prompt(
         title=request.title,
         description=request.description,
         candidate_name=request.candidateName,
-        tasks=request.tasks,
+        tasks=[active_task.model_dump(mode="json")],
         transcript=request.transcript,
         remaining_time=request.remainingTime,
-        must_end=request.mustEnd,
+        output_schema=InterviewTurnResponse.model_json_schema(),
     )
-
-    try:
-
-        # ----------------------------------------------------
-        # Ask Ollama / Qwen
-        # ----------------------------------------------------
-
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json"
-            },
-            timeout=120
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        # ----------------------------------------------------
-        # Validate LLM JSON response
-        # ----------------------------------------------------
-
-        result = InterviewTurnResponse.model_validate_json(
-            data["response"]
-        )
-
-        # ----------------------------------------------------
-        # Validate interviewer text
-        # ----------------------------------------------------
-
-        if not result.text or not result.text.strip():
-
-            raise HTTPException(
-                status_code=500,
-                detail="LLM returned empty interviewer text"
-            )
-
-        # ----------------------------------------------------
-        # Build server-side task map
-        # ----------------------------------------------------
-
-        valid_tasks = {
-            task.id: task
-            for task in request.tasks
-            if task.id
-        }
-
-        # ----------------------------------------------------
-        # Validate and clean actions
-        # ----------------------------------------------------
-
-        clean_actions = []
-
-        for action in result.actions:
-
-            action_type = action.get("type")
-
-            # -----------------------------------------------
-            # COMPLETE QUESTIONS
-            # -----------------------------------------------
-
-            if action_type == "complete_questions":
-
-                question_ids = action.get(
-                    "questionIds",
-                    []
-                )
-
-                valid_completion_ids = []
-
-                for question_id in question_ids:
-
-                    # Unknown task ID
-                    if question_id not in valid_tasks:
-                        continue
-
-                    # Already completed on server
-                    if valid_tasks[question_id].completed:
-                        continue
-
-                    # Valid incomplete task
-                    valid_completion_ids.append(
-                        question_id
-                    )
-
-                # Only keep valid IDs
-                if valid_completion_ids:
-
-                    clean_actions.append(
-                        {
-                            "type": "complete_questions",
-                            "questionIds": valid_completion_ids
-                        }
-                    )
-
-            # -----------------------------------------------
-            # END INTERVIEW
-            # -----------------------------------------------
-
-            elif action_type == "end_interview":
-
-                reason = action.get(
-                    "reason",
-                    "The interview has ended."
-                )
-
-                clean_actions.append(
-                    {
-                        "type": "end_interview",
-                        "reason": reason
-                    }
-                )
-
-            # -----------------------------------------------
-            # UNKNOWN ACTION
-            # -----------------------------------------------
-
-            else:
-
-                raise HTTPException(
-                    status_code=500,
-                    detail=(
-                        f"LLM returned invalid action type: "
-                        f"{action_type}"
-                    )
-                )
-
-        # ----------------------------------------------------
-        # Replace LLM actions with validated actions
-        # ----------------------------------------------------
-
-        result.actions = clean_actions
-
-        return result
-
-    # --------------------------------------------------------
-    # Ollama connection error
-    # --------------------------------------------------------
-
-    except requests.RequestException as e:
-
-        raise HTTPException(
-            status_code=502,
-            detail=f"Could not connect to Ollama: {str(e)}"
-        )
-
-    # --------------------------------------------------------
-    # FastAPI HTTP errors
-    # --------------------------------------------------------
-
-    except HTTPException:
-        raise
-
-    # --------------------------------------------------------
-    # Invalid JSON / validation error
-    # --------------------------------------------------------
-
-    except Exception as e:
-
-        raise HTTPException(
-            status_code=500,
-            detail=f"Invalid LLM response: {str(e)}"
-        )
+    generated = _generate_structured(
+        prompt=prompt,
+        response_type=InterviewTurnResponse,
+        max_tokens=TURN_MAX_TOKENS,
+    )
+    return _clean_turn(generated, active_task, request)

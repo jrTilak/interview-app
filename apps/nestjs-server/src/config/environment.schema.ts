@@ -67,6 +67,13 @@ const BaseEnvironmentSchema = z.object({
 		minimum: 5_000,
 		maximum: 120_000,
 	}),
+	LLM_PROVIDER: z.enum(["gemini", "local"]).default("gemini"),
+	LOCAL_LLM_URL: z.url().default("http://127.0.0.1:8003"),
+	LOCAL_LLM_TIMEOUT_MS: integerEnvironment({
+		defaultValue: 120_000,
+		minimum: 1_000,
+		maximum: 120_000,
+	}),
 	STT_PROVIDER: z.enum(["gemini", "local"]).default("gemini"),
 	LOCAL_STT_URL: z.url().default("http://127.0.0.1:8002"),
 	LOCAL_STT_TIMEOUT_MS: integerEnvironment({
