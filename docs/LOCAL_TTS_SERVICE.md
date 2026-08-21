@@ -4,7 +4,7 @@
 
 The repository includes an optional FastAPI/Piper service in `apps/tts`. It converts the exact interviewer sentence to audio; it does not generate content, transcribe candidates, manage interviews, or store audio.
 
-Gemini remains the default for all three AI ports. Selecting local TTS changes only speech synthesis—Gemini is still used for interview structuring, interview turns, and speech-to-text.
+Gemini remains the default for all three AI ports. Selecting local TTS changes only speech synthesis—the Gemini LLM still handles interview structuring and turns, while STT keeps its independently configured provider.
 
 ## Docker Compose
 
@@ -12,6 +12,12 @@ Export a valid `GEMINI_API_KEY`, then run from the repository root:
 
 ```bash
 TTS_PROVIDER=local docker compose --profile local-tts up --build --wait
+```
+
+To run both local speech providers while retaining the Gemini LLM:
+
+```bash
+STT_PROVIDER=local TTS_PROVIDER=local docker compose --profile local-stt --profile local-tts up --build --wait
 ```
 
 The `local-tts` profile builds `apps/tts/Dockerfile`, starts one Uvicorn worker, and publishes `http://127.0.0.1:18082` by default. Compose connects the backend to the service at `http://tts:8001`. The image health check calls `/health` and becomes healthy only after the configured voice is loaded.

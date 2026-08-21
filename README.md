@@ -11,7 +11,7 @@ A desktop-first AI interview platform built as a pnpm workspace. Creators turn r
 - Required application fullscreen with a concealed interruption screen and explicit re-entry after every exit
 - NestJS API with Better Auth, strict Zod boundaries, Drizzle ORM, PostgreSQL, and OpenAPI references
 - Durable transcripts, question progress, hard deadlines, reconnect snapshots, and server-controlled completion
-- Replaceable LLM, speech-to-text, and text-to-speech ports, with Gemini defaults and an opt-in local Piper TTS provider
+- Replaceable AI ports, with Gemini defaults plus opt-in local faster-whisper STT and Piper TTS providers
 - Unit, component, REST/Socket.IO E2E, and Chromium browser coverage
 
 The deliberately excluded scope is recorded in [Implementation status](docs/IMPLEMENTATION_STATUS.md).
@@ -22,7 +22,7 @@ The deliberately excluded scope is recorded in [Implementation status](docs/IMPL
 - pnpm 11 or newer
 - Docker with Compose, or a PostgreSQL 18-compatible database
 - A Google Gemini API key for real AI interview turns
-- Python 3.12 or newer only when running the optional local TTS service natively
+- Python 3.12 or newer only when running either optional local speech service natively
 
 ## Start the complete app with Docker
 
@@ -38,17 +38,26 @@ If pnpm is installed, `pnpm docker:up`, `pnpm docker:logs`, and `pnpm docker:dow
 
 Published ports bind to `127.0.0.1` by default. Before public deployment, set strong `BETTER_AUTH_SECRET` and `POSTGRES_PASSWORD` values, configure `BETTER_AUTH_URL`, `APP_WEB_URL`, and `API_CORS_ORIGINS`, then explicitly change the bind addresses. The server starts with a placeholder Gemini key for UI inspection, but interview creation and AI turns need a real key.
 
-### Use local text-to-speech
+### Use local speech providers
 
-Local TTS is opt-in; the default stack continues to use Gemini for LLM, speech-to-text, and text-to-speech. To run the Piper service and select it for TTS, export `GEMINI_API_KEY` and start the profile:
+Local STT and TTS are independently opt-in; the default stack continues to use Gemini for all three AI ports. Export `GEMINI_API_KEY`, then choose one of these configurations:
 
 ```bash
+# Local candidate transcription only
+STT_PROVIDER=local docker compose --profile local-stt up --build --wait
+
+# Local interviewer speech only
 TTS_PROVIDER=local docker compose --profile local-tts up --build --wait
+
+# Run everything, with both speech providers local
+STT_PROVIDER=local TTS_PROVIDER=local docker compose --profile local-stt --profile local-tts up --build --wait
 ```
 
-Gemini is still required for interview structuring, interview turns, and candidate transcription. The local service is published only on `http://127.0.0.1:18082` by default; its health endpoint is `/health`. The first image build downloads and embeds the roughly 63 MB Lessac voice model, and the initial container start includes a model-loading cold start. A local synthesis failure is reported as a TTS failure—it does not silently fall back to Gemini.
+Gemini is still required for interview structuring and interviewer turns even when both speech providers are local. Compose publishes STT at `http://127.0.0.1:18083` and TTS at `http://127.0.0.1:18082`; each exposes `/health`.
 
-See the [local TTS guide](docs/LOCAL_TTS_SERVICE.md) for native Python setup, provider variables, resource notes, and licensing considerations.
+The STT image build downloads the Whisper `small` model (about 461 MiB for `model.bin`, plus supporting files) into `/models/small`; Docker caches it in the image layer, not a named volume. The TTS image similarly embeds the roughly 63 MB Lessac voice. Container startup still has a cold start while each model loads, and local provider failures never silently fall back to Gemini.
+
+See the [local STT](docs/LOCAL_STT_SERVICE.md) and [local TTS](docs/LOCAL_TTS_SERVICE.md) guides for native setup, provider variables, model/cache behavior, format compatibility, and licensing considerations.
 
 ## Native development
 
@@ -62,7 +71,7 @@ pnpm dev
 
 Set a random `BETTER_AUTH_SECRET` of at least 32 characters and a real `GEMINI_API_KEY` in `apps/nestjs-server/.env`. Vite serves the app at `http://localhost:5173` and proxies API/realtime traffic to NestJS at `http://localhost:3000`. See the app-specific runbooks for provider and proxy overrides.
 
-For native local TTS, run the Python service on `http://127.0.0.1:8001`, then set `TTS_PROVIDER=local` and `LOCAL_TTS_URL=http://127.0.0.1:8001` in the server environment. Keep a single Uvicorn worker so the voice model is loaded only once per service process.
+For native speech services, run STT on `http://127.0.0.1:8002` and/or TTS on `http://127.0.0.1:8001`, then set the corresponding provider and URL variables in the server environment. Keep each service at one Uvicorn worker so its model is loaded only once and its single-request admission guard covers the process.
 
 ## Verify
 
