@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import {
+	Body,
+	Controller,
+	Delete,
+	Get,
+	Param,
+	Patch,
+	Post,
+	UseGuards,
+} from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import {
 	AuthGuard,
@@ -8,8 +17,13 @@ import {
 import { ApiSessionAuth } from "../../common/decorators/api-session-auth.decorator.js";
 import { ApiSuccess } from "../../common/decorators/api-success.decorator.js";
 import { ApiResponse } from "../../common/dto/api-response.dto.js";
-import { CreateInterviewDto, InterviewIdParamsDto } from "./dto/request.dto.js";
 import {
+	CreateInterviewDto,
+	InterviewIdParamsDto,
+	UpdateInterviewDto,
+} from "./dto/request.dto.js";
+import {
+	DeletedInterviewResponseDto,
 	InterviewDetailsResponseDto,
 	InterviewSummaryResponseDto,
 } from "./dto/response.dto.js";
@@ -68,6 +82,39 @@ export class InterviewsController {
 	): Promise<ApiResponse<InterviewDetailsResponseDto>> {
 		return new ApiResponse({
 			data: await this._interviewsService.findOwnedById(id, session.user),
+		});
+	}
+
+	/** Updates mutable interview metadata without rewriting attempt history. */
+	@Patch(":id")
+	@ApiOperation({ summary: "Update one of my interviews" })
+	@ApiSuccess({
+		description: "Updated creator-owned interview.",
+		type: InterviewDetailsResponseDto,
+	})
+	async update(
+		@Param() { id }: InterviewIdParamsDto,
+		@Body() data: UpdateInterviewDto,
+		@Session() session: UserSession,
+	): Promise<ApiResponse<InterviewDetailsResponseDto>> {
+		return new ApiResponse({
+			data: await this._interviewsService.update(id, data, session.user),
+		});
+	}
+
+	/** Deletes an unused creator-owned interview and its question set. */
+	@Delete(":id")
+	@ApiOperation({ summary: "Delete one of my unused interviews" })
+	@ApiSuccess({
+		description: "Deleted creator-owned interview.",
+		type: DeletedInterviewResponseDto,
+	})
+	async remove(
+		@Param() { id }: InterviewIdParamsDto,
+		@Session() session: UserSession,
+	): Promise<ApiResponse<DeletedInterviewResponseDto>> {
+		return new ApiResponse({
+			data: await this._interviewsService.remove(id, session.user),
 		});
 	}
 }

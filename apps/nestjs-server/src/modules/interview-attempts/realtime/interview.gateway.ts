@@ -25,6 +25,7 @@ import { fromNodeHeaders } from "better-auth/node";
 import type { Server, Socket } from "socket.io";
 import type z from "zod";
 import type { AppConfigService } from "../../../types/index.js";
+import { DevFlagsService } from "../../dev-flags/dev-flags.service.js";
 import type { AttemptSnapshot } from "../dto/response.dto.js";
 import { InterviewAttemptsService } from "../interview-attempts.service.js";
 import { InterviewOrchestratorService } from "../interview-orchestrator.service.js";
@@ -36,8 +37,10 @@ import {
 	type ConnectionPingAckData,
 	ConnectionPingEventSchema,
 	DisposableMediaChunkEventSchema,
+	IntegrityStatusEventSchema,
 	type InterviewEventEmitter,
 	MediaStatusEventSchema,
+	MicrophoneCancelEventSchema,
 	MicrophoneChunkEventSchema,
 	MicrophoneEndEventSchema,
 	MicrophoneStartEventSchema,
@@ -90,6 +93,7 @@ export class InterviewGateway
 		private readonly _orchestrator: InterviewOrchestratorService,
 		private readonly _audioBuffers: AudioTurnBufferService,
 		private readonly _authService: AuthService,
+		private readonly _devFlags: DevFlagsService,
 		@Inject(ConfigService)
 		private readonly _config: AppConfigService,
 	) {}
@@ -298,6 +302,14 @@ export class InterviewGateway
 			this._session(client);
 			const event = this._parse(DisposableMediaChunkEventSchema, payload);
 			this._assertJoined(client, event.attemptId);
+			const flags = this._devFlags.get();
+			const streamingEnabled =
+				mediaType === "camera"
+					? flags.streamCameraToServer
+					: flags.streamScreenToServer;
+			if (!streamingEnabled) {
+				throw new ConflictException(`${mediaType} streaming is disabled`);
+			}
 			const byteLength = Buffer.isBuffer(event.data)
 				? event.data.byteLength
 				: event.data instanceof Uint8Array
@@ -528,6 +540,70 @@ export class InterviewGateway
 			const event = this._parse(MicrophoneEndEventSchema, payload);
 			this._assertJoined(client, event.attemptId);
 			this._finishAudio(client, session.user, event);
+			return { accepted: true };
+		});
+	}
+
+	/** Drops a partial local/server microphone turn when integrity pauses input. */
+	@SubscribeMessage("microphone:cancel")
+	async cancelMicrophone(
+		@ConnectedSocket() client: InterviewSocket,
+		@MessageBody() payload: unknown,
+	): Promise<Acknowledgement> {
+		return this._acknowledge(client, () => {
+			this._session(client);
+			const event = this._parse(MicrophoneCancelEventSchema, payload);
+			this._assertJoined(client, event.attemptId);
+			if (client.data.microphoneAttemptId === event.attemptId) {
+				this._audioBuffers.clear(client.id);
+				this._releaseMicrophone(client);
+			}
+			return { accepted: true };
+		});
+	}
+
+	/** Applies global termination flags to client-reported face counts. */
+	@SubscribeMessage("integrity:status")
+	async updateIntegrityStatus(
+		@ConnectedSocket() client: InterviewSocket,
+		@MessageBody() payload: unknown,
+	): Promise<Acknowledgement> {
+		return this._acknowledge(client, async () => {
+			const session = this._session(client);
+			const event = this._parse(IntegrityStatusEventSchema, payload);
+			this._assertJoined(client, event.attemptId);
+			const flags = this._devFlags.get();
+			const noFaceViolation =
+				event.detectedFaceCount === 0 && flags.terminateOnNoFace;
+			const multipleFaceViolation =
+				event.detectedFaceCount > 1 && flags.terminateOnMultipleFaces;
+			if (
+				!flags.faceDetectionEnabled ||
+				(!noFaceViolation && !multipleFaceViolation)
+			) {
+				return { accepted: true };
+			}
+
+			this._audioBuffers.clear(client.id);
+			this._releaseMicrophone(client);
+			const snapshot = await this._attempts.failForIntegrity(
+				event.attemptId,
+				session.user,
+			);
+			this._attemptSnapshots.set(event.attemptId, snapshot);
+			const timer = this._deadlineTimers.get(event.attemptId);
+			if (timer) clearTimeout(timer);
+			this._deadlineTimers.delete(event.attemptId);
+			this.server
+				.to(`attempt:${event.attemptId}`)
+				.emit("attempt:state", snapshot);
+			this.server.to(`attempt:${event.attemptId}`).emit("attempt:error", {
+				code: "INTEGRITY_TERMINATED",
+				message: noFaceViolation
+					? "The interview ended because no face was detected."
+					: "The interview ended because multiple faces were detected.",
+				retryable: false,
+			});
 			return { accepted: true };
 		});
 	}

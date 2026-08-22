@@ -1,7 +1,6 @@
 import {
 	Box,
 	Button,
-	Grid,
 	NativeSelect,
 	Stack,
 	Switch,
@@ -9,7 +8,7 @@ import {
 } from "@chakra-ui/react";
 import { useForm } from "@tanstack/react-form";
 import { useRouter } from "@tanstack/react-router";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useRef } from "react";
 import {
 	FieldShell,
@@ -73,7 +72,14 @@ export function CreateInterviewForm() {
 				void form.handleSubmit();
 			}}
 		>
-			<Grid gap="10" templateColumns="minmax(0, 1fr) 280px">
+			<Box
+				bg="surface"
+				borderColor="line"
+				borderRadius="xl"
+				borderWidth="1px"
+				maxW="820px"
+				p="7"
+			>
 				<Stack gap="6">
 					<form.Field name="title">
 						{(field) => (
@@ -117,7 +123,6 @@ export function CreateInterviewForm() {
 						{(field) => (
 							<FieldShell
 								error={firstFormError(field.state.meta.errors)}
-								hint="This becomes a hard server-side deadline."
 								label="Duration"
 								required
 							>
@@ -146,7 +151,13 @@ export function CreateInterviewForm() {
 					</form.Field>
 					<form.Field name="allowMultipleAttempts">
 						{(field) => (
-							<Box bg="surface" borderColor="line" borderWidth="1px" p="5">
+							<Box
+								bg="surface"
+								borderColor="line"
+								borderRadius="lg"
+								borderWidth="1px"
+								p="5"
+							>
 								<Switch.Root
 									checked={field.state.value}
 									display="flex"
@@ -160,9 +171,8 @@ export function CreateInterviewForm() {
 										<Switch.Label fontWeight="700">
 											Allow repeat attempts
 										</Switch.Label>
-										<Text color="muted" fontSize="sm" lineHeight="1.55" mt="1">
-											When enabled, a candidate can start another attempt after
-											finishing. Active attempts are always resumed.
+										<Text color="muted" fontSize="sm" mt="1">
+											Allow another attempt after completion.
 										</Text>
 									</Box>
 									<Switch.Control mt="1">
@@ -176,7 +186,7 @@ export function CreateInterviewForm() {
 						{(field) => (
 							<FieldShell
 								error={firstFormError(field.state.meta.errors)}
-								hint="Write freely. The AI turns these notes into ordered tasks; candidates never see this raw text."
+								hint="The local interviewer structures these private notes."
 								label="Question notes"
 								required
 							>
@@ -213,40 +223,13 @@ export function CreateInterviewForm() {
 								px="6"
 								type="submit"
 							>
-								Structure interview
+								Create interview
 								<ArrowRight aria-hidden="true" size={17} />
 							</Button>
 						)}
 					</form.Subscribe>
 				</Stack>
-
-				<Box borderColor="line" borderLeftWidth="1px" pl="7">
-					<Sparkles aria-hidden="true" color="#2447F2" size={22} />
-					<Text fontFamily="display" fontSize="xl" fontWeight="700" mt="5">
-						What happens next
-					</Text>
-					<Stack color="muted" fontSize="sm" gap="5" lineHeight="1.6" mt="5">
-						<Text>
-							1. Notes are converted to structured, ordered interview tasks.
-						</Text>
-						<Text>
-							2. The task list and your original notes remain creator-only.
-						</Text>
-						<Text>
-							3. A secure link is created for authenticated candidates.
-						</Text>
-					</Stack>
-					<Box bg="surface" borderColor="line" borderWidth="1px" mt="8" p="4">
-						<Text fontFamily="mono" fontSize="xs" fontWeight="700">
-							SAFE RETRY
-						</Text>
-						<Text color="muted" fontSize="sm" mt="2">
-							If the network fails, retrying this draft reuses its idempotency
-							key and will not create a duplicate.
-						</Text>
-					</Box>
-				</Box>
-			</Grid>
+			</Box>
 		</form>
 	);
 }

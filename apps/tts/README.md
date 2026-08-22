@@ -1,7 +1,7 @@
 # Local TTS service
 
-This optional service lets the NestJS server use local, offline speech
-synthesis instead of Gemini TTS. It speaks only the text supplied by the API;
+This service provides local, offline speech synthesis for the NestJS server.
+It speaks only the text supplied by the API;
 it does not generate interview content or retain audio.
 
 The service uses the actively maintained Open Home Foundation
@@ -46,11 +46,11 @@ unprivileged user, and starts one Uvicorn worker. Its health check calls the
 real readiness endpoint, so the container is not healthy unless a voice was
 loaded successfully.
 
-To start it with the rest of the repository instead, enable the opt-in Compose
-profile (the host port defaults to `18082`):
+To start it with the rest of the repository, use the default Compose stack
+(the host port defaults to `18082`):
 
 ```bash
-TTS_PROVIDER=local docker compose --profile local-tts up --build
+docker compose up --build tts
 ```
 
 ## Select the provider
@@ -58,15 +58,13 @@ TTS_PROVIDER=local docker compose --profile local-tts up --build
 Start the TTS service before the NestJS server, then configure the backend:
 
 ```dotenv
-TTS_PROVIDER=local
 LOCAL_TTS_URL=http://127.0.0.1:8001
 LOCAL_TTS_VOICE=professional-default
 LOCAL_TTS_TIMEOUT_MS=45000
 ```
 
 Use `http://tts:8001` instead when both services run in the repository's
-Docker Compose network. `TTS_PROVIDER` defaults to `gemini`; selecting `local`
-does not silently fall back to Gemini when Piper is unavailable. The backend
+Docker Compose network. The backend
 expects `/synthesize` to return a non-empty mono PCM16 WAV at 24 kHz and treats
 any non-2xx response as a provider failure.
 

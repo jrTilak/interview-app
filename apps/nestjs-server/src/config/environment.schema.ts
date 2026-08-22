@@ -23,6 +23,7 @@ const BaseEnvironmentSchema = z.object({
 		.default("http://localhost:5173,http://127.0.0.1:5173"),
 	API_DOCS_FILE_PATH: z.string().trim().min(1).default("docs/api-info.md"),
 	SWAGGER_ENABLE: booleanEnvironment.default(true),
+	DEV_TOOLS_ENABLED: booleanEnvironment.default(false),
 
 	BETTER_AUTH_SECRET: z.string().min(32),
 	BETTER_AUTH_URL: z.url(),
@@ -53,35 +54,18 @@ const BaseEnvironmentSchema = z.object({
 		])
 		.optional(),
 
-	GEMINI_API_KEY: z.string().trim().min(20),
-	GEMINI_LLM_MODEL: z.string().trim().min(1).default("gemini-3.6-flash"),
-	GEMINI_STT_MODEL: z.string().trim().min(1).default("gemini-3.6-flash"),
-	GEMINI_TTS_MODEL: z
-		.string()
-		.trim()
-		.min(1)
-		.default("gemini-3.1-flash-tts-preview"),
-	GEMINI_TTS_VOICE: z.string().trim().min(1).default("Kore"),
-	GEMINI_TIMEOUT_MS: integerEnvironment({
-		defaultValue: 45_000,
-		minimum: 5_000,
-		maximum: 120_000,
-	}),
-	LLM_PROVIDER: z.enum(["gemini", "local"]).default("gemini"),
 	LOCAL_LLM_URL: z.url().default("http://127.0.0.1:8003"),
 	LOCAL_LLM_TIMEOUT_MS: integerEnvironment({
 		defaultValue: 120_000,
 		minimum: 1_000,
 		maximum: 120_000,
 	}),
-	STT_PROVIDER: z.enum(["gemini", "local"]).default("gemini"),
 	LOCAL_STT_URL: z.url().default("http://127.0.0.1:8002"),
 	LOCAL_STT_TIMEOUT_MS: integerEnvironment({
 		defaultValue: 45_000,
 		minimum: 1_000,
 		maximum: 120_000,
 	}),
-	TTS_PROVIDER: z.enum(["gemini", "local"]).default("gemini"),
 	LOCAL_TTS_URL: z.url().default("http://127.0.0.1:8001"),
 	LOCAL_TTS_VOICE: z.string().trim().min(1).default("professional-default"),
 	LOCAL_TTS_TIMEOUT_MS: integerEnvironment({

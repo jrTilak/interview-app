@@ -789,4 +789,31 @@ export class InterviewAttemptsService {
 		}
 		return this.findSnapshot(attemptId, candidate);
 	}
+
+	/** Ends an attempt after a client-side integrity rule reports a violation. */
+	async failForIntegrity(
+		attemptId: string,
+		candidate: User,
+	): Promise<AttemptSnapshot> {
+		const [updated] = await this._database
+			.update(interviewAttempt)
+			.set({
+				state: "FAILED",
+				endedAt: new Date(),
+				cameraActive: false,
+				screenActive: false,
+				microphoneActive: false,
+				version: sql`${interviewAttempt.version} + 1`,
+			})
+			.where(
+				and(
+					eq(interviewAttempt.id, attemptId),
+					eq(interviewAttempt.candidateId, candidate.id),
+					notInArray(interviewAttempt.state, ["COMPLETED", "FAILED"]),
+				),
+			)
+			.returning({ id: interviewAttempt.id });
+		if (!updated) await this._findOwnedRow(attemptId, candidate.id);
+		return this.findSnapshot(attemptId, candidate);
+	}
 }

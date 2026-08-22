@@ -1,6 +1,6 @@
 # Local STT service
 
-This optional service transcribes one completed candidate answer with
+This service transcribes one completed candidate answer with
 faster-whisper. It returns only recognized speech and does not retain uploaded
 audio or make interview decisions.
 

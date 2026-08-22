@@ -44,6 +44,10 @@ export const SharedInterviewPreviewResponseSchema = z
 	})
 	.strict();
 
+export const DeletedInterviewResponseSchema = z
+	.object({ id: z.uuid() })
+	.strict();
+
 export class InterviewQuestionResponseDto extends createZodDto(
 	InterviewQuestionResponseSchema,
 ) {}
@@ -55,4 +59,7 @@ export class InterviewDetailsResponseDto extends createZodDto(
 ) {}
 export class SharedInterviewPreviewResponseDto extends createZodDto(
 	SharedInterviewPreviewResponseSchema,
+) {}
+export class DeletedInterviewResponseDto extends createZodDto(
+	DeletedInterviewResponseSchema,
 ) {}

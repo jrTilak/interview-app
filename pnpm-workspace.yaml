@@ -6,7 +6,6 @@ overrides:
   "js-yaml@>=5.0.0 <=5.2.1": "5.2.2"
 
 allowBuilds:
-  "@google/genai": true
   "@nestjs/core": true
   "@scarf/scarf": false
   "esbuild": true

@@ -23,6 +23,7 @@ export interface PlaybackAudioContextLike {
 	createBufferSource(): DecodedAudioBufferSourceLike;
 	decodeAudioData(audioData: ArrayBuffer): Promise<DecodedAudioBufferLike>;
 	resume(): Promise<void>;
+	suspend(): Promise<void>;
 }
 
 export type CompletedAudioPlayerOptions = {
@@ -100,6 +101,11 @@ export class CompletedAudioTurnPlayer {
 	async resume(): Promise<void> {
 		const context = this._getContext();
 		if (context.state !== "running") await context.resume();
+	}
+
+	/** Suspends an unlocked context while an integrity interruption is active. */
+	async suspend(): Promise<void> {
+		if (this._context?.state === "running") await this._context.suspend();
 	}
 
 	/** Opens one assistant turn whose first file part must be sequence zero. */

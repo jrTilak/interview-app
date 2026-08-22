@@ -222,6 +222,8 @@ describe("interview platform end to end", () => {
 			.get("/api-docs.json")
 			.expect(200);
 		expect(applicationSchema.body.paths).toHaveProperty("/api/interviews");
+		expect(applicationSchema.body.paths).toHaveProperty("/api/__flags__");
+		expect(applicationSchema.body.paths).toHaveProperty("/api/interviews/{id}");
 		const authSchema = await request(app.getHttpServer())
 			.get("/auth-docs.json")
 			.expect(200);
@@ -274,6 +276,16 @@ describe("interview platform end to end", () => {
 			.expect(({ body }) =>
 				expect(body.user.email).toBe("candidate-ada@example.com"),
 			);
+		await request(app.getHttpServer()).get("/api/__flags__").expect(401);
+		const flags = await request(app.getHttpServer())
+			.patch("/api/__flags__")
+			.set("Cookie", ownerCookie)
+			.send({ streamCameraToServer: true, streamScreenToServer: true })
+			.expect(200);
+		expect(flags.body.data).toMatchObject({
+			streamCameraToServer: true,
+			streamScreenToServer: true,
+		});
 		await request(app.getHttpServer())
 			.post("/api/auth/request-password-reset")
 			.send({ email: "owner@example.com" })
@@ -347,6 +359,21 @@ describe("interview platform end to end", () => {
 		expect(list.body.data).toHaveLength(1);
 		expect(list.body.data[0].questionCount).toBe(2);
 		expect(list.body.data[0].allowMultipleAttempts).toBe(true);
+
+		const updated = await request(app.getHttpServer())
+			.patch(`/api/interviews/${ownerInterviewId}`)
+			.set("Cookie", ownerCookie)
+			.send({ durationMinutes: 45, description: null })
+			.expect(200);
+		expect(updated.body.data).toMatchObject({
+			description: null,
+			durationMinutes: 45,
+		});
+		await request(app.getHttpServer())
+			.patch(`/api/interviews/${ownerInterviewId}`)
+			.set("Cookie", candidateCookie)
+			.send({ title: "Not mine" })
+			.expect(404);
 
 		await request(app.getHttpServer())
 			.get(`/api/interviews/${ownerInterviewId}`)
@@ -580,7 +607,11 @@ describe("interview platform end to end", () => {
 		expect(finalSnapshot.body.data.turns.map((turn: any) => turn.role)).toEqual(
 			["assistant", "candidate", "assistant", "candidate", "assistant"],
 		);
-		expect(fakeLlm.turnCalls).toBe(3);
+		expect(fakeLlm.turnCalls).toBe(2);
+		await request(app.getHttpServer())
+			.delete(`/api/interviews/${ownerInterviewId}`)
+			.set("Cookie", ownerCookie)
+			.expect(409);
 
 		const ownerAttempts = await request(app.getHttpServer())
 			.get(`/api/interviews/${ownerInterviewId}/attempts`)

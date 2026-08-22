@@ -1,8 +1,5 @@
 import { jest } from "@jest/globals";
 import type { AppConfigService } from "../../../types/index.js";
-import { selectSpeechToTextProvider } from "../ai.module.js";
-import type { SpeechToTextPort } from "../ai.ports.js";
-import type { GeminiSpeechToTextAdapter } from "../gemini/gemini-stt.adapter.js";
 import { LocalSpeechToTextAdapter } from "./local-stt.adapter.js";
 
 function config(overrides: Record<string, unknown> = {}): AppConfigService {
@@ -10,7 +7,6 @@ function config(overrides: Record<string, unknown> = {}): AppConfigService {
 		AUDIO_MAX_BYTES: 10 * 1024 * 1024,
 		LOCAL_STT_TIMEOUT_MS: 10_000,
 		LOCAL_STT_URL: "http://127.0.0.1:8002",
-		STT_PROVIDER: "gemini",
 		...overrides,
 	};
 	return {
@@ -295,29 +291,4 @@ describe("LocalSpeechToTextAdapter", () => {
 		).rejects.toThrow("exceeds the 131072-byte response limit");
 		expect(cancelled).toBe(true);
 	});
-});
-
-describe("STT provider selection", () => {
-	const gemini = {
-		transcribe: jest.fn(),
-	} as unknown as GeminiSpeechToTextAdapter;
-	const local = {
-		transcribe: jest.fn(),
-	} as unknown as LocalSpeechToTextAdapter;
-
-	it.each([
-		["gemini", gemini],
-		["local", local],
-	] as const)(
-		"selects only the configured %s adapter",
-		(provider, expected) => {
-			const selected: SpeechToTextPort = selectSpeechToTextProvider(
-				config({ STT_PROVIDER: provider }),
-				gemini,
-				local,
-			);
-
-			expect(selected).toBe(expected);
-		},
-	);
 });

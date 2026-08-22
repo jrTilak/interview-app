@@ -57,15 +57,32 @@ export class InterviewMediaSession {
 	}
 
 	/** Requests a display surface from a second explicit desktop gesture. */
-	async acquireScreen(): Promise<MediaStream> {
+	async acquireScreen({
+		requireMonitor = true,
+	}: {
+		requireMonitor?: boolean;
+	} = {}): Promise<MediaStream> {
 		if (!navigator.mediaDevices?.getDisplayMedia) {
 			throw new Error("Screen sharing is unavailable in this browser.");
 		}
 		this._stopStream(this._snapshot.screenStream);
 		const stream = await navigator.mediaDevices.getDisplayMedia({
 			audio: false,
+			monitorTypeSurfaces: "include",
+			selfBrowserSurface: "exclude",
+			surfaceSwitching: "exclude",
 			video: { displaySurface: "monitor", frameRate: { ideal: 12, max: 15 } },
-		});
+		} as DisplayMediaStreamOptions);
+		const displaySurface = stream
+			.getVideoTracks()
+			.at(0)
+			?.getSettings().displaySurface;
+		if (requireMonitor && displaySurface !== "monitor") {
+			this._stopStream(stream);
+			throw new Error(
+				"Choose Entire Screen. Tabs and app windows are not allowed.",
+			);
+		}
 		for (const track of stream.getTracks()) {
 			track.addEventListener("ended", this._refreshTrackState, { once: true });
 		}

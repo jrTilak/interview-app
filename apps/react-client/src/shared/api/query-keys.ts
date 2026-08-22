@@ -1,4 +1,7 @@
 export const QUERY_KEYS = {
+	devFlags: {
+		current: () => ["dev-flags"] as const,
+	},
 	auth: {
 		session: () => ["auth", "session"] as const,
 	},

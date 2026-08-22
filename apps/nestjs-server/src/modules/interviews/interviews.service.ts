@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+	ConflictException,
 	Inject,
 	Injectable,
 	Logger,
@@ -14,10 +15,17 @@ import {
 	type AppDatabase,
 	InjectDatabase,
 } from "../../db/database.provider.js";
-import { interview, interviewQuestion } from "../../db/schema/index.js";
+import {
+	interview,
+	interviewAttempt,
+	interviewQuestion,
+} from "../../db/schema/index.js";
 import type { AppConfigService } from "../../types/index.js";
 import { INTERVIEW_LLM, type InterviewLlmPort } from "../ai/ai.ports.js";
-import type { CreateInterviewDto } from "./dto/request.dto.js";
+import type {
+	CreateInterviewDto,
+	UpdateInterviewDto,
+} from "./dto/request.dto.js";
 import type {
 	InterviewDetailsResponseDto,
 	InterviewSummaryResponseDto,
@@ -246,6 +254,54 @@ export class InterviewsService {
 			);
 		}
 		return interviewDetails;
+	}
+
+	/** Updates creator-controlled metadata while preserving question/attempt IDs. */
+	async update(
+		id: string,
+		data: UpdateInterviewDto,
+		user: User,
+	): Promise<InterviewDetailsResponseDto> {
+		const [updated] = await this._database
+			.update(interview)
+			.set(data)
+			.where(and(eq(interview.id, id), eq(interview.createdById, user.id)))
+			.returning({ id: interview.id });
+		if (!updated) {
+			throw new NotFoundException(
+				"Interview does not exist or is not owned by the current user",
+			);
+		}
+		return this.findOwnedById(updated.id, user);
+	}
+
+	/** Deletes only interviews without attempts so candidate history stays intact. */
+	async remove(id: string, user: User): Promise<{ id: string }> {
+		const [owned] = await this._database
+			.select({ id: interview.id })
+			.from(interview)
+			.where(and(eq(interview.id, id), eq(interview.createdById, user.id)))
+			.limit(1);
+		if (!owned) {
+			throw new NotFoundException(
+				"Interview does not exist or is not owned by the current user",
+			);
+		}
+
+		const [usage] = await this._database
+			.select({ count: count() })
+			.from(interviewAttempt)
+			.where(eq(interviewAttempt.interviewId, id));
+		if (Number(usage?.count ?? 0) > 0) {
+			throw new ConflictException(
+				"Interviews with candidate attempts cannot be deleted",
+			);
+		}
+
+		await this._database
+			.delete(interview)
+			.where(and(eq(interview.id, id), eq(interview.createdById, user.id)));
+		return { id };
 	}
 
 	/** Returns safe share-link metadata without exposing hidden questions. */

@@ -1,30 +1,13 @@
 import { createSystem, defaultConfig, defineConfig } from "@chakra-ui/react";
 
-const zeroRadii = {
-	"2xl": { value: "0" },
-	"2xs": { value: "0" },
-	"3xl": { value: "0" },
-	"4xl": { value: "0" },
-	full: { value: "0" },
-	lg: { value: "0" },
-	md: { value: "0" },
-	none: { value: "0" },
-	sm: { value: "0" },
-	xl: { value: "0" },
-	xs: { value: "0" },
-} as const;
-
 const interviewTheme = defineConfig({
 	globalCss: {
-		"*": {
-			borderRadius: "0 !important",
-		},
 		"*::selection": {
 			bg: "accent",
 			color: "forest",
 		},
 		body: {
-			bg: "paper",
+			bg: "canvas",
 			color: "ink",
 			fontFamily: "body",
 		},
@@ -32,16 +15,21 @@ const interviewTheme = defineConfig({
 	theme: {
 		tokens: {
 			colors: {
-				accent: { value: "#D6FF4B" },
-				cobalt: { value: "#2447F2" },
-				danger: { value: "#B5322C" },
-				forest: { value: "#142B26" },
-				ink: { value: "#111815" },
-				line: { value: "#C9CEC7" },
-				muted: { value: "#68736D" },
-				paper: { value: "#F4F2EC" },
-				success: { value: "#247552" },
-				surface: { value: "#FBFAF6" },
+				accent: { value: "#C8FF74" },
+				canvas: { value: "#F4F5F7" },
+				cobalt: { value: "#4657E8" },
+				danger: { value: "#C13F46" },
+				forest: { value: "#172522" },
+				ink: { value: "#17201D" },
+				line: { value: "#DDE1E0" },
+				muted: { value: "#687470" },
+				paper: { value: "#FAFAF8" },
+				softAccent: { value: "#ECF0FF" },
+				softDanger: { value: "#FCEBEC" },
+				softWarning: { value: "#FFF5D9" },
+				success: { value: "#277A58" },
+				surface: { value: "#FFFFFF" },
+				warningText: { value: "#72520A" },
 			},
 			fonts: {
 				body: {
@@ -56,7 +44,19 @@ const interviewTheme = defineConfig({
 					value: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
 				},
 			},
-			radii: zeroRadii,
+			radii: {
+				"2xl": { value: "1.5rem" },
+				"2xs": { value: "0.2rem" },
+				"3xl": { value: "2rem" },
+				"4xl": { value: "2.5rem" },
+				full: { value: "9999px" },
+				lg: { value: "0.85rem" },
+				md: { value: "0.65rem" },
+				none: { value: "0" },
+				sm: { value: "0.45rem" },
+				xl: { value: "1.1rem" },
+				xs: { value: "0.3rem" },
+			},
 		},
 	},
 });

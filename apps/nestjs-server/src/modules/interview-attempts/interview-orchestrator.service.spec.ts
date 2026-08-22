@@ -107,7 +107,7 @@ async function speechResponse() {
 }
 
 describe("InterviewOrchestratorService", () => {
-	it("starts with a greeting, scopes model tool IDs, emits complete TTS, and listens", async () => {
+	it("starts immediately from saved context without an LLM round trip", async () => {
 		const attempts = {
 			start: asyncMock({
 				snapshot: snapshot("ASSISTANT_SPEAKING"),
@@ -116,22 +116,14 @@ describe("InterviewOrchestratorService", () => {
 			loadModelContext: asyncMock(modelContext()),
 			saveAssistantTurn: asyncMock({
 				id: turnId,
-				text: "Hello Ada. Explain useEffect.",
+				text: "Hello Ada Candidate. Welcome to the Frontend interview. Explain useEffect",
 				shouldEnd: false,
 				endReason: null,
 			}),
 			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
 			claimDeadline: asyncMock(false),
 		};
-		const llm = createLlm({
-			text: "Hello Ada. Explain useEffect.",
-			actions: [
-				{
-					type: "complete_questions",
-					questionIds: [questionId, futureQuestionId],
-				},
-			],
-		});
+		const llm = createLlm();
 		const tts: TextToSpeechPort = { synthesize: speechResponse };
 		const service = new InterviewOrchestratorService(
 			attempts as unknown as InterviewAttemptsService,
@@ -150,12 +142,7 @@ describe("InterviewOrchestratorService", () => {
 			candidate,
 			expect.objectContaining({ completedQuestionIds: [questionId] }),
 		);
-		expect(llm.generateTurn).toHaveBeenCalledWith(
-			expect.objectContaining({
-				candidate: { name: candidate.name },
-				tasks: [expect.objectContaining({ id: questionId })],
-			}),
-		);
+		expect(llm.generateTurn).not.toHaveBeenCalled();
 		expect(events.map(({ event }) => event)).toEqual(
 			expect.arrayContaining([
 				"assistant:subtitle",
@@ -315,7 +302,10 @@ describe("InterviewOrchestratorService", () => {
 				snapshot: snapshot("ASSISTANT_SPEAKING"),
 				shouldRunAssistant: true,
 			}),
-			loadModelContext: asyncMock(modelContext()),
+			loadModelContext: asyncMock({
+				...modelContext(),
+				transcript: [{ role: "candidate" as const, text: "Previous answer" }],
+			}),
 			saveAssistantTurn: asyncMock({
 				id: turnId,
 				text: "Let us continue. Explain useEffect",
@@ -356,9 +346,13 @@ describe("InterviewOrchestratorService", () => {
 	});
 
 	it("closes after a provider failure when the deadline elapsed during work", async () => {
-		const loadModelContext = asyncMock(modelContext());
+		const continuingContext = {
+			...modelContext(),
+			transcript: [{ role: "candidate" as const, text: "Previous answer" }],
+		};
+		const loadModelContext = asyncMock(continuingContext);
 		loadModelContext
-			.mockResolvedValueOnce(modelContext())
+			.mockResolvedValueOnce(continuingContext)
 			.mockResolvedValueOnce({
 				...modelContext(),
 				remainingSeconds: 0,

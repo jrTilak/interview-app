@@ -10,6 +10,7 @@ import { AppValidationPipe } from "./common/pipes/app-validation.pipe.js";
 import { validateEnvironment } from "./config/environment.schema.js";
 import { DatabaseModule } from "./db/database.module.js";
 import { ApplicationAuthModule } from "./modules/auth/auth.module.js";
+import { DevFlagsModule } from "./modules/dev-flags/dev-flags.module.js";
 import { InterviewAttemptsModule } from "./modules/interview-attempts/interview-attempts.module.js";
 import { InterviewsModule } from "./modules/interviews/interviews.module.js";
 import { OpenApiModule } from "./modules/open-api/open-api.module.js";
@@ -23,6 +24,7 @@ import { OpenApiModule } from "./modules/open-api/open-api.module.js";
 		}),
 		DatabaseModule,
 		ApplicationAuthModule,
+		DevFlagsModule,
 		InterviewsModule,
 		InterviewAttemptsModule,
 		OpenApiModule,

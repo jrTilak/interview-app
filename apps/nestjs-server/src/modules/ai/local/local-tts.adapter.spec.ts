@@ -1,8 +1,5 @@
 import { jest } from "@jest/globals";
 import type { AppConfigService } from "../../../types/index.js";
-import { selectTextToSpeechProvider } from "../ai.module.js";
-import type { TextToSpeechPort } from "../ai.ports.js";
-import type { GeminiTextToSpeechAdapter } from "../gemini/gemini-tts.adapter.js";
 import { LocalTextToSpeechAdapter } from "./local-tts.adapter.js";
 
 type WaveOptions = {
@@ -19,7 +16,6 @@ function config(overrides: Record<string, unknown> = {}): AppConfigService {
 		LOCAL_TTS_TIMEOUT_MS: 10_000,
 		LOCAL_TTS_URL: "http://127.0.0.1:8001",
 		LOCAL_TTS_VOICE: "professional-default",
-		TTS_PROVIDER: "gemini",
 		...overrides,
 	};
 	return {
@@ -300,29 +296,4 @@ describe("LocalTextToSpeechAdapter", () => {
 			`${name} header conflicts with WAV metadata`,
 		);
 	});
-});
-
-describe("TTS provider selection", () => {
-	const gemini = {
-		synthesize: jest.fn(),
-	} as unknown as GeminiTextToSpeechAdapter;
-	const local = {
-		synthesize: jest.fn(),
-	} as unknown as LocalTextToSpeechAdapter;
-
-	it.each([
-		["gemini", gemini],
-		["local", local],
-	] as const)(
-		"selects only the configured %s adapter",
-		(provider, expected) => {
-			const selected: TextToSpeechPort = selectTextToSpeechProvider(
-				config({ TTS_PROVIDER: provider }),
-				gemini,
-				local,
-			);
-
-			expect(selected).toBe(expected);
-		},
-	);
 });

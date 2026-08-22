@@ -7,9 +7,9 @@ export function CreateInterviewScreen() {
 	return (
 		<CreatorAppShell>
 			<PageHeader
-				description="Give the interviewer context and rough notes. The configured AI service structures them into a private task list before anything is shared."
-				eyebrow="New interview"
-				title="Design the conversation"
+				description="Add the brief, timing, and question notes."
+				eyebrow="Recruiter mode"
+				title="New interview"
 			/>
 			<div style={{ marginTop: "2.5rem" }}>
 				<CreateInterviewForm />
