@@ -1,103 +1,25 @@
-# Project task tracker
+# Task status
 
-This is the living implementation checklist for the end-to-end interview platform. A checked item is implemented and covered by the verification commands in the root README.
+## Complete
 
-## Foundation
+- [x] Local-only LLM, STT, and TTS application ports and services
+- [x] Compose startup/readiness for Ollama/Qwen, faster-whisper, and Piper
+- [x] Model preload/keep-alive and immediate deterministic opening question
+- [x] Email/password sessions, guarded routes, ownership, and candidate-safe sharing
+- [x] Recruiter CRUD, participant history, and protected deletion
+- [x] Separate Interview and Recruiter workspaces with multipage navigation
+- [x] Candidate history and join-by-link workflow
+- [x] Realtime attempt lifecycle, PCM turns, transcripts, deadlines, and reconnects
+- [x] Fullscreen concealment and monitor-only screen-share validation
+- [x] Client-side face detector, outlines, start gate, pause, and termination report
+- [x] Process-wide development flags with optional camera/screen streaming
+- [x] Unit, component, REST/Socket.IO, and browser journey coverage
 
-- [x] Replace the Bun scaffold with a pnpm workspace
-- [x] Create the NestJS 11 ESM server and feature-module structure
-- [x] Add strict environment validation and safe startup/shutdown behavior
-- [x] Add PostgreSQL, Drizzle schemas, and a generated migration
-- [x] Add a production backend Docker image and one-command PostgreSQL/backend stack
-- [x] Bundle and automatically apply migrations in the Compose deployment
-- [x] Add consistent Zod validation, API responses, errors, and OpenAPI references
+## Future production work
 
-## Authentication
-
-- [x] Add Better Auth email/password signup, login, logout, and session lookup
-- [x] Require authenticated sessions on all interview HTTP and realtime operations
-- [x] Disable social login, password reset, verification mail, and account-management routes
-- [x] Document that email addresses are self-asserted in this phase because verification is out of scope
-
-## Interview creation and sharing
-
-- [x] Create creator-owned interviews from title, description, duration, and raw question notes
-- [x] Let creators choose a single-use or repeat-attempt policy when creating an interview
-- [x] Convert raw notes into strict structured tasks through the LLM port
-- [x] Validate provider output and save interviews/questions atomically
-- [x] Make create requests idempotent with `clientRequestId`
-- [x] Limit expensive creation requests and coalesce concurrent identical requests
-- [x] Generate unguessable share codes and authenticated candidate-safe previews
-- [x] Prevent candidates from seeing creator notes, hidden task details, or other attempts
-
-## Interview execution
-
-- [x] Resume one active attempt and create later attempts only when the interview permits repeats
-- [x] Preserve creator-safe participant attempt history and candidate-isolated taken-interview history
-- [x] Persist the attempt state, deadline, transcript, media flags, and per-question progress
-- [x] Greet the candidate with their name and interview context
-- [x] Give the model only the current pending task and reject unknown tool-action IDs
-- [x] Prevent question repetition and refuse early completion while a task remains
-- [x] Keep the interviewer neutral: no coaching, correction, scoring, or ideal answers
-- [x] Enforce the hard deadline independently of model behavior
-- [x] Recover safely after reconnects, duplicate commands, and retryable provider failures
-
-## Realtime media and AI
-
-- [x] Add an authenticated Socket.IO `/interviews` namespace
-- [x] Accept bounded camera/screen chunks, authorize them, and immediately discard them
-- [x] Accept ordered, bounded microphone turns with explicit end and no-chunk timeout fallback
-- [x] Allow only one active microphone owner per attempt
-- [x] Transcribe candidate audio, persist text, and deliver subtitles plus complete-turn assistant audio
-- [x] Add replaceable LLM, STT, and TTS ports with independently selectable Gemini/local adapters
-- [x] Validate Gemini status, tool calls, structured data, audio formats, timeouts, and provider errors
-- [x] Wrap socket PCM as in-memory WAV for Gemini STT and request one completed Gemini TTS response
-- [x] Wrap completed Gemini TTS PCM as one WAV and native-decode it once in the browser
-- [x] Integrate bounded faster-whisper PCM/WAV transcription without changing the Gemini defaults or LLM binding
-- [x] Add an opt-in, health-checked local STT Compose profile with the default model cached in the image
-- [x] Integrate the Piper/Lessac HTTP TTS service without changing default provider selections or the LLM binding
-- [x] Add an opt-in, health-checked local TTS Compose profile with the voice model bundled into the image
-- [x] Integrate a bounded Qwen/Ollama LLM service for question structuring and interview turns
-- [x] Add an opt-in local LLM Compose profile with automatic model pull and persistent Ollama cache
-- [x] Pause disposable camera/screen encoding while assistant audio plays and resume it on every exit path
-- [x] Avoid sending candidate email or future hidden questions to the model
-
-## Quality and documentation
-
-- [x] Add focused unit tests for validation, buffering, attempt state, gateway safety, orchestration, creation limits, Gemini audio events, and WAV payloads
-- [x] Add PostgreSQL-backed REST, authentication, authorization, realtime, media, and interview-flow E2E tests
-- [x] Cover repeat policy, active-attempt uniqueness, history ownership/isolation, and completed-WAV playback edge cases
-- [x] Make E2E setup isolated and repeatable with Docker Compose
-- [x] Add lint, build, test typecheck, dependency audit, and test commands
-- [x] Document setup, architecture, API, realtime protocol, privacy, and deployment constraints
-- [x] Document the minimum local LLM, STT, and TTS service behavior and handoff contracts
-- [x] Run a real Gemini TTS-to-WAV-STT smoke test with the compiled Docker adapters
-
-## React desktop client
-
-- [x] Map the existing Expo-client conventions and backend HTTP/realtime contracts
-- [x] Scaffold the React, Vite, pnpm-workspace, Chakra UI, and desktop PWA foundation
-- [x] Generate typed application and authentication clients with Orval and Axios
-- [x] Add TanStack Query caching, Router guards, Form validation, and Zustand room state
-- [x] Build email signup/login/logout and authenticated application navigation
-- [x] Build interview listing, creation, detail, copy-link, and shared-link join flows
-- [x] Add the repeat-attempt creation toggle, creator participant activity, and grouped candidate history
-- [x] Build the realtime interview room with preflight, camera/screen transport, PCM microphone VAD, audio playback, and subtitles
-- [x] Delay browser TTS playback until the complete assistant turn is buffered, then play one continuous source
-- [x] Hard-block mobile/tablet layouts and finish the zero-radius desktop design system
-- [x] Add frontend unit/component edge-case coverage
-- [x] Add desktop Chromium product-journey coverage
-- [x] Document frontend setup, media/privacy boundaries, and verification
-- [x] Add frontend Docker/nginx delivery and verify the full Compose stack
-- [x] Recover the live interview room after transient realtime disconnects
-- [x] Show authenticated realtime latency in the live interview room
-- [x] Require interview fullscreen and block the question view until fullscreen is restored
-- [x] Complete the expanded browser/container regression pass
-
-## Deliberately deferred
-
-- [ ] Harden cross-account session teardown and in-memory client cache isolation
-- [ ] Add server-side decoded-audio VAD as a fallback to the browser/client acoustic VAD
-- [ ] Add WebM transcoding if the chosen browser recorder cannot emit a supported STT format
-- [ ] Add distributed work leases, sticky routing, and a shared Socket.IO adapter before horizontal scaling
-- [ ] Add production observability and deployment configuration
+- [ ] Shared leases, flags, limits, and Socket.IO adapter for horizontal scaling
+- [ ] Pagination for large recruiter/participant histories
+- [ ] Verified email and account recovery
+- [ ] Production liveness/identity controls if the product requires proctoring
+- [ ] Optional scoring/report workflows with an explicit fairness and review design
+- [ ] GPU-specific deployment profiles and load/capacity testing

@@ -64,7 +64,7 @@ function snapshot(
 }
 
 /** Constructs the gateway with concise provider, persistence, and room doubles. */
-function createGateway() {
+function createGateway(flagOverrides: Record<string, boolean> = {}) {
 	const attempts = {
 		findSnapshot: jest
 			.fn<(...args: unknown[]) => Promise<AttemptSnapshot>>()
@@ -74,6 +74,8 @@ function createGateway() {
 			.fn<(...args: unknown[]) => Promise<void>>()
 			.mockResolvedValue(),
 		updateMedia: jest.fn(),
+		failForIntegrity:
+			jest.fn<(...args: unknown[]) => Promise<AttemptSnapshot>>(),
 	};
 	const orchestrator = {
 		start: jest.fn(),
@@ -97,17 +99,32 @@ function createGateway() {
 	const config = {
 		get: (key: string) => configValues[key],
 	} as unknown as AppConfigService;
+	const devFlags = {
+		get: () => ({
+			faceDetectionEnabled: true,
+			requireSingleFaceToStart: true,
+			pauseOnNoFace: true,
+			pauseOnMultipleFaces: true,
+			terminateOnNoFace: false,
+			terminateOnMultipleFaces: false,
+			streamCameraToServer: true,
+			streamScreenToServer: true,
+			requireWholeScreen: true,
+			...flagOverrides,
+		}),
+	};
 	const gateway = new InterviewGateway(
 		attempts as unknown as InterviewAttemptsService,
 		orchestrator as unknown as InterviewOrchestratorService,
 		audioBuffers as unknown as AudioTurnBufferService,
 		{ instance: { api: { getSession } } } as never,
+		devFlags as never,
 		config,
 	);
 	const roomEmit = jest.fn();
 	const to = jest.fn(() => ({ emit: roomEmit }));
 	gateway.server = { to } as unknown as Server;
-	return { gateway, attempts, audioBuffers, getSession };
+	return { gateway, attempts, audioBuffers, getSession, roomEmit };
 }
 
 describe("InterviewGateway", () => {
@@ -279,6 +296,36 @@ describe("InterviewGateway", () => {
 				ok: false,
 				error: expect.objectContaining({ code: "HTTP_409" }),
 			}),
+		);
+	});
+
+	it("terminates an active attempt when a global face rule is violated", async () => {
+		const { gateway, attempts, audioBuffers, roomEmit } = createGateway({
+			terminateOnMultipleFaces: true,
+		});
+		const failed = snapshot("FAILED");
+		attempts.failForIntegrity.mockResolvedValue(failed);
+		const client = socketDouble("integrity-candidate", {
+			attemptId,
+			session,
+		});
+
+		await expect(
+			gateway.updateIntegrityStatus(client, {
+				attemptId,
+				detectedFaceCount: 2,
+			}),
+		).resolves.toEqual(expect.objectContaining({ ok: true }));
+
+		expect(attempts.failForIntegrity).toHaveBeenCalledWith(
+			attemptId,
+			session.user,
+		);
+		expect(audioBuffers.clear).toHaveBeenCalledWith(client.id);
+		expect(roomEmit).toHaveBeenCalledWith("attempt:state", failed);
+		expect(roomEmit).toHaveBeenCalledWith(
+			"attempt:error",
+			expect.objectContaining({ code: "INTEGRITY_TERMINATED" }),
 		);
 	});
 });

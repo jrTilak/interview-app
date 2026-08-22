@@ -1,72 +1,49 @@
 # Realtime interview protocol
 
-## Connection and ordering
+Connect Socket.IO to namespace `/interviews` with the Better Auth session cookie and an allowed `Origin`. Every client event is schema-validated and acknowledged as either `{ ok: true, data }` or `{ ok: false, error }`.
 
-Connect a Socket.IO client to namespace `/interviews` with the Better Auth cookie and an allowed `Origin`. The normal sequence is:
+## Client events
 
-1. Create or resume an attempt over REST.
-2. Emit `attempt:join` and wait for its acknowledgement.
-3. Subscribe to server events before emitting `attempt:start`.
-4. Buffer assistant audio through `assistant:turn:end`, then play the complete utterance once while displaying subtitles.
-5. When state becomes `LISTENING`, open one mic turn, send ordered binary chunks, then explicitly close it.
-6. Repeat until `attempt:ended`.
-
-Every client event returns an acknowledgement:
-
-```ts
-type Ack<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: { code: string; message: string; retryable: boolean } };
-```
-
-Failures are also emitted as `attempt:error`. UUIDs used as `turnId` must be newly generated for each candidate turn; replaying a completed `turnId` is safely ignored.
-
-The session is verified once during the WebSocket handshake. At most three concurrent sockets are accepted for one user on a server instance. Reconnect after logout or any session change so the new handshake observes it.
-
-The client may periodically emit `connection:ping` with `{ probeId: uuid }`. Its acknowledgement echoes the UUID and adds an ISO `serverTime`. The client measures local round-trip duration around that acknowledgement; the probe requires the handshake session but does not require joining an attempt, query interview state, or persist a sample.
-
-## Client-to-server events
-
-| Event | Payload | Notes |
+| Event | Required payload | Purpose |
 | --- | --- | --- |
-| `connection:ping` | `{ probeId: uuid }` | Authenticated state-free latency probe; ack returns `{ probeId, serverTime }` |
-| `attempt:join` | `{ attemptId: uuid }` | Authorizes ownership, joins a private room, emits `attempt:snapshot` |
-| `attempt:start` | `{ attemptId: uuid, commandId: uuid }` | Idempotently starts or resumes the interviewer |
-| `microphone:start` | `{ attemptId, turnId, mimeType, sampleRateHz?, channels? }` | Allowed only in `LISTENING`; channels defaults to 1 |
-| `microphone:chunk` | `{ attemptId, turnId, sequence, data }` | `data` must be non-empty binary; sequence starts at 0 with no gaps; one turn accepts at most 32,768 chunks |
-| `microphone:end` | `{ attemptId, turnId, lastSequence }` | Explicit, preferred turn boundary |
-| `media:status` | `{ attemptId, cameraActive, screenActive, microphoneActive }` | Persists flags only |
-| `camera:chunk` | `{ attemptId, sequence, mimeType, data }` | Bounded, authorized, immediately discarded |
-| `screen:chunk` | `{ attemptId, sequence, mimeType, data }` | Bounded, authorized, immediately discarded |
+| `connection:ping` | `probeId` UUID | Measure authenticated round-trip latency |
+| `attempt:join` | `attemptId` UUID | Authorize and join one room |
+| `attempt:start` | `attemptId`, `commandId` UUIDs | Idempotently start a ready attempt |
+| `media:status` | `attemptId` and three active booleans | Persist camera/mic/screen status |
+| `integrity:status` | `attemptId`, `detectedFaceCount` 0–10 | Apply global integrity termination flags |
+| `microphone:start` | attempt/turn IDs, MIME type, optional format metadata | Claim the microphone and begin a turn |
+| `microphone:chunk` | attempt/turn IDs, sequence, bytes | Append ordered audio |
+| `microphone:end` | attempt/turn IDs, last sequence | Close and process a complete turn |
+| `microphone:cancel` | attempt/turn IDs | Drop a partial turn during integrity pause |
+| `camera:chunk` | attempt ID, sequence, MIME type, bytes | Optional disposable camera transport |
+| `screen:chunk` | attempt ID, sequence, MIME type, bytes | Optional disposable monitor transport |
 
-The gateway recognizes `audio/wav`, `audio/mpeg`, `audio/mp3`, `audio/aiff`, `audio/aac`, `audio/ogg`, `audio/flac`, `audio/m4a`, and `audio/l16`, but the selected STT provider may support a narrower subset. `STT_PROVIDER` defaults to Gemini. Its adapter wraps completed PCM as RIFF/WAV because Gemini does not accept raw L16. Local STT accepts only uncompressed PCM16 WAV (`audio/wav`, `audio/wave`, or `audio/x-wav`) and `audio/l16`; it posts one multipart request and never silently falls back to Gemini.
+The client must join before any attempt-scoped event. Only one socket owns an attempt's microphone at once. Audio sequences are contiguous and size/time bounded. The current browser sends mono 16 kHz signed little-endian `audio/l16`; the complete buffered turn is discarded after transcription.
 
-In this application, `audio/l16` means raw signed 16-bit little-endian PCM and requires `sampleRateHz`; the React client sends compatible mono 16 kHz audio with channel metadata. Browser WebM is unsupported by both current adapters. Encode a provider-supported format in the client or add a transcoding provider behind the STT port.
+Camera/screen events are accepted only during an active attempt, when the corresponding media state and global stream flag are active. Chunks are authenticated, bounded, and discarded after validation.
 
-The server also closes a mic turn after `AUDIO_SILENCE_MS` with no chunks, including a started turn that received no audio. This is a network/chunk inactivity fallback, not acoustic silence detection. The client should perform voice-activity detection or stop sending and emit `microphone:end` when the speaker finishes. Only one socket may own the active mic turn for an attempt.
+## Server events
 
-Camera and screen chunks are accepted only for an active interview when their respective `media:status` flag is true. They are rate/size checked and discarded. Microphone turns have per-chunk, per-turn, and process-wide aggregate memory limits; disposable media also has a rolling traffic limit.
-
-## Server-to-client events
-
-| Event | Important payload fields |
+| Event | Purpose |
 | --- | --- |
-| `attempt:snapshot` | Full state, timestamps, media flags, and persisted text turns |
-| `attempt:state` | Same reconnect-safe snapshot after a transition |
-| `assistant:turn:start` | `{ turnId }` |
-| `assistant:subtitle` | `{ turnId, text, isFinal: true }` |
-| `assistant:audio:chunk` | `{ turnId, sequence, mimeType, sampleRateHz?, channels?, data }` |
-| `assistant:turn:end` | `{ turnId }` |
-| `candidate:transcript` | `{ turnId, text, isFinal: true }` |
-| `attempt:ended` | `{ reason: "AI_COMPLETED" | "TIME_LIMIT", endedAt }` |
-| `attempt:error` | `{ code, message, retryable }` |
+| `attempt:snapshot` | Current durable state after joining |
+| `attempt:state` | Authoritative attempt/transcript/media snapshot |
+| `assistant:turn:start` | Begin one assistant utterance |
+| `assistant:subtitle` | Current assistant subtitle text |
+| `assistant:audio:chunk` | Ordered WAV bytes |
+| `assistant:turn:end` | Marks the complete playable utterance |
+| `candidate:transcript` | Final text for a candidate turn |
+| `attempt:ended` | Final reason and timestamp |
+| `attempt:error` | Stable code, safe message, and retryability |
 
-TTS is selected at server startup with `TTS_PROVIDER`. The default Gemini path uses one non-streaming `generateContent` request per assistant utterance, validates the completed mono 24 kHz signed little-endian PCM response, and wraps it as `audio/wav`. The opt-in local path posts the same exact text and configured voice to Piper and validates its complete mono 24 kHz, 16-bit PCM WAV response. Neither provider silently falls back to the other.
+The server emits subtitle text before synthesis begins. The opening subtitle does not wait for the local LLM; it is composed from trusted persisted data and the first active question. Later turns follow transcription and local generation.
 
-Both paths emit one size-limited `assistant:audio:chunk`. The browser waits through `assistant:turn:end`, native-decodes the complete WAV once, and plays exactly one audio source with a playback-oriented Web Audio context. Camera and screen `MediaRecorder` encoders pause during this playback and resume after drain, cancellation, or failure; their device tracks are not stopped. Subtitle text is emitted before audio, so an audio-provider failure leaves the interview usable via text.
+## Integrity behavior
 
-## Reconnection
+Face detection runs in the browser. A stabilized count is reported on connection and whenever it changes. Pause flags stop/cancel microphone capture, suspend assistant playback, and pause optional media encoders locally. Termination flags call the authoritative server transition to `FAILED`, clear the deadline timer and partial audio, broadcast a final snapshot, and emit `INTEGRITY_TERMINATED`.
 
-Call `GET /api/interview-attempts/:id`, reconnect, and emit `attempt:join`. If the durable state is `ASSISTANT_SPEAKING` or `ENDING`, `attempt:start` replays the persisted last assistant utterance rather than creating a second transcript. If it is `LISTENING`, the client may open a new mic turn. Completed attempts cannot be restarted or mutated.
+Development flags are process-wide and can change while rooms are active. The client refreshes them periodically.
 
-Mic bytes are intentionally transient and scoped to one socket. A disconnect during a mic turn drops that incomplete server buffer; the client must cancel its local controller and start a new `turnId` after reconnecting. A direct live-route restore also requires a fresh user gesture before Web Audio playback and realtime orchestration begin.
+## Errors and reconnects
+
+Validation, authentication, conflicts, limits, and provider failures map to stable realtime errors without internal exception details. A reconnect joins the room again and receives the durable attempt snapshot. The server owns deadlines and terminal state, so disconnecting cannot extend an interview.

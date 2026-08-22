@@ -53,9 +53,27 @@ class FakeAudioContext implements PlaybackAudioContextLike {
 	async resume(): Promise<void> {
 		this.state = "running";
 	}
+
+	async suspend(): Promise<void> {
+		this.state = "suspended";
+	}
 }
 
 describe("CompletedAudioTurnPlayer", () => {
+	it("suspends and resumes an already unlocked audio context", async () => {
+		const context = new FakeAudioContext();
+		const player = new CompletedAudioTurnPlayer({
+			contextFactory: () => context,
+		});
+
+		await player.resume();
+		expect(context.state).toBe("running");
+		await player.suspend();
+		expect(context.state).toBe("suspended");
+		await player.resume();
+		expect(context.state).toBe("running");
+	});
+
 	it("native-decodes the complete WAV once and starts one source only after turn end", async () => {
 		const context = new FakeAudioContext();
 		const player = new CompletedAudioTurnPlayer({

@@ -12,8 +12,8 @@ export default defineConfig({
 			devOptions: { enabled: false },
 			injectRegister: "auto",
 			manifest: {
-				background_color: "#f4f2ec",
-				description: "Create, share, and take structured AI interviews.",
+				background_color: "#f4f5f7",
+				description: "Create, share, and take structured interviews.",
 				display: "standalone",
 				icons: [
 					{
@@ -39,11 +39,12 @@ export default defineConfig({
 				orientation: "landscape",
 				short_name: "Interview Desk",
 				start_url: "/",
-				theme_color: "#142b26",
+				theme_color: "#172522",
 			},
 			registerType: "prompt",
 			workbox: {
 				cleanupOutdatedCaches: true,
+				globIgnores: ["**/vision_wasm_*.wasm"],
 				navigateFallbackDenylist: [/^\/api(?:\/|$)/, /^\/socket\.io(?:\/|$)/],
 				runtimeCaching: [
 					{

@@ -199,7 +199,7 @@ export class LocalSpeechToTextAdapter implements SpeechToTextPort {
 		private readonly _config: AppConfigService,
 	) {}
 
-	/** Uploads one bounded candidate turn without falling back to Gemini. */
+	/** Uploads one bounded candidate turn to the configured speech service. */
 	async transcribe(input: TranscribeAudioInput): Promise<string> {
 		const mimeType = validateInput(
 			input,

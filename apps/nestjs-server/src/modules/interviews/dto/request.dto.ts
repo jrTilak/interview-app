@@ -46,7 +46,7 @@ export const CreateInterviewSchema = z
 			.max(INTERVIEW_LIMITS.description.maximum)
 			.optional()
 			.meta({
-				description: "Optional context the AI interviewer should know.",
+				description: "Optional context the local interviewer should know.",
 				example: "A 30-minute final-year project interview.",
 			}),
 		rawQuestions: z
@@ -78,8 +78,37 @@ export const CreateInterviewSchema = z
 	})
 	.strict();
 
+export const UpdateInterviewSchema = z
+	.object({
+		title: z
+			.string()
+			.trim()
+			.min(INTERVIEW_LIMITS.title.minimum)
+			.max(INTERVIEW_LIMITS.title.maximum)
+			.optional(),
+		description: z
+			.string()
+			.trim()
+			.min(1)
+			.max(INTERVIEW_LIMITS.description.maximum)
+			.nullable()
+			.optional(),
+		durationMinutes: z
+			.number()
+			.int()
+			.min(INTERVIEW_LIMITS.durationMinutes.minimum)
+			.max(INTERVIEW_LIMITS.durationMinutes.maximum)
+			.optional(),
+		allowMultipleAttempts: z.boolean().optional(),
+	})
+	.strict()
+	.refine((value) => Object.keys(value).length > 0, {
+		message: "At least one interview field must be updated",
+	});
+
 export class InterviewIdParamsDto extends createZodDto(
 	InterviewIdParamsSchema,
 ) {}
 export class ShareCodeParamsDto extends createZodDto(ShareCodeParamsSchema) {}
 export class CreateInterviewDto extends createZodDto(CreateInterviewSchema) {}
+export class UpdateInterviewDto extends createZodDto(UpdateInterviewSchema) {}

@@ -21,6 +21,7 @@ import {
 	MonitorUp,
 	Repeat2,
 	ShieldCheck,
+	UserRoundCheck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Brand } from "@/components/atoms/brand";
@@ -28,6 +29,8 @@ import { ErrorState } from "@/components/atoms/error-state";
 import { LoadingState } from "@/components/atoms/loading-state";
 import { MediaPreview } from "@/components/molecules/media-preview";
 import { useJoinInterview } from "@/shared/api/modules/attempts/hooks";
+import { DEFAULT_DEV_FLAGS } from "@/shared/api/modules/dev-flags/lib";
+import { devFlagsQueryOptions } from "@/shared/api/modules/dev-flags/queries";
 import { sharedInterviewQueryOptions } from "@/shared/api/modules/interviews/queries";
 import {
 	exitInterviewFullscreen,
@@ -39,18 +42,25 @@ import { toaster } from "@/shared/lib/toaster";
 import {
 	interviewAudioPlayer,
 	interviewMediaSession,
+	useFaceDetection,
 	useInterviewMediaSession,
 } from "@/shared/media";
 
 /** Runs device preflight before creating or resuming a candidate attempt. */
 export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 	const preview = useQuery(sharedInterviewQueryOptions(shareCode));
+	const flagsQuery = useQuery(devFlagsQueryOptions());
+	const flags = flagsQuery.data ?? DEFAULT_DEV_FLAGS;
 	const join = useJoinInterview();
 	const media = useInterviewMediaSession();
 	const router = useRouter();
 	const handingOff = useRef(false);
 	const [acquiringCamera, setAcquiringCamera] = useState(false);
 	const [acquiringScreen, setAcquiringScreen] = useState(false);
+	const faceDetection = useFaceDetection(
+		media.cameraStream,
+		flags.faceDetectionEnabled,
+	);
 	const isLocalhost = ["localhost", "127.0.0.1"].includes(
 		window.location.hostname,
 	);
@@ -89,13 +99,12 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 	const requestScreen = async () => {
 		setAcquiringScreen(true);
 		try {
-			await interviewMediaSession.acquireScreen();
+			await interviewMediaSession.acquireScreen({
+				requireMonitor: flags.requireWholeScreen,
+			});
 		} catch (error) {
 			toaster.error({
-				description: parseError(
-					error,
-					"Select a screen or application window to continue.",
-				),
+				description: parseError(error, "Choose Entire Screen to continue."),
 				title: "Screen share not selected",
 			});
 		} finally {
@@ -130,8 +139,15 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 		}
 	};
 
+	const faceReady =
+		!flags.faceDetectionEnabled ||
+		!flags.requireSingleFaceToStart ||
+		faceDetection.status === "single";
 	const ready =
-		media.cameraActive && media.microphoneActive && media.screenActive;
+		media.cameraActive &&
+		media.microphoneActive &&
+		media.screenActive &&
+		faceReady;
 
 	return (
 		<Box bg="paper" minH="100dvh">
@@ -251,6 +267,21 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 										onClick={() => void requestCamera()}
 										pending={acquiringCamera}
 									/>
+									{flags.faceDetectionEnabled && (
+										<DeviceRow
+											active={faceDetection.status === "single"}
+											icon={UserRoundCheck}
+											label={
+												faceDetection.status === "single"
+													? "One face detected"
+													: faceDetection.status === "multiple"
+														? "Only one person is allowed"
+														: faceDetection.status === "error"
+															? "Face detector unavailable"
+															: "Center your face"
+											}
+										/>
+									)}
 									<DeviceRow
 										active={media.screenActive}
 										icon={MonitorUp}
@@ -300,6 +331,7 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 						<Box>
 							<Grid gap="1" templateRows="240px 190px">
 								<MediaPreview
+									faceDetection={faceDetection}
 									label="Camera preview"
 									stream={media.cameraStream}
 								/>
@@ -320,10 +352,8 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 									<Text fontWeight="700">Media handling in this phase</Text>
 								</Flex>
 								<Text color="muted" fontSize="sm" lineHeight="1.65" mt="3">
-									Camera and screen chunks are authorized, bounded, accepted by
-									the server, and immediately discarded. Interview text is
-									persisted for reconnection. Microphone audio is held only
-									while one answer is transcribed.
+									Video stays in the browser unless its development streaming
+									flag is on. Microphone audio is discarded after transcription.
 								</Text>
 							</Box>
 						</Box>
@@ -363,13 +393,13 @@ function DeviceRow({
 	icon: Icon,
 	label,
 	onClick,
-	pending,
+	pending = false,
 }: {
 	active: boolean;
 	icon: typeof Camera | typeof Mic;
 	label: string;
-	onClick: () => void;
-	pending: boolean;
+	onClick?: () => void;
+	pending?: boolean;
 }) {
 	return (
 		<Flex
@@ -392,10 +422,14 @@ function DeviceRow({
 				<Flex align="center" color="success" fontSize="sm" gap="2">
 					<Check aria-hidden="true" size={15} /> Ready
 				</Flex>
-			) : (
+			) : onClick ? (
 				<Button loading={pending} onClick={onClick} size="sm" variant="outline">
 					{pending ? "Waiting…" : "Connect"}
 				</Button>
+			) : (
+				<Text color="danger" fontSize="sm">
+					Needs attention
+				</Text>
 			)}
 		</Flex>
 	);

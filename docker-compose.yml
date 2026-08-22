@@ -30,6 +30,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      local-llm:
+        condition: service_healthy
+      stt:
+        condition: service_healthy
+      tts:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -39,6 +45,7 @@ services:
       API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-18080},http://127.0.0.1:${FRONTEND_PORT:-18080}}
       API_DOCS_FILE_PATH: docs/api-info.md
       SWAGGER_ENABLE: ${SWAGGER_ENABLE:-true}
+      DEV_TOOLS_ENABLED: ${DEV_TOOLS_ENABLED:-false}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-docker-local-secret-change-before-public-deployment}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${FRONTEND_PORT:-18080}}
       DB_HOST: postgres
@@ -49,19 +56,10 @@ services:
       DB_CONNECT_TIMEOUT_MS: 10000
       DB_AUTO_MIGRATE: "true"
       PGSSLMODE: disable
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-replace-with-a-google-gemini-api-key}
-      GEMINI_LLM_MODEL: ${GEMINI_LLM_MODEL:-gemini-3.6-flash}
-      GEMINI_STT_MODEL: ${GEMINI_STT_MODEL:-gemini-3.6-flash}
-      GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-3.1-flash-tts-preview}
-      GEMINI_TTS_VOICE: ${GEMINI_TTS_VOICE:-Kore}
-      GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-45000}
-      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
       LOCAL_LLM_URL: ${LOCAL_LLM_URL:-http://local-llm:8003}
       LOCAL_LLM_TIMEOUT_MS: ${LOCAL_LLM_TIMEOUT_MS:-120000}
-      STT_PROVIDER: ${STT_PROVIDER:-gemini}
       LOCAL_STT_URL: ${LOCAL_STT_URL:-http://stt:8002}
       LOCAL_STT_TIMEOUT_MS: ${LOCAL_STT_TIMEOUT_MS:-45000}
-      TTS_PROVIDER: ${TTS_PROVIDER:-gemini}
       LOCAL_TTS_URL: ${LOCAL_TTS_URL:-http://tts:8001}
       LOCAL_TTS_VOICE: ${LOCAL_TTS_VOICE:-professional-default}
       LOCAL_TTS_TIMEOUT_MS: ${LOCAL_TTS_TIMEOUT_MS:-45000}
@@ -85,7 +83,6 @@ services:
     stop_grace_period: 15s
 
   ollama:
-    profiles: ["local-llm"]
     image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
@@ -104,7 +101,6 @@ services:
     stop_grace_period: 15s
 
   ollama-pull:
-    profiles: ["local-llm"]
     image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
     init: true
     depends_on:
@@ -117,7 +113,6 @@ services:
     restart: "no"
 
   local-llm:
-    profiles: ["local-llm"]
     build:
       context: ./apps/local-llm-service
       dockerfile: Dockerfile
@@ -138,10 +133,21 @@ services:
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-10m}
     ports:
       - "127.0.0.1:${LLM_PORT:-18084}:8003"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health', timeout=3)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
     stop_grace_period: 15s
 
   stt:
-    profiles: ["local-stt"]
     build:
       context: ./apps/stt
       dockerfile: Dockerfile
@@ -157,10 +163,21 @@ services:
       STT_TIMEOUT_SECONDS: ${STT_TIMEOUT_SECONDS:-45}
     ports:
       - "127.0.0.1:${STT_PORT:-18083}:8002"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     stop_grace_period: 10s
 
   tts:
-    profiles: ["local-tts"]
     build:
       context: ./apps/tts
       dockerfile: Dockerfile
@@ -169,6 +186,18 @@ services:
     init: true
     ports:
       - "127.0.0.1:${TTS_PORT:-18082}:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
     stop_grace_period: 10s
 
   frontend:

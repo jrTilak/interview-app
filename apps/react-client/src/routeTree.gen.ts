@@ -13,12 +13,17 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as AuthenticatedChar91__flags__Char93RouteImport } from './routes/_authenticated/[__flags__]'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedJoinRouteImport } from './routes/_authenticated/join'
 import { Route as AuthenticatedInterviewsShareCodeRouteImport } from './routes/_authenticated/interviews/$shareCode'
 import { Route as AuthenticatedInterviewsNewRouteImport } from './routes/_authenticated/interviews/new'
+import { Route as AuthenticatedRecruiterInterviewsRouteImport } from './routes/_authenticated/recruiter/interviews'
+import { Route as AuthenticatedRecruiterParticipantsRouteImport } from './routes/_authenticated/recruiter/participants'
 import { Route as AuthenticatedInterviewsShareCodeIndexRouteImport } from './routes/_authenticated/interviews/$shareCode/index'
 import { Route as AuthenticatedInterviewsOwnedInterviewIdRouteImport } from './routes/_authenticated/interviews/owned.$interviewId'
 import { Route as AuthenticatedInterviewsShareCodeAttemptsAttemptIdRouteImport } from './routes/_authenticated/interviews/$shareCode/attempts/$attemptId'
+import { Route as AuthenticatedInterviewsOwnedInterviewIdEditRouteImport } from './routes/_authenticated/interviews/owned.$interviewId_.edit'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -39,9 +44,20 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedChar91__flags__Char93Route =
+  AuthenticatedChar91__flags__Char93RouteImport.update({
+    id: '/__flags__',
+    path: '/__flags__',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedJoinRoute = AuthenticatedJoinRouteImport.update({
+  id: '/join',
+  path: '/join',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedInterviewsShareCodeRoute =
@@ -54,6 +70,18 @@ const AuthenticatedInterviewsNewRoute =
   AuthenticatedInterviewsNewRouteImport.update({
     id: '/interviews/new',
     path: '/interviews/new',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedRecruiterInterviewsRoute =
+  AuthenticatedRecruiterInterviewsRouteImport.update({
+    id: '/recruiter/interviews',
+    path: '/recruiter/interviews',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedRecruiterParticipantsRoute =
+  AuthenticatedRecruiterParticipantsRouteImport.update({
+    id: '/recruiter/participants',
+    path: '/recruiter/participants',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedInterviewsShareCodeIndexRoute =
@@ -74,27 +102,43 @@ const AuthenticatedInterviewsShareCodeAttemptsAttemptIdRoute =
     path: '/attempts/$attemptId',
     getParentRoute: () => AuthenticatedInterviewsShareCodeRoute,
   } as any)
+const AuthenticatedInterviewsOwnedInterviewIdEditRoute =
+  AuthenticatedInterviewsOwnedInterviewIdEditRouteImport.update({
+    id: '/interviews/owned/$interviewId_/edit',
+    path: '/interviews/owned/$interviewId/edit',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/__flags__': typeof AuthenticatedChar91__flags__Char93Route
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/join': typeof AuthenticatedJoinRoute
   '/interviews/$shareCode': typeof AuthenticatedInterviewsShareCodeRouteWithChildren
   '/interviews/new': typeof AuthenticatedInterviewsNewRoute
+  '/recruiter/interviews': typeof AuthenticatedRecruiterInterviewsRoute
+  '/recruiter/participants': typeof AuthenticatedRecruiterParticipantsRoute
   '/interviews/owned/$interviewId': typeof AuthenticatedInterviewsOwnedInterviewIdRoute
   '/interviews/$shareCode/': typeof AuthenticatedInterviewsShareCodeIndexRoute
   '/interviews/$shareCode/attempts/$attemptId': typeof AuthenticatedInterviewsShareCodeAttemptsAttemptIdRoute
+  '/interviews/owned/$interviewId/edit': typeof AuthenticatedInterviewsOwnedInterviewIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/__flags__': typeof AuthenticatedChar91__flags__Char93Route
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/join': typeof AuthenticatedJoinRoute
   '/interviews/new': typeof AuthenticatedInterviewsNewRoute
+  '/recruiter/interviews': typeof AuthenticatedRecruiterInterviewsRoute
+  '/recruiter/participants': typeof AuthenticatedRecruiterParticipantsRoute
   '/interviews/owned/$interviewId': typeof AuthenticatedInterviewsOwnedInterviewIdRoute
   '/interviews/$shareCode': typeof AuthenticatedInterviewsShareCodeIndexRoute
   '/interviews/$shareCode/attempts/$attemptId': typeof AuthenticatedInterviewsShareCodeAttemptsAttemptIdRoute
+  '/interviews/owned/$interviewId/edit': typeof AuthenticatedInterviewsOwnedInterviewIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -102,12 +146,17 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/_authenticated/__flags__': typeof AuthenticatedChar91__flags__Char93Route
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/join': typeof AuthenticatedJoinRoute
   '/_authenticated/interviews/$shareCode': typeof AuthenticatedInterviewsShareCodeRouteWithChildren
   '/_authenticated/interviews/new': typeof AuthenticatedInterviewsNewRoute
+  '/_authenticated/recruiter/interviews': typeof AuthenticatedRecruiterInterviewsRoute
+  '/_authenticated/recruiter/participants': typeof AuthenticatedRecruiterParticipantsRoute
   '/_authenticated/interviews/owned/$interviewId': typeof AuthenticatedInterviewsOwnedInterviewIdRoute
   '/_authenticated/interviews/$shareCode/': typeof AuthenticatedInterviewsShareCodeIndexRoute
   '/_authenticated/interviews/$shareCode/attempts/$attemptId': typeof AuthenticatedInterviewsShareCodeAttemptsAttemptIdRoute
+  '/_authenticated/interviews/owned/$interviewId_/edit': typeof AuthenticatedInterviewsOwnedInterviewIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -115,34 +164,49 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
+    | '/__flags__'
     | '/dashboard'
+    | '/join'
     | '/interviews/$shareCode'
     | '/interviews/new'
+    | '/recruiter/interviews'
+    | '/recruiter/participants'
     | '/interviews/owned/$interviewId'
     | '/interviews/$shareCode/'
     | '/interviews/$shareCode/attempts/$attemptId'
+    | '/interviews/owned/$interviewId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/signup'
+    | '/__flags__'
     | '/dashboard'
+    | '/join'
     | '/interviews/new'
+    | '/recruiter/interviews'
+    | '/recruiter/participants'
     | '/interviews/owned/$interviewId'
     | '/interviews/$shareCode'
     | '/interviews/$shareCode/attempts/$attemptId'
+    | '/interviews/owned/$interviewId/edit'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/login'
     | '/signup'
+    | '/_authenticated/__flags__'
     | '/_authenticated/dashboard'
+    | '/_authenticated/join'
     | '/_authenticated/interviews/$shareCode'
     | '/_authenticated/interviews/new'
+    | '/_authenticated/recruiter/interviews'
+    | '/_authenticated/recruiter/participants'
     | '/_authenticated/interviews/owned/$interviewId'
     | '/_authenticated/interviews/$shareCode/'
     | '/_authenticated/interviews/$shareCode/attempts/$attemptId'
+    | '/_authenticated/interviews/owned/$interviewId_/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -182,11 +246,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/__flags__': {
+      id: '/_authenticated/__flags__'
+      path: '/__flags__'
+      fullPath: '/__flags__'
+      preLoaderRoute: typeof AuthenticatedChar91__flags__Char93RouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/join': {
+      id: '/_authenticated/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof AuthenticatedJoinRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/interviews/$shareCode': {
@@ -201,6 +279,20 @@ declare module '@tanstack/react-router' {
       path: '/interviews/new'
       fullPath: '/interviews/new'
       preLoaderRoute: typeof AuthenticatedInterviewsNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/recruiter/interviews': {
+      id: '/_authenticated/recruiter/interviews'
+      path: '/recruiter/interviews'
+      fullPath: '/recruiter/interviews'
+      preLoaderRoute: typeof AuthenticatedRecruiterInterviewsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/recruiter/participants': {
+      id: '/_authenticated/recruiter/participants'
+      path: '/recruiter/participants'
+      fullPath: '/recruiter/participants'
+      preLoaderRoute: typeof AuthenticatedRecruiterParticipantsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/interviews/$shareCode/': {
@@ -224,6 +316,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInterviewsShareCodeAttemptsAttemptIdRouteImport
       parentRoute: typeof AuthenticatedInterviewsShareCodeRoute
     }
+    '/_authenticated/interviews/owned/$interviewId_/edit': {
+      id: '/_authenticated/interviews/owned/$interviewId_/edit'
+      path: '/interviews/owned/$interviewId/edit'
+      fullPath: '/interviews/owned/$interviewId/edit'
+      preLoaderRoute: typeof AuthenticatedInterviewsOwnedInterviewIdEditRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
@@ -246,19 +345,32 @@ const AuthenticatedInterviewsShareCodeRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedChar91__flags__Char93Route: typeof AuthenticatedChar91__flags__Char93Route
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedJoinRoute: typeof AuthenticatedJoinRoute
   AuthenticatedInterviewsShareCodeRoute: typeof AuthenticatedInterviewsShareCodeRouteWithChildren
   AuthenticatedInterviewsNewRoute: typeof AuthenticatedInterviewsNewRoute
+  AuthenticatedRecruiterInterviewsRoute: typeof AuthenticatedRecruiterInterviewsRoute
+  AuthenticatedRecruiterParticipantsRoute: typeof AuthenticatedRecruiterParticipantsRoute
   AuthenticatedInterviewsOwnedInterviewIdRoute: typeof AuthenticatedInterviewsOwnedInterviewIdRoute
+  AuthenticatedInterviewsOwnedInterviewIdEditRoute: typeof AuthenticatedInterviewsOwnedInterviewIdEditRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedChar91__flags__Char93Route:
+    AuthenticatedChar91__flags__Char93Route,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedJoinRoute: AuthenticatedJoinRoute,
   AuthenticatedInterviewsShareCodeRoute:
     AuthenticatedInterviewsShareCodeRouteWithChildren,
   AuthenticatedInterviewsNewRoute: AuthenticatedInterviewsNewRoute,
+  AuthenticatedRecruiterInterviewsRoute: AuthenticatedRecruiterInterviewsRoute,
+  AuthenticatedRecruiterParticipantsRoute:
+    AuthenticatedRecruiterParticipantsRoute,
   AuthenticatedInterviewsOwnedInterviewIdRoute:
     AuthenticatedInterviewsOwnedInterviewIdRoute,
+  AuthenticatedInterviewsOwnedInterviewIdEditRoute:
+    AuthenticatedInterviewsOwnedInterviewIdEditRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

@@ -56,6 +56,14 @@ export type MicrophoneEndPayload = AttemptJoinPayload & {
 	lastSequence: number;
 };
 
+export type MicrophoneCancelPayload = AttemptJoinPayload & {
+	turnId: string;
+};
+
+export type IntegrityStatusPayload = AttemptJoinPayload & {
+	detectedFaceCount: number;
+};
+
 export type MediaStatusPayload = AttemptJoinPayload & AttemptMedia;
 
 export type DisposableMediaChunkPayload = AttemptJoinPayload & {
@@ -108,6 +116,14 @@ export interface InterviewClientToServerEvents {
 	) => void;
 	"microphone:end": (
 		payload: MicrophoneEndPayload,
+		acknowledge: RealtimeAckCallback<AcceptedPayload>,
+	) => void;
+	"microphone:cancel": (
+		payload: MicrophoneCancelPayload,
+		acknowledge: RealtimeAckCallback<AcceptedPayload>,
+	) => void;
+	"integrity:status": (
+		payload: IntegrityStatusPayload,
 		acknowledge: RealtimeAckCallback<AcceptedPayload>,
 	) => void;
 	"media:status": (

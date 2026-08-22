@@ -1,4 +1,5 @@
 export * from "./acoustic-silence-detector.js";
+export * from "./face-detection.js";
 export * from "./interview-media-session.js";
 export * from "./microphone-capture.js";
 export * from "./pcm16.js";

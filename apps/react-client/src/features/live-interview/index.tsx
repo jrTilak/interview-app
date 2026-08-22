@@ -22,6 +22,7 @@ import {
 	Radio,
 	RefreshCw,
 	ShieldCheck,
+	UserRoundX,
 	Volume2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -30,11 +31,17 @@ import { ErrorState } from "@/components/atoms/error-state";
 import { LoadingState } from "@/components/atoms/loading-state";
 import { MediaPreview } from "@/components/molecules/media-preview";
 import type { AttemptSnapshotResponseDtoState } from "@/shared/api/generated/application/models";
+import { DEFAULT_DEV_FLAGS } from "@/shared/api/modules/dev-flags/lib";
+import { devFlagsQueryOptions } from "@/shared/api/modules/dev-flags/queries";
 import { sharedInterviewQueryOptions } from "@/shared/api/modules/interviews/queries";
 import { useInterviewFullscreen } from "@/shared/browser/interview-fullscreen";
 import { parseError } from "@/shared/lib/parse-error";
 import { toaster } from "@/shared/lib/toaster";
-import { interviewAudioPlayer, useInterviewMediaSession } from "@/shared/media";
+import {
+	interviewAudioPlayer,
+	useFaceDetection,
+	useInterviewMediaSession,
+} from "@/shared/media";
 import { formatCountdown, getRemainingSeconds } from "./deadline";
 import { FullscreenInterruption } from "./fullscreen-interruption";
 import { formatLatency, getLatencyQuality } from "./latency";
@@ -84,12 +91,35 @@ export function LiveInterviewScreen({
 	shareCode: string;
 }) {
 	const preview = useQuery(sharedInterviewQueryOptions(shareCode));
+	const flagsQuery = useQuery(devFlagsQueryOptions());
+	const flags = flagsQuery.data ?? DEFAULT_DEV_FLAGS;
 	const fullscreen = useInterviewFullscreen();
 	const [roomEnabled, setRoomEnabled] = useState(
 		() => Boolean(document.fullscreenElement) && interviewAudioPlayer.isRunning,
 	);
-	const room = useInterviewRoom(attemptId, { enabled: roomEnabled });
 	const media = useInterviewMediaSession();
+	const faceDetection = useFaceDetection(
+		media.cameraStream,
+		flags.faceDetectionEnabled,
+	);
+	const faceMissing =
+		!media.cameraActive ||
+		faceDetection.status === "initializing" ||
+		faceDetection.status === "no-face" ||
+		faceDetection.status === "error";
+	const integrityPaused =
+		flags.faceDetectionEnabled &&
+		((faceMissing && flags.pauseOnNoFace) ||
+			(faceDetection.status === "multiple" && flags.pauseOnMultipleFaces));
+	const room = useInterviewRoom(attemptId, {
+		detectedFaceCount: flags.faceDetectionEnabled
+			? (faceDetection.count ?? (!media.cameraActive ? 0 : null))
+			: null,
+		enabled: roomEnabled,
+		paused: integrityPaused,
+		streamCameraToServer: flags.streamCameraToServer,
+		streamScreenToServer: flags.streamScreenToServer,
+	});
 	const [remaining, setRemaining] = useState<number | null>(() =>
 		getRemainingSeconds(room.attempt.data?.deadlineAt ?? null),
 	);
@@ -276,7 +306,39 @@ export function LiveInterviewScreen({
 			)}
 
 			<Grid flex="1" minH="0" templateColumns="minmax(0, 1fr) 340px">
-				<Flex direction="column" minH="0">
+				<Flex direction="column" minH="0" position="relative">
+					{integrityPaused && (
+						<Flex
+							align="center"
+							bg="paper"
+							direction="column"
+							inset="0"
+							justify="center"
+							p="10"
+							position="absolute"
+							textAlign="center"
+							zIndex="2"
+						>
+							<Flex
+								align="center"
+								bg="softDanger"
+								color="danger"
+								h="14"
+								justify="center"
+								w="14"
+							>
+								<UserRoundX aria-hidden="true" size={24} />
+							</Flex>
+							<Heading fontFamily="display" fontSize="3xl" mt="5">
+								Interview paused
+							</Heading>
+							<Text color="muted" mt="2">
+								{faceDetection.status === "multiple"
+									? "Only one person may be visible."
+									: "Return to the camera frame."}
+							</Text>
+						</Flex>
+					)}
 					<Flex
 						align="center"
 						borderBottomColor="line"
@@ -406,7 +468,11 @@ export function LiveInterviewScreen({
 						Device monitor
 					</Text>
 					<Grid gap="1" mt="4" templateRows="180px 150px">
-						<MediaPreview label="Camera" stream={media.cameraStream} />
+						<MediaPreview
+							faceDetection={faceDetection}
+							label="Camera"
+							stream={media.cameraStream}
+						/>
 						<MediaPreview label="Screen" stream={media.screenStream} />
 					</Grid>
 					<Stack gap="0" mt="5">

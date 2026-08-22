@@ -34,6 +34,7 @@ test("shows an authenticated candidate only the safe lobby brief and device gate
 		if (
 			pathname.startsWith("/api/") &&
 			pathname !== "/api/auth/get-session" &&
+			pathname !== "/api/__flags__" &&
 			pathname !== `/api/shared-interviews/${shareCode}`
 		) {
 			unexpectedApiRequests.push(`${request.method()} ${pathname}`);
@@ -49,6 +50,25 @@ test("shows an authenticated candidate only the safe lobby brief and device gate
 	});
 	await page.route("**/api/auth/get-session", async (route) => {
 		await route.fulfill({ json: session, status: 200 });
+	});
+	await page.route("**/api/__flags__", async (route) => {
+		await route.fulfill({
+			json: {
+				data: {
+					faceDetectionEnabled: true,
+					pauseOnMultipleFaces: true,
+					pauseOnNoFace: true,
+					requireSingleFaceToStart: true,
+					requireWholeScreen: true,
+					streamCameraToServer: false,
+					streamScreenToServer: false,
+					terminateOnMultipleFaces: false,
+					terminateOnNoFace: false,
+				},
+				message: "Retrieved successfully",
+			},
+			status: 200,
+		});
 	});
 	await page.route(`**/api/shared-interviews/${shareCode}`, async (route) => {
 		await route.fulfill({

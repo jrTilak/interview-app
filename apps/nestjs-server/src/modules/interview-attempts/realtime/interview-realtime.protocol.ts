@@ -62,6 +62,20 @@ export const MicrophoneEndEventSchema = z
 	})
 	.strict();
 
+export const MicrophoneCancelEventSchema = z
+	.object({
+		attemptId: z.uuid(),
+		turnId: z.uuid(),
+	})
+	.strict();
+
+export const IntegrityStatusEventSchema = z
+	.object({
+		attemptId: z.uuid(),
+		detectedFaceCount: z.number().int().min(0).max(10),
+	})
+	.strict();
+
 export const MediaStatusEventSchema = z
 	.object({
 		attemptId: z.uuid(),

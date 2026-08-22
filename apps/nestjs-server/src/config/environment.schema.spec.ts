@@ -8,7 +8,6 @@ const validEnvironment = {
 	DB_NAME: "interview_app_test",
 	DB_USERNAME: "interview_app",
 	DB_PASSWORD: "interview_app",
-	GEMINI_API_KEY: "12345678901234567890",
 };
 
 describe("EnvironmentSchema", () => {
@@ -17,16 +16,13 @@ describe("EnvironmentSchema", () => {
 
 		expect(result.PORT).toBe(3000);
 		expect(result.SWAGGER_ENABLE).toBe(true);
+		expect(result.DEV_TOOLS_ENABLED).toBe(false);
 		expect(result.DB_AUTO_MIGRATE).toBe(false);
 		expect(result.AUDIO_SILENCE_MS).toBe(1800);
-		expect(result.GEMINI_LLM_MODEL).toBe("gemini-3.6-flash");
-		expect(result.LLM_PROVIDER).toBe("gemini");
 		expect(result.LOCAL_LLM_URL).toBe("http://127.0.0.1:8003");
 		expect(result.LOCAL_LLM_TIMEOUT_MS).toBe(120_000);
-		expect(result.STT_PROVIDER).toBe("gemini");
 		expect(result.LOCAL_STT_URL).toBe("http://127.0.0.1:8002");
 		expect(result.LOCAL_STT_TIMEOUT_MS).toBe(45_000);
-		expect(result.TTS_PROVIDER).toBe("gemini");
 		expect(result.LOCAL_TTS_URL).toBe("http://127.0.0.1:8001");
 		expect(result.LOCAL_TTS_VOICE).toBe("professional-default");
 		expect(result.LOCAL_TTS_TIMEOUT_MS).toBe(45_000);
@@ -40,15 +36,13 @@ describe("EnvironmentSchema", () => {
 			...validEnvironment,
 			PORT: "4567",
 			SWAGGER_ENABLE: "false",
+			DEV_TOOLS_ENABLED: "true",
 			DB_AUTO_MIGRATE: "true",
 			AUDIO_MAX_BYTES: "4096",
-			LLM_PROVIDER: "local",
 			LOCAL_LLM_URL: "http://llm:9002",
 			LOCAL_LLM_TIMEOUT_MS: "90000",
-			STT_PROVIDER: "local",
 			LOCAL_STT_URL: "http://stt:9001",
 			LOCAL_STT_TIMEOUT_MS: "25000",
-			TTS_PROVIDER: "local",
 			LOCAL_TTS_URL: "http://tts:9000",
 			LOCAL_TTS_VOICE: "warm-female",
 			LOCAL_TTS_TIMEOUT_MS: "30000",
@@ -56,15 +50,13 @@ describe("EnvironmentSchema", () => {
 
 		expect(result.PORT).toBe(4567);
 		expect(result.SWAGGER_ENABLE).toBe(false);
+		expect(result.DEV_TOOLS_ENABLED).toBe(true);
 		expect(result.DB_AUTO_MIGRATE).toBe(true);
 		expect(result.AUDIO_MAX_BYTES).toBe(4096);
-		expect(result.LLM_PROVIDER).toBe("local");
 		expect(result.LOCAL_LLM_URL).toBe("http://llm:9002");
 		expect(result.LOCAL_LLM_TIMEOUT_MS).toBe(90_000);
-		expect(result.STT_PROVIDER).toBe("local");
 		expect(result.LOCAL_STT_URL).toBe("http://stt:9001");
 		expect(result.LOCAL_STT_TIMEOUT_MS).toBe(25_000);
-		expect(result.TTS_PROVIDER).toBe("local");
 		expect(result.LOCAL_TTS_URL).toBe("http://tts:9000");
 		expect(result.LOCAL_TTS_VOICE).toBe("warm-female");
 		expect(result.LOCAL_TTS_TIMEOUT_MS).toBe(30_000);
@@ -79,33 +71,6 @@ describe("EnvironmentSchema", () => {
 			}),
 		).toThrow();
 	});
-
-	it.each(["cloud", "LOCAL", ""])(
-		"rejects the unsupported LLM provider %j",
-		(LLM_PROVIDER) => {
-			expect(() =>
-				EnvironmentSchema.parse({ ...validEnvironment, LLM_PROVIDER }),
-			).toThrow();
-		},
-	);
-
-	it.each(["cloud", "LOCAL", ""])(
-		"rejects the unsupported STT provider %j",
-		(STT_PROVIDER) => {
-			expect(() =>
-				EnvironmentSchema.parse({ ...validEnvironment, STT_PROVIDER }),
-			).toThrow();
-		},
-	);
-
-	it.each(["cloud", "LOCAL", ""])(
-		"rejects the unsupported TTS provider %j",
-		(TTS_PROVIDER) => {
-			expect(() =>
-				EnvironmentSchema.parse({ ...validEnvironment, TTS_PROVIDER }),
-			).toThrow();
-		},
-	);
 
 	it.each(["999", "120001"])(
 		"rejects the out-of-range local LLM timeout %s",

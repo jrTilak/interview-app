@@ -7,11 +7,12 @@ Run natively from this directory with::
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import threading
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from typing import TypeVar
 
 import requests
@@ -78,7 +79,34 @@ OLLAMA_TAGS_URL = _api_url("tags")
 STRUCTURE_MAX_TOKENS = 4_000
 TURN_MAX_TOKENS = 800
 
-app = FastAPI(title="Local LLM Interview Service")
+
+def _preload_model() -> None:
+    """Load the configured model before traffic reaches the interview API."""
+
+    try:
+        response = requests.post(
+            OLLAMA_GENERATE_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "stream": False,
+                "keep_alive": OLLAMA_KEEP_ALIVE,
+            },
+            timeout=OLLAMA_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        LOGGER.info("Preloaded Ollama model %r", OLLAMA_MODEL)
+    except requests.RequestException:
+        # Readiness and ordinary requests still report the provider failure.
+        LOGGER.warning("Could not preload Ollama model %r", OLLAMA_MODEL)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    await asyncio.to_thread(_preload_model)
+    yield
+
+
+app = FastAPI(title="Local LLM Interview Service", lifespan=lifespan)
 
 # Ollama can queue requests, but parallel generations make an 8B local model
 # unpredictably slow. The Docker image deliberately uses one Uvicorn worker so

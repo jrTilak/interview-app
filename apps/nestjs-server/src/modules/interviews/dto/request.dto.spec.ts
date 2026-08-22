@@ -1,4 +1,8 @@
-import { CreateInterviewSchema, ShareCodeParamsSchema } from "./request.dto.js";
+import {
+	CreateInterviewSchema,
+	ShareCodeParamsSchema,
+	UpdateInterviewSchema,
+} from "./request.dto.js";
 
 const validInput = {
 	clientRequestId: "f1fe6e65-4d76-4d21-96dc-4a4aa841f4ea",
@@ -42,5 +46,18 @@ describe("interview request schemas", () => {
 		expect(
 			ShareCodeParamsSchema.safeParse({ shareCode: "short" }).success,
 		).toBe(false);
+	});
+
+	it("accepts bounded partial updates and rejects empty updates", () => {
+		expect(
+			UpdateInterviewSchema.parse({ title: "  Platform interview  " }),
+		).toEqual({ title: "Platform interview" });
+		expect(UpdateInterviewSchema.safeParse({}).success).toBe(false);
+		expect(
+			UpdateInterviewSchema.safeParse({ durationMinutes: 1 }).success,
+		).toBe(false);
+		expect(UpdateInterviewSchema.parse({ description: null })).toEqual({
+			description: null,
+		});
 	});
 });

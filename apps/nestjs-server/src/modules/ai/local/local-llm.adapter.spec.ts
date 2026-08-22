@@ -1,11 +1,6 @@
 import { jest } from "@jest/globals";
 import type { AppConfigService } from "../../../types/index.js";
-import { selectInterviewLlmProvider } from "../ai.module.js";
-import type {
-	GenerateInterviewTurnInput,
-	InterviewLlmPort,
-} from "../ai.ports.js";
-import type { GeminiLlmAdapter } from "../gemini/gemini-llm.adapter.js";
+import type { GenerateInterviewTurnInput } from "../ai.ports.js";
 import { LocalLlmAdapter } from "./local-llm.adapter.js";
 
 const questionId = "7635f24a-adb3-457c-8e43-2d0a1a8fa0df";
@@ -13,7 +8,6 @@ const otherQuestionId = "83e0c06d-cbbf-47db-80fe-9da1bc4d37b0";
 
 function config(overrides: Record<string, unknown> = {}): AppConfigService {
 	const values: Record<string, unknown> = {
-		LLM_PROVIDER: "gemini",
 		LOCAL_LLM_TIMEOUT_MS: 10_000,
 		LOCAL_LLM_URL: "http://127.0.0.1:8003",
 		...overrides,
@@ -431,42 +425,5 @@ describe("LocalLlmAdapter", () => {
 			}),
 		).rejects.toThrow("exceeds the 524288-byte limit");
 		expect(fetchSpy).not.toHaveBeenCalled();
-	});
-});
-
-describe("LLM provider selection", () => {
-	const gemini = {
-		generateTurn: jest.fn(),
-		structureQuestions: jest.fn(),
-	} as unknown as GeminiLlmAdapter;
-	const local = {
-		generateTurn: jest.fn(),
-		structureQuestions: jest.fn(),
-	} as unknown as LocalLlmAdapter;
-
-	it.each([
-		["gemini", gemini],
-		["local", local],
-	] as const)(
-		"selects only the configured %s adapter",
-		(provider, expected) => {
-			const selected: InterviewLlmPort = selectInterviewLlmProvider(
-				config({ LLM_PROVIDER: provider }),
-				gemini,
-				local,
-			);
-
-			expect(selected).toBe(expected);
-		},
-	);
-
-	it("rejects an unsupported provider without falling back", () => {
-		expect(() =>
-			selectInterviewLlmProvider(
-				config({ LLM_PROVIDER: "cloud" }),
-				gemini,
-				local,
-			),
-		).toThrow("Unsupported LLM provider: cloud");
 	});
 });

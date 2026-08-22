@@ -84,6 +84,24 @@ def make_turn_request(
 
 
 class LlmReadinessTests(unittest.TestCase):
+    def test_preload_uses_an_empty_generation_and_configured_keep_alive(self) -> None:
+        with patch.object(
+            main.requests,
+            "post",
+            return_value=FakeProviderResponse({"response": ""}),
+        ) as post:
+            main._preload_model()
+
+        self.assertEqual(post.call_args.args[0], main.OLLAMA_GENERATE_URL)
+        self.assertEqual(
+            post.call_args.kwargs["json"],
+            {
+                "model": main.OLLAMA_MODEL,
+                "stream": False,
+                "keep_alive": main.OLLAMA_KEEP_ALIVE,
+            },
+        )
+
     def test_health_is_degraded_when_ollama_is_unreachable(self) -> None:
         response = Response()
         with patch.object(

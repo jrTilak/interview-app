@@ -132,16 +132,34 @@ export class InterviewOrchestratorService {
 			transcript: context.transcript.slice(-40),
 		};
 		let generated: GeneratedInterviewTurn;
-		try {
-			generated = await this._llm.generateTurn(providerContext);
-		} catch (error) {
-			if (!context.mustEnd) throw error;
+		if (activeTask && context.transcript.length === 0 && !context.mustEnd) {
+			// The opening is fully determined by server-owned data. Avoiding a model
+			// round-trip here removes cold-start latency from the first question.
+			const title = context.interview.title.trim().replace(/[.!?]+$/, "");
+			const interviewLabel = /\binterview$/i.test(title)
+				? title
+				: `${title} interview`;
 			generated = {
-				text: "Thank you for your time. The interview has now reached its time limit.",
+				text: `Hello ${context.candidate.name}. Welcome to the ${interviewLabel}. ${activeTask.prompt}`,
 				actions: [
-					{ type: "end_interview" as const, reason: "Time limit reached" },
+					{
+						type: "complete_questions" as const,
+						questionIds: [activeTask.id],
+					},
 				],
 			};
+		} else {
+			try {
+				generated = await this._llm.generateTurn(providerContext);
+			} catch (error) {
+				if (!context.mustEnd) throw error;
+				generated = {
+					text: "Thank you for your time. The interview has now reached its time limit.",
+					actions: [
+						{ type: "end_interview" as const, reason: "Time limit reached" },
+					],
+				};
+			}
 		}
 
 		const completionRequested = generated.actions.some(

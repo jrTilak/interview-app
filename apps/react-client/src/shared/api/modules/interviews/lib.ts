@@ -1,3 +1,4 @@
+import { apiClient } from "@/shared/api/client";
 import { getInterviews } from "@/shared/api/generated/application/interviews/interviews";
 import type {
 	CreateInterviewDto,
@@ -16,6 +17,13 @@ export type {
 	InterviewDetailsResponseDto,
 	InterviewSummaryResponseDto,
 	SharedInterviewPreviewResponseDto,
+};
+
+export type UpdateInterviewDto = {
+	title?: string;
+	description?: string | null;
+	durationMinutes?: number;
+	allowMultipleAttempts?: boolean;
 };
 
 /** Lists interviews owned by the active creator. */
@@ -38,6 +46,33 @@ export async function createInterview(
 ): Promise<InterviewDetailsResponseDto> {
 	return requireResponseData(
 		await interviewsApi.interviewsControllerCreate(input),
+	);
+}
+
+/** Updates mutable recruiter-controlled interview metadata. */
+export async function updateInterview({
+	id,
+	data,
+}: {
+	id: string;
+	data: UpdateInterviewDto;
+}): Promise<InterviewDetailsResponseDto> {
+	return requireResponseData(
+		await apiClient<{ data?: InterviewDetailsResponseDto }>({
+			data,
+			method: "PATCH",
+			url: `/api/interviews/${id}`,
+		}),
+	);
+}
+
+/** Deletes one unused creator-owned interview. */
+export async function deleteInterview(id: string): Promise<{ id: string }> {
+	return requireResponseData(
+		await apiClient<{ data?: { id: string } }>({
+			method: "DELETE",
+			url: `/api/interviews/${id}`,
+		}),
 	);
 }
 

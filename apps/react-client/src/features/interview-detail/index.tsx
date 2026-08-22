@@ -9,13 +9,14 @@ import {
 	Text,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Copy, ExternalLink } from "lucide-react";
+import { Link, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, Copy, ExternalLink, Pencil, Trash2 } from "lucide-react";
 import { ErrorState } from "@/components/atoms/error-state";
 import { LoadingState } from "@/components/atoms/loading-state";
 import { CreatorAppShell } from "@/components/layouts/app-shell";
 import { AttemptHistoryTable } from "@/components/molecules/attempt-history-table";
 import { interviewParticipantAttemptsQueryOptions } from "@/shared/api/modules/attempts/queries";
+import { useDeleteInterview } from "@/shared/api/modules/interviews/hooks";
 import { interviewDetailQueryOptions } from "@/shared/api/modules/interviews/queries";
 import { copyText } from "@/shared/lib/copy-text";
 import { formatDate, formatDuration } from "@/shared/lib/format";
@@ -33,6 +34,8 @@ export function InterviewDetailScreen({
 	const participantAttempts = useQuery(
 		interviewParticipantAttemptsQueryOptions(interviewId),
 	);
+	const deleteInterview = useDeleteInterview();
+	const router = useRouter();
 
 	if (interview.isPending) {
 		return (
@@ -70,11 +73,30 @@ export function InterviewDetailScreen({
 			});
 		}
 	};
+	const remove = async () => {
+		if (
+			!window.confirm(
+				`Delete “${detail.title}”? This cannot be undone. Interviews with attempts are protected.`,
+			)
+		) {
+			return;
+		}
+		try {
+			await deleteInterview.mutateAsync(detail.id);
+			toaster.success({ title: "Interview deleted" });
+			await router.navigate({ to: "/recruiter/interviews" });
+		} catch (error) {
+			toaster.error({
+				description: parseError(error, "This interview could not be deleted."),
+				title: "Delete failed",
+			});
+		}
+	};
 
 	return (
 		<CreatorAppShell>
 			<ChakraLink asChild color="muted" display="inline-flex" fontSize="sm">
-				<Link to="/dashboard">
+				<Link to="/recruiter/interviews">
 					<ArrowLeft aria-hidden="true" size={15} />
 					Back to interviews
 				</Link>
@@ -104,25 +126,41 @@ export function InterviewDetailScreen({
 						</Text>
 					)}
 				</Box>
-				<Grid
-					borderColor="line"
-					borderLeftWidth="1px"
-					gap="4"
-					minW="250px"
-					pl="6"
-					templateColumns="1fr 1fr"
-				>
-					<Meta
-						label="Duration"
-						value={formatDuration(detail.durationMinutes)}
-					/>
-					<Meta label="Questions" value={String(detail.questionCount)} />
-					<Meta label="Created" value={formatDate(detail.createdAt)} />
-					<Meta
-						label="Attempt policy"
-						value={detail.allowMultipleAttempts ? "Repeat allowed" : "One each"}
-					/>
-				</Grid>
+				<Box borderColor="line" borderLeftWidth="1px" minW="270px" pl="6">
+					<Grid gap="4" templateColumns="1fr 1fr">
+						<Meta
+							label="Duration"
+							value={formatDuration(detail.durationMinutes)}
+						/>
+						<Meta label="Questions" value={String(detail.questionCount)} />
+						<Meta label="Created" value={formatDate(detail.createdAt)} />
+						<Meta
+							label="Attempt policy"
+							value={
+								detail.allowMultipleAttempts ? "Repeat allowed" : "One each"
+							}
+						/>
+					</Grid>
+					<Flex gap="2" mt="5">
+						<Button asChild flex="1" size="sm" variant="outline">
+							<Link
+								params={{ interviewId: detail.id }}
+								to="/interviews/owned/$interviewId/edit"
+							>
+								<Pencil aria-hidden="true" size={14} /> Edit
+							</Link>
+						</Button>
+						<Button
+							color="danger"
+							disabled={deleteInterview.isPending}
+							onClick={() => void remove()}
+							size="sm"
+							variant="ghost"
+						>
+							<Trash2 aria-hidden="true" size={14} /> Delete
+						</Button>
+					</Flex>
+				</Box>
 			</Flex>
 
 			<Grid

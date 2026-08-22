@@ -1,97 +1,61 @@
 # Architecture
 
-## Runtime boundary
+## System topology
 
 ```text
-React desktop PWA (nginx in Compose)
-  |-- same-origin /api proxy + Better Auth cookie --> NestJS REST API --> PostgreSQL
-  `-- same-origin /socket.io proxy ----------------> realtime gateway
-                                         |
-                                         v
-                                interview orchestrator
-                                  |-- LLM --> provider selector
-                                  |            |-- Gemini (default) --> Google API
-                                  |            `-- local Qwen -------> FastAPI --> Ollama
-                                  |-- STT --> provider selector
-                                  |            |-- Gemini (default) --> Google API
-                                  |            `-- local Whisper ----> FastAPI service
-                                  `-- TTS --> provider selector
-                                               |-- Gemini (default) --> Google API
-                                               `-- local Piper ------> FastAPI service
+Browser PWA
+  ├─ HTTP /api + auth cookie ───────┐
+  └─ Socket.IO /interviews ─────────┤
+                                    v
+                              NestJS server ─── PostgreSQL
+                                ├─ LLM port ─── local FastAPI ─── Ollama/Qwen
+                                ├─ STT port ─── faster-whisper FastAPI
+                                └─ TTS port ─── Piper FastAPI
 ```
 
-NestJS is the source of truth. On each turn the model receives only the current pending task, never the future hidden list. It may propose only two narrow actions: mark that known question ID as asked and request interview completion. The server validates IDs, refuses early completion while a task remains, enforces the deadline independently, and owns every state transition.
+nginx serves the production PWA and proxies API and WebSocket traffic to NestJS, preserving a same-origin session. Compose starts the local model services as required dependencies and waits for their readiness checks before the backend becomes healthy.
 
-The repository Docker Compose stack runs the frontend, backend, and PostgreSQL together on loopback-bound host ports. nginx serves the PWA and proxies same-origin API and WebSocket traffic to NestJS. PostgreSQL must pass its health check before NestJS starts; with `DB_AUTO_MIGRATE=true`, the server applies its bundled Drizzle migrations before it begins listening. The backend readiness check also queries PostgreSQL so dependency loss is reflected in container health, and the frontend waits for that readiness check. Optional `local-llm`, `local-stt`, and `local-tts` profiles publish loopback-only FastAPI endpoints. The LLM profile starts Ollama, pulls Qwen into a persistent named volume, and starts the LLM service only after the pull succeeds. The backend has no hard dependency on any optional provider, preserving the default Gemini-only topology.
+## Client
 
-## Client boundaries
+TanStack Router defines separate pages for candidate history, joining by link, recruiter interviews, participants, creation, editing, details, the candidate lobby, and the live room. A small persistent workspace-mode store changes the navigation between Interview and Recruiter modes; authorization still comes from server ownership checks, not the toggle.
 
-- TanStack Router owns file-based routes and session guards. Authenticated shared links preserve their target through login.
-- Orval generates separate Better Auth and application clients. A small Axios boundary supplies cookies, base URLs, and consistent response errors.
-- TanStack Query caches HTTP data in memory only. Zustand contains ephemeral room connection/media state and is never persisted.
-- TanStack Form and Zod validate login, signup, and interview creation at the client boundary; the server remains authoritative.
-- Camera and screen streams are disposable. Their encoders pause while assistant speech plays to avoid competing with audio rendering, while the live tracks remain available. Browser microphone frames are converted to mono 16 kHz signed little-endian PCM16 and ended by acoustic silence detection; Gemini wraps each completed turn as an in-memory WAV, while local STT uploads the PCM directly with its format metadata.
-- The PWA precaches only its static shell. API and Socket.IO paths are network-only, and updates are deferred while an interview attempt is active.
-- A desktop capability gate runs before the router can issue protected API work or activate media features.
-- The lobby unlocks Web Audio and application fullscreen from one user gesture. Leaving fullscreen removes the question/transcript UI until the candidate explicitly restores it; this cannot override the browser's mandatory Escape behavior.
-- An authenticated, state-free Socket.IO acknowledgement probe supplies the latest round-trip latency sample without persisting monitoring history.
+TanStack Query owns server state. Zustand holds only small UI/realtime state. Raw media is never placed in either store or durable browser storage.
 
-## Modules
+The lobby acquires camera, microphone, and a monitor screen share. MediaPipe face detection runs entirely in the browser using a bundled model and WASM runtime. One stabilized face is required when the relevant global flags are active. The live page can pause microphone/audio/media encoders when zero or multiple faces are detected, and sends only the stabilized count for optional server-side termination.
 
-- `auth`: Better Auth configuration and Nest bridge; email/password only
-- `interviews`: creator ownership, idempotent creation, configured-LLM structuring, share preview
-- `interview-attempts`: creator-selected repeat policy, one active candidate attempt, durable state/progress/transcript, and metadata-only histories
-- `interview-attempts/realtime`: authenticated Socket.IO gateway and bounded ephemeral buffers
-- `ai`: provider-neutral ports plus Gemini adapters and local HTTP LLM/STT/TTS adapters; `LLM_PROVIDER`, `STT_PROVIDER`, and `TTS_PROVIDER` independently select bindings at startup
-- `db`: Drizzle schema, PostgreSQL provider, lifecycle, and migrations
-- `open-api`: separate application and Better Auth documents
-- `common`: Zod validation, response wrapping, safe exceptions, and decorators
+## Server modules
 
-## Durable model
+- `auth`: Better Auth sessions and protected routes
+- `database`: Drizzle/PostgreSQL persistence and migrations
+- `interviews`: recruiter CRUD, structuring, ownership, sharing, and participant history
+- `interview-attempts`: attempt lifecycle, transcripts, deadlines, question progress, and realtime rooms
+- `ai`: provider-neutral ports and local HTTP adapters
+- `dev-flags`: one process-wide in-memory flag snapshot gated by `DEV_TOOLS_ENABLED`
 
-- An interview belongs to one creator and stores both the raw notes and normalized tasks.
-- A cryptographically random 32-character share code locates a candidate-safe preview.
-- An interview stores an immutable creation-time choice that either permits or rejects later attempts by the same candidate.
-- A partial unique database constraint permits only one nonterminal attempt for each `(interview, candidate)` pair; completed and failed rows remain history.
-- Per-attempt question progress prevents repetition across reconnects.
-- Candidate and assistant text turns have monotonic sequence numbers. Raw audio/video is never persisted.
-- A client request UUID uniquely identifies an interview create operation for safe retries.
+All HTTP input and realtime events cross strict Zod boundaries. Candidate-safe endpoints never expose raw recruiter notes, objectives, follow-up guidance, or another candidate's transcript.
 
-Interview creation and question inserts share one transaction. Provider output is Zod-validated before that transaction, so a malformed/provider failure cannot leave a partial interview. Per-user quotas, one active creation per user, and same-request single-flight handling bound costly provider fan-out.
+## Interview flow
 
-## Attempt state machine
+1. The recruiter submits notes. The local LLM structures them into persisted questions.
+2. The candidate opens a share link and passes camera, microphone, one-face, and monitor-share checks.
+3. The client creates/resumes an attempt, enters application fullscreen, connects to its Socket.IO room, and reports media/integrity status.
+4. The server starts the attempt and immediately composes the opening from trusted candidate/interview data plus the first persisted prompt. This avoids a cold model generation on the critical first-question path.
+5. Local TTS returns a complete WAV; the browser decodes and plays it once.
+6. The browser captures a mono 16 kHz PCM candidate turn. Local STT returns text; later interviewer turns come from the local LLM.
+7. The server owns task completion, hard deadlines, terminal state, and durable transcript snapshots.
 
-```text
-READY
-  -> ASSISTANT_SPEAKING -> LISTENING -> PROCESSING
-          ^                  |             |
-          |                  |             `-> ASSISTANT_SPEAKING
-          |                  `-- deadline -> PROCESSING
-          |
-          `--------------------------- generated next turn
+The local LLM service preloads the configured model during application startup and keeps it resident for a configurable duration. This reduces later-turn cold starts without making server correctness depend on warm state.
 
-ASSISTANT_SPEAKING -> ENDING -> COMPLETED
-```
+## Integrity and media
 
-`FAILED` is reserved as a terminal operational state. Provider errors are currently retryable and preserve enough durable state for `attempt:start` to resume. A stale `PROCESSING` state can be recovered after a bounded interval, while a fresh processing state cannot be stolen by duplicate starts.
+Browser screen-capture hints request a monitor and reject the result unless `displaySurface` is `monitor` when whole-screen enforcement is enabled. Application fullscreen is a separate requirement; exiting it conceals interview content until the candidate re-enters.
 
-The process keeps a small in-memory running set to reject duplicate local work. Database compare-and-set transitions and unique indexes protect durable state in the supported single-instance deployment. Before horizontal production scaling, add a distributed work lease, sticky Socket.IO routing, and a shared Socket.IO adapter; live broadcasts, rate limits, and audio buffers are deliberately process-local.
+Camera/screen streaming is off by default. Development flags may enable bounded disposable chunks to the server. They are authenticated, rate/size limited, and discarded after validation. Face detection stays client-side; only a count is reported.
 
-## Security and privacy boundaries
+Global flags intentionally affect the whole server process, not one account. They reset at restart and must remain disabled in untrusted environments.
 
-- Every domain HTTP route and Socket.IO connection requires a valid Better Auth session.
-- Creator/candidate ownership is checked in the database; foreign resource IDs are generally hidden as not found.
-- Production Socket.IO handshakes require an explicitly allowed origin.
-- Inputs are strict and bounded. Audio chunks must be ordered; total turn size and disposable media chunk size are capped.
-- Connections, media-event cadence, aggregate buffered audio, and concurrent interview-creation calls are bounded per process.
-- Camera/screen bytes are authorized and immediately discarded. Candidate mic bytes exist only in memory until STT returns, then are dropped.
-- Only text transcripts, media-active flags, progress, and timing state persist.
-- Raw microphone bytes are adapted to the configured STT provider in memory (RIFF/WAV for Gemini or multipart PCM/WAV for local Whisper); candidate email and future hidden tasks do not go to the model.
-- TTS is non-streaming. Gemini returns raw PCM that its adapter wraps as WAV; the local Piper service returns a validated mono 24 kHz, 16-bit PCM WAV directly. In either case, the realtime gateway emits one complete in-memory WAV and the browser native-decodes one source after the turn ends.
-- Creator raw questions and hidden task details are never exposed by share preview or candidate snapshots.
-- Model transcript and creator text are treated as untrusted data, and model action IDs are restricted to server-provided task IDs. The local LLM receives the same active-task-only context and is not given candidate email or future questions.
-- Unexpected HTTP failures and provider failures return provider-neutral messages.
+## Scaling and replacement
 
-## Provider replacement
+The application depends on `InterviewLlmPort`, `SpeechToTextPort`, and `TextToSpeechPort`; another local model or internal service can implement those contracts without changing domain services.
 
-The application depends only on `InterviewLlmPort`, `SpeechToTextPort`, and `TextToSpeechPort`. Every port supports an independently selected local HTTP implementation while Gemini remains the default. Future providers can implement the same interfaces without modifying interview domain services or the realtime gateway. Provider failures do not cross-fallback silently.
+Live buffers, room broadcasts, flags, connection limits, and work guards are currently process-local. Horizontal scaling needs sticky routing, distributed leases/limits, shared flags, and a shared Socket.IO adapter.

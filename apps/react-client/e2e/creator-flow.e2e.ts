@@ -38,7 +38,7 @@ const summary = {
 	createdAt,
 };
 
-test("loads an authenticated dashboard and creates a structured interview", async ({
+test("separates candidate history from recruiter management and creates an interview", async ({
 	page,
 }) => {
 	let createBody: Record<string, unknown> | undefined;
@@ -148,32 +148,47 @@ test("loads an authenticated dashboard and creates a structured interview", asyn
 	await page.goto("/dashboard");
 
 	await expect(
-		page.getByRole("heading", { name: "Your interviews" }),
+		page.getByRole("heading", { name: "My interviews" }),
 	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Interview" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
 	await expect(page.getByText("Ada Creator")).toBeVisible();
 	await expect(
-		page.getByRole("link", { exact: true, name: summary.title }),
-	).toBeVisible();
-	await expect(
-		page.getByRole("heading", { name: "Participant activity" }),
-	).toBeVisible();
-	await expect(page.getByText("Casey Participant")).toBeVisible();
-	await expect(page.getByText("casey@example.com")).toBeVisible();
-	await expect(page.getByText("2 / 2").first()).toBeVisible();
-	await expect(
-		page.getByRole("heading", { name: "Interviews you have taken" }),
-	).toBeVisible();
-	await expect(
-		page.getByRole("heading", { name: "Platform systems interview" }),
+		page.getByRole("heading", {
+			exact: true,
+			name: "Platform systems interview",
+		}),
 	).toBeVisible();
 	await expect(page.getByText("Attempt 2")).toBeVisible();
 	await expect(page.getByText("Attempt 1")).toBeVisible();
-	await page
-		.getByRole("link", { exact: true, name: "Create interview" })
-		.click();
+
+	await page.getByRole("button", { name: "Recruiter" }).click();
+	await expect(page).toHaveURL("/recruiter/interviews");
+	await expect(page.getByRole("button", { name: "Recruiter" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(
+		page.getByRole("heading", { exact: true, name: "Interviews" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { name: summary.title }),
+	).toBeVisible();
+
+	await page.getByRole("link", { name: "Participants" }).click();
+	await expect(
+		page.getByRole("heading", { exact: true, name: "Participants" }),
+	).toBeVisible();
+	await expect(page.getByText("Casey Participant")).toBeVisible();
+	await expect(page.getByText("casey@example.com")).toBeVisible();
+	await expect(page.getByText("2 / 2")).toBeVisible();
+
+	await page.getByRole("link", { exact: true, name: "Create" }).click();
 
 	await expect(
-		page.getByRole("heading", { name: "Design the conversation" }),
+		page.getByRole("heading", { name: "New interview" }),
 	).toBeVisible();
 	await page
 		.getByRole("textbox", { name: /Interview title/ })
@@ -193,9 +208,13 @@ test("loads an authenticated dashboard and creates a structured interview", asyn
 	await page
 		.getByRole("textbox", { name: /Question notes/ })
 		.fill("Ask about React rendering and realtime state.");
-	await page.getByRole("button", { name: "Structure interview" }).click();
+	await page.getByRole("button", { name: "Create interview" }).click();
 
 	await expect(page).toHaveURL(`/interviews/owned/${interviewId}`);
+	await expect(page.getByRole("button", { name: "Recruiter" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
 	await expect(
 		page.getByRole("heading", { name: "Realtime React interview" }),
 	).toBeVisible();

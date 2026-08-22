@@ -41,13 +41,23 @@ const LATENCY_PROBE_INTERVAL_MS = 10_000;
 const LATENCY_PROBE_TIMEOUT_MS = 5_000;
 
 export type UseInterviewRoomOptions = {
+	detectedFaceCount?: number | null;
 	enabled?: boolean;
+	paused?: boolean;
+	streamCameraToServer?: boolean;
+	streamScreenToServer?: boolean;
 };
 
 /** Owns one reconnect-safe Socket.IO room and its transient browser media. */
 export function useInterviewRoom(
 	attemptId: string,
-	{ enabled = true }: UseInterviewRoomOptions = {},
+	{
+		detectedFaceCount = null,
+		enabled = true,
+		paused = false,
+		streamCameraToServer = false,
+		streamScreenToServer = false,
+	}: UseInterviewRoomOptions = {},
 ) {
 	const attempt = useQuery(attemptQueryOptions(attemptId));
 	const cache = useQueryClient();
@@ -64,6 +74,18 @@ export function useInterviewRoom(
 	const snapshotRef = useRef<AttemptSnapshot | undefined>(attempt.data);
 	const finishAnswerRef = useRef<() => Promise<void>>(async () => undefined);
 	const retryAssistantRef = useRef<() => Promise<void>>(async () => undefined);
+	const integrityControlRef = useRef<(paused: boolean) => Promise<void>>(
+		async () => undefined,
+	);
+	const integrityReportRef = useRef<(count: number | null) => Promise<void>>(
+		async () => undefined,
+	);
+	const integrityRef = useRef({
+		detectedFaceCount,
+		paused,
+		streamCameraToServer,
+		streamScreenToServer,
+	});
 	const connection = useInterviewRoomStore((state) => state.connection);
 	const capture = useInterviewRoomStore((state) => state.capture);
 	const playback = useInterviewRoomStore((state) => state.playback);
@@ -72,6 +94,17 @@ export function useInterviewRoom(
 	useEffect(() => {
 		snapshotRef.current = attempt.data;
 	}, [attempt.data]);
+
+	useEffect(() => {
+		integrityRef.current = {
+			detectedFaceCount,
+			paused,
+			streamCameraToServer,
+			streamScreenToServer,
+		};
+		void integrityControlRef.current(paused);
+		void integrityReportRef.current(detectedFaceCount);
+	}, [detectedFaceCount, paused, streamCameraToServer, streamScreenToServer]);
 
 	const unlockAudio = useCallback(async () => {
 		await interviewAudioPlayer.resume();
@@ -214,13 +247,26 @@ export function useInterviewRoom(
 			void controller?.cancel();
 		};
 
+		const cancelActiveMicrophone = async () => {
+			const turnId = activeMicrophoneTurnId;
+			if (turnId && socket.connected) {
+				await emitWithAck<AcceptedPayload>(socket, "microphone:cancel", {
+					attemptId,
+					turnId,
+				}).catch(() => undefined);
+			}
+			discardActiveMicrophone();
+		};
+
 		const stopPlayback = () => {
 			playbackGeneration += 1;
 			playbackChain = Promise.resolve();
 			const room = useInterviewRoomStore.getState();
 			const turnId = room.playback.turnId;
 			interviewAudioPlayer.stop();
-			resumeDisposableMediaStreamers(cameraStreamer, screenStreamer);
+			if (!integrityRef.current.paused) {
+				resumeDisposableMediaStreamers(cameraStreamer, screenStreamer);
+			}
 			if (turnId) room.finishPlayback(turnId);
 		};
 
@@ -249,6 +295,7 @@ export function useInterviewRoom(
 			const snapshot = snapshotRef.current;
 			return Boolean(
 				socket.connected &&
+					!integrityRef.current.paused &&
 					snapshot &&
 					MEDIA_ACCEPTING_STATES.has(snapshot.state),
 			);
@@ -256,7 +303,12 @@ export function useInterviewRoom(
 
 		const reconcileStreamers = () => {
 			const media = interviewMediaSession.getSnapshot();
-			if (media.cameraActive && media.cameraStream && !cameraStreamer) {
+			if (
+				integrityRef.current.streamCameraToServer &&
+				media.cameraActive &&
+				media.cameraStream &&
+				!cameraStreamer
+			) {
 				cameraStreamer = new DisposableMediaStreamer({
 					attemptId,
 					canSend: canSendDisposableMedia,
@@ -272,13 +324,21 @@ export function useInterviewRoom(
 				} catch (error) {
 					reportError(error, "Camera transport could not start.");
 				}
-			} else if (!media.cameraActive) {
+			} else if (
+				!integrityRef.current.streamCameraToServer ||
+				!media.cameraActive
+			) {
 				cameraStreamer?.stop();
 				cameraStreamer = undefined;
 				useInterviewRoomStore.getState().setCaptureStatus("camera", "idle");
 			}
 
-			if (media.screenActive && media.screenStream && !screenStreamer) {
+			if (
+				integrityRef.current.streamScreenToServer &&
+				media.screenActive &&
+				media.screenStream &&
+				!screenStreamer
+			) {
 				screenStreamer = new DisposableMediaStreamer({
 					attemptId,
 					canSend: canSendDisposableMedia,
@@ -294,7 +354,10 @@ export function useInterviewRoom(
 				} catch (error) {
 					reportError(error, "Screen transport could not start.");
 				}
-			} else if (!media.screenActive) {
+			} else if (
+				!integrityRef.current.streamScreenToServer ||
+				!media.screenActive
+			) {
 				screenStreamer?.stop();
 				screenStreamer = undefined;
 				useInterviewRoomStore.getState().setCaptureStatus("screen", "idle");
@@ -328,6 +391,7 @@ export function useInterviewRoom(
 			const media = interviewMediaSession.getSnapshot();
 			if (
 				disposed ||
+				integrityRef.current.paused ||
 				microphone ||
 				microphoneStarting ||
 				!socket.connected ||
@@ -465,6 +529,50 @@ export function useInterviewRoom(
 			}
 		};
 		afterAudioUnlockRef.current = maybeStartMicrophone;
+		integrityControlRef.current = async (isPaused) => {
+			if (disposed) return;
+			reconcileStreamers();
+			if (isPaused) {
+				pauseDisposableMediaStreamers(cameraStreamer, screenStreamer);
+				await Promise.all([
+					interviewAudioPlayer.suspend(),
+					cancelActiveMicrophone(),
+				]);
+				return;
+			}
+
+			await interviewAudioPlayer.resume();
+			audioUnlockedRef.current = true;
+			setAudioUnlockRequired(false);
+			reconcileStreamers();
+			if (useInterviewRoomStore.getState().playback.status === "idle") {
+				resumeDisposableMediaStreamers(cameraStreamer, screenStreamer);
+			}
+			const snapshot = snapshotRef.current;
+			if (socket.connected && snapshot?.state === "READY") {
+				await emitWithAck<AcceptedPayload>(socket, "attempt:start", {
+					attemptId,
+					commandId: crypto.randomUUID(),
+				});
+			}
+			await maybeStartMicrophone();
+		};
+		integrityReportRef.current = async (count) => {
+			if (
+				count === null ||
+				!socket.connected ||
+				useInterviewRoomStore.getState().connection.joinedAttemptId !==
+					attemptId
+			) {
+				return;
+			}
+			await emitWithAck<AcceptedPayload>(socket, "integrity:status", {
+				attemptId,
+				detectedFaceCount: count,
+			}).catch((error) =>
+				reportError(error, "Face status could not be synchronized."),
+			);
+		};
 
 		finishAnswerRef.current = async () => {
 			if (microphone?.state !== "recording") return;
@@ -491,7 +599,8 @@ export function useInterviewRoom(
 		socket.on("assistant:turn:start", ({ turnId }) => {
 			setCandidateSubtitle("");
 			stopPlayback();
-			const audioRunning = interviewAudioPlayer.isRunning;
+			const audioRunning =
+				interviewAudioPlayer.isRunning || integrityRef.current.paused;
 			audioUnlockedRef.current = audioRunning;
 			setAudioUnlockRequired(!audioRunning);
 			try {
@@ -536,7 +645,9 @@ export function useInterviewRoom(
 					if (disposed || generation !== playbackGeneration) return;
 					await interviewAudioPlayer.endTurn(turnId);
 					if (disposed || generation !== playbackGeneration) return;
-					resumeDisposableMediaStreamers(cameraStreamer, screenStreamer);
+					if (!integrityRef.current.paused) {
+						resumeDisposableMediaStreamers(cameraStreamer, screenStreamer);
+					}
 					useInterviewRoomStore.getState().finishPlayback(turnId);
 					await maybeStartMicrophone();
 				})
@@ -606,7 +717,17 @@ export function useInterviewRoom(
 					useInterviewRoomStore.getState().setJoinedAttemptId(attemptId);
 					updateSnapshot(snapshot);
 					await syncMediaStatus();
-					if (snapshot.state !== "COMPLETED" && snapshot.state !== "FAILED") {
+					if (integrityRef.current.paused) {
+						await integrityControlRef.current(true);
+					}
+					await integrityReportRef.current(
+						integrityRef.current.detectedFaceCount,
+					);
+					if (
+						!integrityRef.current.paused &&
+						snapshot.state !== "COMPLETED" &&
+						snapshot.state !== "FAILED"
+					) {
 						await emitWithAck<AcceptedPayload>(socket, "attempt:start", {
 							attemptId,
 							commandId: crypto.randomUUID(),
@@ -637,6 +758,8 @@ export function useInterviewRoom(
 			stopLatencySampling();
 			unsubscribeMedia();
 			afterAudioUnlockRef.current = async () => undefined;
+			integrityControlRef.current = async () => undefined;
+			integrityReportRef.current = async () => undefined;
 			finishAnswerRef.current = async () => undefined;
 			retryAssistantRef.current = async () => undefined;
 			const room = useInterviewRoomStore.getState();
