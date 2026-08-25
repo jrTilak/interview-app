@@ -146,12 +146,13 @@ provider timing and token counts; client-facing provider failures remain
 generic.
 
 The default service keeps `qwen3:4b` resident with `OLLAMA_KEEP_ALIVE=-1` and
-admits one generation at a time for responsive CPU use. The repository's
-optional NVIDIA Compose overlay selects `qwen3:8b`, gives Ollama access to all
-available NVIDIA GPUs, enables Flash Attention with a `q8_0` KV cache, and uses
-one loaded model and one parallel generation. Ollama decides the actual offload;
-the host must have a working NVIDIA driver and NVIDIA Container Toolkit. Set
-`OLLAMA_MODEL=qwen3:8b` explicitly to favor quality on CPU as well.
+admits one generation at a time. The optional NVIDIA Compose overlay gives
+Ollama access to every NVIDIA GPU available to Docker, enables Flash Attention
+with a `q8_0` KV cache, and uses one loaded model and one parallel generation.
+The model remains configurable with `OLLAMA_MODEL`; use `qwen3:8b` only when the
+target GPU has enough memory. Linux Docker Engine requires the NVIDIA Container
+Toolkit. Docker Desktop on Windows requires its WSL 2 backend and a current
+NVIDIA Windows driver.
 
 ## Docker
 

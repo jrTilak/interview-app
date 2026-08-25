@@ -1,15 +1,14 @@
 services:
   ollama:
-    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       OLLAMA_FLASH_ATTENTION: "1"
       OLLAMA_KV_CACHE_TYPE: q8_0
       OLLAMA_MAX_LOADED_MODELS: "1"
       OLLAMA_NUM_PARALLEL: "1"
-
-  ollama-pull:
-    command: ["${OLLAMA_MODEL:-qwen3:8b}"]
-
-  local-llm:
-    environment:
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
