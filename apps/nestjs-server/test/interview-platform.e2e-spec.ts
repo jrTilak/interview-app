@@ -252,7 +252,7 @@ describe("interview platform end to end", () => {
 		expect(applicationSchema.body.paths).toHaveProperty("/api/__flags__");
 		expect(applicationSchema.body.paths).toHaveProperty("/api/interviews/{id}");
 		expect(applicationSchema.body.paths).toHaveProperty(
-			"/api/shared-interviews/{id}",
+			"/api/interviews/public/{id}",
 		);
 		const authSchema = await request(app.getHttpServer())
 			.get("/auth-docs.json")
@@ -380,7 +380,7 @@ describe("interview platform end to end", () => {
 		expect(list.body.data[0].isPublic).toBe(false);
 
 		await request(app.getHttpServer())
-			.get(`/api/shared-interviews/${ownerInterviewId}`)
+			.get(`/api/interviews/public/${ownerInterviewId}`)
 			.set("Cookie", candidateCookie)
 			.expect(404);
 		await request(app.getHttpServer())
@@ -409,7 +409,7 @@ describe("interview platform end to end", () => {
 			.set("Cookie", candidateCookie)
 			.expect(404);
 		const preview = await request(app.getHttpServer())
-			.get(`/api/shared-interviews/${ownerInterviewId}`)
+			.get(`/api/interviews/public/${ownerInterviewId}`)
 			.set("Cookie", candidateCookie)
 			.expect(200);
 		expect(preview.body.data.questionCount).toBe(2);
@@ -417,7 +417,7 @@ describe("interview platform end to end", () => {
 		expect(preview.body.data).not.toHaveProperty("questions");
 		expect(preview.body.data).not.toHaveProperty("rawQuestions");
 		await request(app.getHttpServer())
-			.get(`/api/shared-interviews/${ownerInterviewId}`)
+			.get(`/api/interviews/public/${ownerInterviewId}`)
 			.expect(200);
 
 		const privateAgain = await request(app.getHttpServer())
@@ -427,7 +427,7 @@ describe("interview platform end to end", () => {
 			.expect(200);
 		expect(privateAgain.body.data.isPublic).toBe(false);
 		await request(app.getHttpServer())
-			.get(`/api/shared-interviews/${ownerInterviewId}`)
+			.get(`/api/interviews/public/${ownerInterviewId}`)
 			.set("Cookie", candidateCookie)
 			.expect(404);
 

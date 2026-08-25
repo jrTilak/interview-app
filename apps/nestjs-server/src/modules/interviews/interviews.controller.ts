@@ -125,7 +125,7 @@ export class InterviewsController {
 	}
 
 	/** Returns candidate-safe metadata for a public interview UUID. */
-	@Get("shared-interviews/:id")
+	@Get("interviews/public/:id")
 	@AllowAnonymous()
 	@ApiOperation({ summary: "Preview a public interview", security: [] })
 	@ApiSuccess({

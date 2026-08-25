@@ -8,7 +8,6 @@ import {
 } from "@nestjs/common";
 import type { User } from "better-auth/types";
 import { and, asc, count, desc, eq } from "drizzle-orm";
-import z from "zod";
 import { type AppDatabase, InjectDatabase } from "#/db/database.provider.js";
 import {
 	interview,
@@ -18,6 +17,7 @@ import {
 import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
+	type StructuredInterviewQuestion,
 } from "#/modules/ai/llm/llm.port.js";
 import type {
 	CreateInterviewDto,
@@ -28,21 +28,6 @@ import type {
 	InterviewSummaryResponseDto,
 	SharedInterviewPreviewResponseDto,
 } from "./dto/response.dto.js";
-import { INTERVIEW_LIMITS } from "./interview.constants.js";
-
-const StructuredQuestionSchema = z
-	.object({
-		title: z.string().trim().min(1).max(160),
-		prompt: z.string().trim().min(1).max(4_000),
-		objective: z.string().trim().min(1).max(2_000).nullable(),
-		followUpGuidance: z.string().trim().min(1).max(2_000).nullable(),
-	})
-	.strict();
-
-const StructuredQuestionsSchema = z
-	.array(StructuredQuestionSchema)
-	.min(INTERVIEW_LIMITS.structuredQuestions.minimum)
-	.max(INTERVIEW_LIMITS.structuredQuestions.maximum);
 
 @Injectable()
 export class InterviewsService {
@@ -102,15 +87,13 @@ export class InterviewsService {
 		data: CreateInterviewDto,
 		user: User,
 	): Promise<InterviewDetailsResponseDto> {
-		let structuredQuestions: z.infer<typeof StructuredQuestionsSchema>;
+		let structuredQuestions: StructuredInterviewQuestion[];
 		try {
-			structuredQuestions = StructuredQuestionsSchema.parse(
-				await this._llm.structureQuestions({
-					interviewTitle: data.title,
-					interviewDescription: data.description ?? null,
-					rawQuestions: data.rawQuestions,
-				}),
-			);
+			structuredQuestions = await this._llm.structureQuestions({
+				interviewTitle: data.title,
+				interviewDescription: data.description ?? null,
+				rawQuestions: data.rawQuestions,
+			});
 		} catch (error) {
 			this._logger.error("Interview topic structuring failed", error);
 			throw new ServiceUnavailableException(
