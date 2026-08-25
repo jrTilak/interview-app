@@ -69,7 +69,9 @@ export function DesktopOnlyGuard({ children }: { children: ReactNode }) {
 		>
 			<Brand />
 			<Box borderTopColor="line" borderTopWidth="1px" maxW="2xl" pt="8">
-				<MonitorX aria-hidden="true" color="#2447F2" size={36} />
+				<Box color="cobalt" w="fit-content">
+					<MonitorX aria-hidden="true" size={36} />
+				</Box>
 				<Text
 					color="cobalt"
 					fontFamily="mono"
@@ -82,7 +84,6 @@ export function DesktopOnlyGuard({ children }: { children: ReactNode }) {
 					Desktop workspace only
 				</Text>
 				<Heading
-					fontFamily="display"
 					fontSize={{ base: "4xl", md: "6xl" }}
 					letterSpacing="-0.045em"
 					lineHeight="0.96"

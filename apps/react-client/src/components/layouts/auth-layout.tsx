@@ -38,17 +38,11 @@ export function AuthLayout({
 					>
 						Live interview workspace
 					</Text>
-					<Heading
-						fontFamily="display"
-						fontSize="5xl"
-						letterSpacing="-0.04em"
-						lineHeight="1"
-						mt="5"
-					>
+					<Heading fontSize="5xl" letterSpacing="-0.04em" lineHeight="1" mt="5">
 						Clear topics. Natural conversation. One focused room.
 					</Heading>
 					<Grid
-						borderColor="rgba(244,242,236,0.25)"
+						borderColor="paper/25"
 						borderTopWidth="1px"
 						gap="6"
 						mt="10"
@@ -71,12 +65,12 @@ export function AuthLayout({
 						))}
 					</Grid>
 				</Box>
-				<Text color="rgba(244,242,236,0.62)" fontFamily="mono" fontSize="xs">
+				<Text color="paper/62" fontFamily="mono" fontSize="xs">
 					Desktop PWA · Realtime audio · Session protected
 				</Text>
 			</Flex>
 			<Flex align="center" bg="paper" justify="center" p="12">
-				<Box className="enter-up" maxW="md" w="full">
+				<Box animationStyle="enter-up" maxW="md" w="full">
 					<Text
 						color="cobalt"
 						fontFamily="mono"
@@ -87,12 +81,7 @@ export function AuthLayout({
 					>
 						{eyebrow}
 					</Text>
-					<Heading
-						fontFamily="display"
-						fontSize="4xl"
-						letterSpacing="-0.035em"
-						mt="3"
-					>
+					<Heading fontSize="4xl" letterSpacing="-0.035em" mt="3">
 						{title}
 					</Heading>
 					<Text color="muted" lineHeight="1.6" mt="3">

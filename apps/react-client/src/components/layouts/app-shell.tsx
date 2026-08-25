@@ -1,10 +1,11 @@
 import {
+	Avatar,
 	Box,
-	Button,
 	Link as ChakraLink,
 	Flex,
 	Heading,
 	IconButton,
+	SegmentGroup,
 	Text,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
@@ -130,26 +131,30 @@ export function AppShell({ children, session }: AppShellProps) {
 			>
 				<Box>
 					<Brand inverted />
-					<Flex
-						bg="rgba(255,255,255,0.08)"
-						borderRadius="lg"
-						gap="1"
+					<SegmentGroup.Root
+						aria-label="Workspace mode"
 						mt="9"
-						p="1"
+						onValueChange={({ value }) => {
+							if (value === "interview" || value === "recruiter") {
+								switchMode(value);
+							}
+						}}
+						size="sm"
+						value={activeMode}
+						w="full"
 					>
-						<ModeButton
-							active={activeMode === "interview"}
-							icon={History}
-							label="Interview"
-							onClick={() => switchMode("interview")}
-						/>
-						<ModeButton
-							active={activeMode === "recruiter"}
-							icon={BriefcaseBusiness}
-							label="Recruiter"
-							onClick={() => switchMode("recruiter")}
-						/>
-					</Flex>
+						<SegmentGroup.Indicator />
+						<SegmentGroup.Item flex="1" value="interview">
+							<History aria-hidden="true" size={14} />
+							<SegmentGroup.ItemText>Interview</SegmentGroup.ItemText>
+							<SegmentGroup.ItemHiddenInput />
+						</SegmentGroup.Item>
+						<SegmentGroup.Item flex="1" value="recruiter">
+							<BriefcaseBusiness aria-hidden="true" size={14} />
+							<SegmentGroup.ItemText>Recruiter</SegmentGroup.ItemText>
+							<SegmentGroup.ItemHiddenInput />
+						</SegmentGroup.Item>
+					</SegmentGroup.Root>
 
 					<Box as="nav" aria-label="Primary" mt="7">
 						{navigation.map(({ icon: Icon, label, to }) => {
@@ -159,11 +164,10 @@ export function AppShell({ children, session }: AppShellProps) {
 									pathname.startsWith("/interviews/owned/"));
 							return (
 								<ChakraLink
-									_hover={{ bg: "rgba(255,255,255,0.08)" }}
+									_hover={{ bg: "paper/8" }}
 									asChild
 									bg={active ? "accent" : "transparent"}
-									borderRadius="md"
-									color={active ? "forest" : "rgba(255,255,255,0.82)"}
+									color={active ? "forest" : "paper/82"}
 									display="flex"
 									fontSize="sm"
 									fontWeight="650"
@@ -188,7 +192,7 @@ export function AppShell({ children, session }: AppShellProps) {
 					<ChakraLink
 						_hover={{ color: "paper" }}
 						asChild
-						color="rgba(255,255,255,0.55)"
+						color="paper/55"
 						display="flex"
 						fontSize="xs"
 						gap="2"
@@ -203,35 +207,25 @@ export function AppShell({ children, session }: AppShellProps) {
 					</ChakraLink>
 					<Flex
 						align="center"
-						borderColor="rgba(255,255,255,0.14)"
+						borderColor="paper/14"
 						borderTopWidth="1px"
 						gap="3"
 						pt="5"
 					>
-						<Flex
-							align="center"
-							bg="accent"
-							borderRadius="md"
-							color="forest"
-							fontSize="sm"
-							fontWeight="800"
-							h="9"
-							justify="center"
-							w="9"
-						>
-							{session.user.name.slice(0, 1).toUpperCase()}
-						</Flex>
+						<Avatar.Root colorPalette="highlight" shape="square" size="sm">
+							<Avatar.Fallback name={session.user.name} />
+						</Avatar.Root>
 						<Box minW="0">
 							<Text fontSize="sm" fontWeight="650" truncate>
 								{session.user.name}
 							</Text>
-							<Text color="rgba(255,255,255,0.48)" fontSize="xs" truncate>
+							<Text color="paper/48" fontSize="xs" truncate>
 								{session.user.email}
 							</Text>
 						</Box>
 						<IconButton
 							aria-label="Sign out"
-							color="rgba(255,255,255,0.65)"
+							color="paper/65"
 							disabled={logout.isPending}
 							ml="auto"
 							onClick={() => void handleLogout()}
@@ -254,7 +248,7 @@ export function AppShell({ children, session }: AppShellProps) {
 					justify="space-between"
 					px="9"
 				>
-					<Heading fontFamily="display" fontSize="md">
+					<Heading fontSize="md">
 						{activeMode === "recruiter"
 							? "Recruiter workspace"
 							: "Interview workspace"}
@@ -263,40 +257,10 @@ export function AppShell({ children, session }: AppShellProps) {
 						{activeMode === "recruiter" ? "Build & manage" : "Take & review"}
 					</Text>
 				</Flex>
-				<Box className="enter-up" maxW="1500px" mx="auto" px="9" py="8">
+				<Box animationStyle="enter-up" maxW="1500px" mx="auto" px="9" py="8">
 					{children}
 				</Box>
 			</Box>
 		</Flex>
-	);
-}
-
-function ModeButton({
-	active,
-	icon: Icon,
-	label,
-	onClick,
-}: {
-	active: boolean;
-	icon: typeof History;
-	label: string;
-	onClick: () => void;
-}) {
-	return (
-		<Button
-			aria-pressed={active}
-			bg={active ? "paper" : "transparent"}
-			color={active ? "forest" : "rgba(255,255,255,0.62)"}
-			flex="1"
-			fontSize="xs"
-			gap="1.5"
-			h="9"
-			onClick={onClick}
-			px="2"
-			variant="ghost"
-		>
-			<Icon aria-hidden="true" size={14} />
-			{label}
-		</Button>
 	);
 }

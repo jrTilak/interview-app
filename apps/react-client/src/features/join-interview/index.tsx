@@ -1,4 +1,5 @@
 import {
+	Alert,
 	Box,
 	Button,
 	Link as ChakraLink,
@@ -6,6 +7,8 @@ import {
 	Grid,
 	Heading,
 	Stack,
+	Stat,
+	Status,
 	Text,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
@@ -161,7 +164,9 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 			>
 				<Brand />
 				<Flex align="center" gap="2">
-					<ShieldCheck aria-hidden="true" color="#247552" size={16} />
+					<Box color="success">
+						<ShieldCheck aria-hidden="true" size={16} />
+					</Box>
 					<Text color="muted" fontFamily="mono" fontSize="xs">
 						Authenticated candidate lobby
 					</Text>
@@ -208,13 +213,7 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 							>
 								INTERVIEW BRIEF
 							</Text>
-							<Heading
-								fontFamily="display"
-								fontSize="5xl"
-								letterSpacing="-0.04em"
-								lineHeight="1"
-								mt="3"
-							>
+							<Heading fontSize="5xl" lineHeight="1" mt="3">
 								{preview.data.title}
 							</Heading>
 							<Text
@@ -256,9 +255,7 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 							</Flex>
 
 							<Box mt="10">
-								<Heading fontFamily="display" fontSize="2xl">
-									Before you begin
-								</Heading>
+								<Heading fontSize="2xl">Before you begin</Heading>
 								<Stack gap="0" mt="5">
 									<DeviceRow
 										active={media.cameraActive && media.microphoneActive}
@@ -293,25 +290,28 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 							</Box>
 
 							{(!secure || !mediaSupported) && (
-								<Box bg="danger" color="white" mt="6" p="4" role="alert">
-									This browser cannot provide secure desktop media capture. Use
-									a recent desktop Chrome or Edge browser over HTTPS or
-									localhost.
-								</Box>
+								<Alert.Root mt="6" role="alert" status="error" variant="solid">
+									<Alert.Indicator />
+									<Alert.Content>
+										<Alert.Title>Secure media capture unavailable</Alert.Title>
+										<Alert.Description>
+											This browser cannot provide secure desktop media capture.
+											Use a recent desktop Chrome or Edge browser over HTTPS or
+											localhost.
+										</Alert.Description>
+									</Alert.Content>
+								</Alert.Root>
 							)}
 
 							<Button
-								bg="forest"
-								color="paper"
 								disabled={
 									!ready || !secure || !mediaSupported || join.isPending
 								}
-								h="13"
 								loading={join.isPending}
 								loadingText="Opening secure room…"
 								mt="8"
 								onClick={() => void beginInterview()}
-								px="7"
+								size="lg"
 							>
 								Begin or resume interview
 								<ArrowRight aria-hidden="true" size={17} />
@@ -340,22 +340,17 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 									stream={media.screenStream}
 								/>
 							</Grid>
-							<Box
-								bg="surface"
-								borderColor="line"
-								borderWidth="1px"
-								mt="5"
-								p="5"
-							>
-								<Flex align="center" gap="3">
-									<ShieldCheck aria-hidden="true" color="#247552" size={19} />
-									<Text fontWeight="700">Media handling in this phase</Text>
-								</Flex>
-								<Text color="muted" fontSize="sm" lineHeight="1.65" mt="3">
-									Video stays in the browser unless its development streaming
-									flag is on. Microphone audio is discarded after transcription.
-								</Text>
-							</Box>
+							<Alert.Root mt="5" status="success" variant="surface">
+								<Alert.Indicator />
+								<Alert.Content>
+									<Alert.Title>Media handling in this phase</Alert.Title>
+									<Alert.Description>
+										Video stays in the browser unless its development streaming
+										flag is on. Microphone audio is discarded after
+										transcription.
+									</Alert.Description>
+								</Alert.Content>
+							</Alert.Root>
 						</Box>
 					</Grid>
 				)}
@@ -374,17 +369,15 @@ function BriefStat({
 	value: string;
 }) {
 	return (
-		<Flex align="center" gap="3">
-			<Icon aria-hidden="true" color="#2447F2" size={18} />
-			<Box>
-				<Text color="muted" fontFamily="mono" fontSize="2xs">
-					{label.toUpperCase()}
-				</Text>
-				<Text fontWeight="700" mt="1">
-					{value}
-				</Text>
-			</Box>
-		</Flex>
+		<Stat.Root>
+			<Stat.Label>
+				<Box color="cobalt">
+					<Icon aria-hidden="true" size={18} />
+				</Box>
+				{label}
+			</Stat.Label>
+			<Stat.ValueText fontSize="md">{value}</Stat.ValueText>
+		</Stat.Root>
 	);
 }
 
@@ -411,25 +404,25 @@ function DeviceRow({
 			py="4"
 		>
 			<Flex align="center" gap="3">
-				<Icon
-					aria-hidden="true"
-					color={active ? "#247552" : "#68736D"}
-					size={18}
-				/>
+				<Box color={active ? "success" : "muted"}>
+					<Icon aria-hidden="true" size={18} />
+				</Box>
 				<Text fontWeight="600">{label}</Text>
 			</Flex>
 			{active ? (
-				<Flex align="center" color="success" fontSize="sm" gap="2">
+				<Status.Root colorPalette="green">
+					<Status.Indicator />
 					<Check aria-hidden="true" size={15} /> Ready
-				</Flex>
+				</Status.Root>
 			) : onClick ? (
 				<Button loading={pending} onClick={onClick} size="sm" variant="outline">
 					{pending ? "Waiting…" : "Connect"}
 				</Button>
 			) : (
-				<Text color="danger" fontSize="sm">
+				<Status.Root colorPalette="red">
+					<Status.Indicator />
 					Needs attention
-				</Text>
+				</Status.Root>
 			)}
 		</Flex>
 	);

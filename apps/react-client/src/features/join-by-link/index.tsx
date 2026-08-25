@@ -1,4 +1,12 @@
-import { Box, Button, Flex, Heading, Input, Text } from "@chakra-ui/react";
+import {
+	Box,
+	Button,
+	Card,
+	Field,
+	Flex,
+	Heading,
+	Input,
+} from "@chakra-ui/react";
 import { useRouter } from "@tanstack/react-router";
 import { ArrowRight, Link2 } from "lucide-react";
 import { useState } from "react";
@@ -47,53 +55,47 @@ export function JoinByLinkScreen() {
 				eyebrow="Interview mode"
 				title="Join with a link"
 			/>
-			<Flex
-				align="center"
-				bg="surface"
-				borderColor="line"
-				borderRadius="xl"
-				borderWidth="1px"
-				gap="8"
-				mt="8"
-				p="8"
-			>
-				<Flex
-					align="center"
-					bg="softAccent"
-					color="cobalt"
-					h="14"
-					justify="center"
-					w="14"
-				>
-					<Link2 aria-hidden="true" size={23} />
-				</Flex>
-				<Box flex="1">
-					<Heading fontFamily="display" fontSize="xl">
-						Interview link
-					</Heading>
-					<Flex gap="3" mt="4">
-						<Input
-							aria-label="Interview link or code"
-							autoFocus
-							bg="white"
-							onChange={(event) => setValue(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter") void open();
-							}}
-							placeholder="https://…/interviews/…"
-							value={value}
-						/>
-						<Button bg="forest" color="paper" onClick={() => void open()}>
-							Continue <ArrowRight aria-hidden="true" size={16} />
-						</Button>
+			<Card.Root mt="8">
+				<Card.Body>
+					<Flex align="center" gap="8">
+						<Flex
+							align="center"
+							bg="softAccent"
+							color="cobalt"
+							h="14"
+							justify="center"
+							w="14"
+						>
+							<Link2 aria-hidden="true" size={23} />
+						</Flex>
+						<Box flex="1">
+							<Heading fontSize="xl">Interview link</Heading>
+							<form
+								onSubmit={(event) => {
+									event.preventDefault();
+									void open();
+								}}
+							>
+								<Field.Root invalid={Boolean(error)} mt="4">
+									<Field.Label srOnly>Interview link or code</Field.Label>
+									<Flex gap="3">
+										<Input
+											autoFocus
+											onChange={(event) => setValue(event.target.value)}
+											placeholder="https://…/interviews/…"
+											value={value}
+										/>
+										<Button type="submit">
+											Continue <ArrowRight aria-hidden="true" size={16} />
+										</Button>
+									</Flex>
+									{error && <Field.ErrorText>{error}</Field.ErrorText>}
+								</Field.Root>
+							</form>
+						</Box>
 					</Flex>
-					{error && (
-						<Text color="danger" fontSize="sm" mt="2" role="alert">
-							{error}
-						</Text>
-					)}
-				</Box>
-			</Flex>
+				</Card.Body>
+			</Card.Root>
 		</CreatorAppShell>
 	);
 }

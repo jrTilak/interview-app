@@ -1,4 +1,4 @@
-import { Box, Button, Heading, Text } from "@chakra-ui/react";
+import { Alert, Button } from "@chakra-ui/react";
 
 type ErrorStateProps = {
 	description: string;
@@ -13,18 +13,22 @@ export function ErrorState({
 	title = "Something went wrong",
 }: ErrorStateProps) {
 	return (
-		<Box borderColor="line" borderTopWidth="1px" py="10" role="alert">
-			<Heading fontFamily="display" fontSize="2xl">
-				{title}
-			</Heading>
-			<Text color="muted" mt="2" maxW="xl">
-				{description}
-			</Text>
+		<Alert.Root role="alert" status="error" variant="surface">
+			<Alert.Indicator />
+			<Alert.Content>
+				<Alert.Title>{title}</Alert.Title>
+				<Alert.Description>{description}</Alert.Description>
+			</Alert.Content>
 			{onRetry && (
-				<Button mt="5" onClick={onRetry} variant="outline">
+				<Button
+					colorPalette="red"
+					onClick={onRetry}
+					size="sm"
+					variant="outline"
+				>
 					Try again
 				</Button>
 			)}
-		</Box>
+		</Alert.Root>
 	);
 }

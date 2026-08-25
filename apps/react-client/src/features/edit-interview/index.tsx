@@ -1,10 +1,13 @@
 import {
 	Box,
 	Button,
+	Card,
+	Input,
 	NativeSelect,
 	Stack,
 	Switch,
 	Text,
+	Textarea,
 } from "@chakra-ui/react";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
@@ -12,11 +15,7 @@ import { useRouter } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import z from "zod";
 import { ErrorState } from "@/components/atoms/error-state";
-import {
-	FieldShell,
-	TextAreaInput,
-	TextInput,
-} from "@/components/atoms/form-field";
+import { FieldShell } from "@/components/atoms/form-field";
 import { LoadingState } from "@/components/atoms/loading-state";
 import { CreatorAppShell } from "@/components/layouts/app-shell";
 import { PageHeader } from "@/components/molecules/page-header";
@@ -97,111 +96,112 @@ function EditInterviewForm({
 				eyebrow="Recruiter mode"
 				title="Edit interview"
 			/>
-			<Box
-				bg="surface"
-				borderColor="line"
-				borderRadius="xl"
-				borderWidth="1px"
-				maxW="3xl"
-				mt="8"
-				p="7"
-			>
-				<form
-					onSubmit={(event) => {
-						event.preventDefault();
-						void form.handleSubmit();
-					}}
-				>
-					<Stack gap="6">
-						<form.Field name="title">
-							{(field) => (
-								<FieldShell
-									error={firstFormError(field.state.meta.errors)}
-									label="Title"
-									required
-								>
-									<TextInput
-										autoFocus
-										name={field.name}
-										onBlur={field.handleBlur}
-										onChange={(event) => field.handleChange(event.target.value)}
-										value={field.state.value}
-									/>
-								</FieldShell>
-							)}
-						</form.Field>
-						<form.Field name="description">
-							{(field) => (
-								<FieldShell
-									error={firstFormError(field.state.meta.errors)}
-									label="Description"
-								>
-									<TextAreaInput
-										name={field.name}
-										onBlur={field.handleBlur}
-										onChange={(event) => field.handleChange(event.target.value)}
-										value={field.state.value}
-									/>
-								</FieldShell>
-							)}
-						</form.Field>
-						<form.Field name="durationMinutes">
-							{(field) => (
-								<FieldShell label="Duration">
-									<NativeSelect.Root>
-										<NativeSelect.Field
+			<Card.Root maxW="3xl" mt="8">
+				<Card.Body>
+					<form
+						onSubmit={(event) => {
+							event.preventDefault();
+							void form.handleSubmit();
+						}}
+					>
+						<Stack gap="6">
+							<form.Field name="title">
+								{(field) => (
+									<FieldShell
+										error={firstFormError(field.state.meta.errors)}
+										label="Title"
+										required
+									>
+										<Input
+											autoFocus
+											name={field.name}
 											onBlur={field.handleBlur}
 											onChange={(event) =>
-												field.handleChange(Number(event.target.value))
+												field.handleChange(event.target.value)
 											}
+											size="xl"
 											value={field.state.value}
-										>
-											{durationOptions.map((minutes) => (
-												<option key={minutes} value={minutes}>
-													{minutes} minutes
-												</option>
-											))}
-										</NativeSelect.Field>
-										<NativeSelect.Indicator />
-									</NativeSelect.Root>
-								</FieldShell>
-							)}
-						</form.Field>
-						<form.Field name="allowMultipleAttempts">
-							{(field) => (
-								<Switch.Root
-									checked={field.state.value}
-									display="flex"
-									justifyContent="space-between"
-									onCheckedChange={({ checked }) => field.handleChange(checked)}
-								>
-									<Switch.HiddenInput />
-									<Box>
-										<Switch.Label fontWeight="700">
-											Repeat attempts
-										</Switch.Label>
-										<Text color="muted" fontSize="sm">
-											Allow another attempt after completion.
-										</Text>
-									</Box>
-									<Switch.Control>
-										<Switch.Thumb />
-									</Switch.Control>
-								</Switch.Root>
-							)}
-						</form.Field>
-						<Button
-							alignSelf="flex-start"
-							bg="forest"
-							color="paper"
-							loading={update.isPending}
-							type="submit"
-						>
-							Save changes <ArrowRight aria-hidden="true" size={16} />
-						</Button>
-					</Stack>
-				</form>
-			</Box>
+										/>
+									</FieldShell>
+								)}
+							</form.Field>
+							<form.Field name="description">
+								{(field) => (
+									<FieldShell
+										error={firstFormError(field.state.meta.errors)}
+										label="Description"
+									>
+										<Textarea
+											minH="40"
+											name={field.name}
+											onBlur={field.handleBlur}
+											onChange={(event) =>
+												field.handleChange(event.target.value)
+											}
+											resize="vertical"
+											value={field.state.value}
+										/>
+									</FieldShell>
+								)}
+							</form.Field>
+							<form.Field name="durationMinutes">
+								{(field) => (
+									<FieldShell label="Duration">
+										<NativeSelect.Root>
+											<NativeSelect.Field
+												onBlur={field.handleBlur}
+												onChange={(event) =>
+													field.handleChange(Number(event.target.value))
+												}
+												value={field.state.value}
+											>
+												{durationOptions.map((minutes) => (
+													<option key={minutes} value={minutes}>
+														{minutes} minutes
+													</option>
+												))}
+											</NativeSelect.Field>
+											<NativeSelect.Indicator />
+										</NativeSelect.Root>
+									</FieldShell>
+								)}
+							</form.Field>
+							<form.Field name="allowMultipleAttempts">
+								{(field) => (
+									<Switch.Root
+										checked={field.state.value}
+										display="flex"
+										justifyContent="space-between"
+										onCheckedChange={({ checked }) =>
+											field.handleChange(checked)
+										}
+									>
+										<Switch.HiddenInput />
+										<Box>
+											<Switch.Label fontWeight="700">
+												Repeat attempts
+											</Switch.Label>
+											<Text color="muted" fontSize="sm">
+												Allow another attempt after completion.
+											</Text>
+										</Box>
+										<Switch.Control>
+											<Switch.Thumb />
+										</Switch.Control>
+									</Switch.Root>
+								)}
+							</form.Field>
+							<Button
+								alignSelf="flex-start"
+								loading={update.isPending}
+								type="submit"
+							>
+								Save changes <ArrowRight aria-hidden="true" size={16} />
+							</Button>
+						</Stack>
+					</form>
+				</Card.Body>
+			</Card.Root>
 		</>
 	);
 }

@@ -1,5 +1,5 @@
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { Box, Button, Flex, Text } from "@chakra-ui/react";
+import { Alert, Button } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { useInterviewRoomStore } from "@/stores/interview-room.store";
 
@@ -27,49 +27,50 @@ export function PwaStatus() {
 
 	if (!online) {
 		return (
-			<Box
-				bg="danger"
-				color="white"
-				fontSize="sm"
+			<Alert.Root
 				left="0"
 				position="fixed"
-				py="2"
-				textAlign="center"
+				role="alert"
+				status="error"
 				top="0"
+				variant="solid"
 				w="full"
 				zIndex="toast"
 			>
-				Connection lost. Interviews require an active network connection.
-			</Box>
+				<Alert.Indicator />
+				<Alert.Content>
+					<Alert.Description>
+						Connection lost. Interviews require an active network connection.
+					</Alert.Description>
+				</Alert.Content>
+			</Alert.Root>
 		);
 	}
 
 	if (!needRefresh) return null;
 
 	return (
-		<Flex
-			align="center"
-			bg="forest"
-			borderLeftColor="accent"
-			borderLeftWidth="3px"
+		<Alert.Root
 			bottom="5"
-			color="paper"
-			gap="5"
 			maxW="lg"
-			p="4"
 			position="fixed"
 			right="5"
+			role="status"
+			status="info"
+			variant="solid"
 			zIndex="toast"
 		>
-			<Text flex="1" fontSize="sm">
-				{joinedAttemptId
-					? "An update is ready. It will wait until you leave this interview."
-					: "A new Interview Desk version is ready."}
-			</Text>
+			<Alert.Indicator />
+			<Alert.Content>
+				<Alert.Description>
+					{joinedAttemptId
+						? "An update is ready. It will wait until you leave this interview."
+						: "A new Interview Desk version is ready."}
+				</Alert.Description>
+			</Alert.Content>
 			{!joinedAttemptId && (
 				<Button
-					bg="accent"
-					color="forest"
+					colorPalette="highlight"
 					onClick={() => void updateServiceWorker(true)}
 					size="sm"
 				>
@@ -77,13 +78,13 @@ export function PwaStatus() {
 				</Button>
 			)}
 			<Button
-				color="paper"
+				colorPalette="inverse"
 				onClick={() => setNeedRefresh(false)}
 				size="sm"
 				variant="ghost"
 			>
 				Later
 			</Button>
-		</Flex>
+		</Alert.Root>
 	);
 }

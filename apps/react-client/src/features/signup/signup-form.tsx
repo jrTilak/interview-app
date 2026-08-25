@@ -1,8 +1,14 @@
-import { Button, Link as ChakraLink, Stack, Text } from "@chakra-ui/react";
+import {
+	Button,
+	Link as ChakraLink,
+	Input,
+	Stack,
+	Text,
+} from "@chakra-ui/react";
 import { useForm } from "@tanstack/react-form";
 import { Link, useRouter } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
-import { FieldShell, TextInput } from "@/components/atoms/form-field";
+import { FieldShell } from "@/components/atoms/form-field";
 import { useSignUp } from "@/shared/api/modules/auth/hooks";
 import { getSafeAuthRedirect } from "@/shared/auth/safe-redirect";
 import { firstFormError, parseError } from "@/shared/lib/parse-error";
@@ -55,13 +61,14 @@ export function SignupForm({ redirect }: { redirect?: string }) {
 							label="Full name"
 							required
 						>
-							<TextInput
+							<Input
 								autoComplete="name"
 								autoFocus
 								name={field.name}
 								onBlur={field.handleBlur}
 								onChange={(event) => field.handleChange(event.target.value)}
 								placeholder="Ada Lovelace"
+								size="xl"
 								value={field.state.value}
 							/>
 						</FieldShell>
@@ -74,12 +81,13 @@ export function SignupForm({ redirect }: { redirect?: string }) {
 							label="Email"
 							required
 						>
-							<TextInput
+							<Input
 								autoComplete="email"
 								name={field.name}
 								onBlur={field.handleBlur}
 								onChange={(event) => field.handleChange(event.target.value)}
 								placeholder="you@example.com"
+								size="xl"
 								type="email"
 								value={field.state.value}
 							/>
@@ -93,12 +101,13 @@ export function SignupForm({ redirect }: { redirect?: string }) {
 							label="Password"
 							required
 						>
-							<TextInput
+							<Input
 								autoComplete="new-password"
 								name={field.name}
 								onBlur={field.handleBlur}
 								onChange={(event) => field.handleChange(event.target.value)}
 								placeholder="At least 8 characters"
+								size="xl"
 								type="password"
 								value={field.state.value}
 							/>
@@ -110,12 +119,9 @@ export function SignupForm({ redirect }: { redirect?: string }) {
 				>
 					{([canSubmit, isSubmitting]) => (
 						<Button
-							bg="forest"
-							color="paper"
 							disabled={!canSubmit || signup.isPending}
-							h="12"
-							_hover={{ bg: "cobalt" }}
 							loading={isSubmitting || signup.isPending}
+							size="xl"
 							type="submit"
 						>
 							Create account

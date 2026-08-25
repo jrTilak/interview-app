@@ -1,10 +1,15 @@
 import {
+	Accordion,
 	Box,
 	Button,
 	Link as ChakraLink,
+	Clipboard,
+	DataList,
+	Dialog,
 	Flex,
 	Grid,
 	Heading,
+	Portal,
 	Stack,
 	Text,
 } from "@chakra-ui/react";
@@ -18,7 +23,6 @@ import { AttemptHistoryTable } from "@/components/molecules/attempt-history-tabl
 import { interviewParticipantAttemptsQueryOptions } from "@/shared/api/modules/attempts/queries";
 import { useDeleteInterview } from "@/shared/api/modules/interviews/hooks";
 import { interviewDetailQueryOptions } from "@/shared/api/modules/interviews/queries";
-import { copyText } from "@/shared/lib/copy-text";
 import { formatDate, formatDuration } from "@/shared/lib/format";
 import { parseError } from "@/shared/lib/parse-error";
 import { getInterviewShareUrl } from "@/shared/lib/share-url";
@@ -62,25 +66,7 @@ export function InterviewDetailScreen({
 
 	const detail = interview.data;
 	const shareUrl = getInterviewShareUrl(detail.shareCode);
-	const copyLink = async () => {
-		try {
-			await copyText(shareUrl);
-			toaster.success({ title: "Candidate link copied" });
-		} catch (error) {
-			toaster.error({
-				description: parseError(error, "Copy the link manually."),
-				title: "Clipboard unavailable",
-			});
-		}
-	};
 	const remove = async () => {
-		if (
-			!window.confirm(
-				`Delete “${detail.title}”? This cannot be undone. Interviews with attempts are protected.`,
-			)
-		) {
-			return;
-		}
 		try {
 			await deleteInterview.mutateAsync(detail.id);
 			toaster.success({ title: "Interview deleted" });
@@ -112,12 +98,7 @@ export function InterviewDetailScreen({
 					>
 						STRUCTURED INTERVIEW
 					</Text>
-					<Heading
-						fontFamily="display"
-						fontSize="4xl"
-						letterSpacing="-0.035em"
-						mt="2"
-					>
+					<Heading fontSize="4xl" mt="2">
 						{detail.title}
 					</Heading>
 					{detail.description && (
@@ -127,20 +108,26 @@ export function InterviewDetailScreen({
 					)}
 				</Box>
 				<Box borderColor="line" borderLeftWidth="1px" minW="270px" pl="6">
-					<Grid gap="4" templateColumns="1fr 1fr">
-						<Meta
+					<DataList.Root display="grid" gap="4" gridTemplateColumns="1fr 1fr">
+						<InterviewFact
 							label="Duration"
 							value={formatDuration(detail.durationMinutes)}
 						/>
-						<Meta label="Topics" value={String(detail.questionCount)} />
-						<Meta label="Created" value={formatDate(detail.createdAt)} />
-						<Meta
+						<InterviewFact
+							label="Topics"
+							value={String(detail.questionCount)}
+						/>
+						<InterviewFact
+							label="Created"
+							value={formatDate(detail.createdAt)}
+						/>
+						<InterviewFact
 							label="Attempt policy"
 							value={
 								detail.allowMultipleAttempts ? "Repeat allowed" : "One each"
 							}
 						/>
-					</Grid>
+					</DataList.Root>
 					<Flex gap="2" mt="5">
 						<Button asChild flex="1" size="sm" variant="outline">
 							<Link
@@ -150,52 +137,90 @@ export function InterviewDetailScreen({
 								<Pencil aria-hidden="true" size={14} /> Edit
 							</Link>
 						</Button>
-						<Button
-							color="danger"
-							disabled={deleteInterview.isPending}
-							onClick={() => void remove()}
-							size="sm"
-							variant="ghost"
-						>
-							<Trash2 aria-hidden="true" size={14} /> Delete
-						</Button>
+						<Dialog.Root role="alertdialog" size="sm">
+							<Dialog.Trigger asChild>
+								<Button colorPalette="red" size="sm" variant="ghost">
+									<Trash2 aria-hidden="true" size={14} /> Delete
+								</Button>
+							</Dialog.Trigger>
+							<Portal>
+								<Dialog.Backdrop />
+								<Dialog.Positioner>
+									<Dialog.Content>
+										<Dialog.Header>
+											<Dialog.Title>Delete interview?</Dialog.Title>
+										</Dialog.Header>
+										<Dialog.Body>
+											<Dialog.Description>
+												“{detail.title}” will be permanently deleted. Interviews
+												with attempts remain protected.
+											</Dialog.Description>
+										</Dialog.Body>
+										<Dialog.Footer>
+											<Dialog.ActionTrigger asChild>
+												<Button
+													disabled={deleteInterview.isPending}
+													variant="outline"
+												>
+													Cancel
+												</Button>
+											</Dialog.ActionTrigger>
+											<Button
+												colorPalette="red"
+												loading={deleteInterview.isPending}
+												onClick={() => void remove()}
+											>
+												Delete interview
+											</Button>
+										</Dialog.Footer>
+									</Dialog.Content>
+								</Dialog.Positioner>
+							</Portal>
+						</Dialog.Root>
 					</Flex>
 				</Box>
 			</Flex>
 
-			<Grid
+			<Clipboard.Root
 				alignItems="center"
-				bg="forest"
-				color="paper"
+				display="grid"
 				gap="5"
+				layerStyle="panel-inverted"
 				mt="10"
+				onStatusChange={({ copied }) => {
+					if (copied) toaster.success({ title: "Candidate link copied" });
+				}}
 				p="5"
-				templateColumns="auto minmax(0, 1fr) auto auto"
+				gridTemplateColumns="auto minmax(0, 1fr) auto auto"
+				value={shareUrl}
 			>
-				<Text color="accent" fontFamily="mono" fontSize="xs" fontWeight="700">
+				<Clipboard.Label
+					color="accent"
+					fontFamily="mono"
+					fontSize="xs"
+					fontWeight="700"
+				>
 					CANDIDATE LINK
-				</Text>
-				<Text fontFamily="mono" fontSize="sm" truncate>
-					{shareUrl}
-				</Text>
-				<Button color="paper" onClick={() => void copyLink()} variant="outline">
-					<Copy aria-hidden="true" size={16} />
-					Copy
-				</Button>
-				<Button asChild bg="accent" color="forest">
+				</Clipboard.Label>
+				<Clipboard.ValueText fontFamily="mono" fontSize="sm" truncate />
+				<Clipboard.Trigger asChild>
+					<Button colorPalette="inverse" variant="outline">
+						<Copy aria-hidden="true" size={16} />
+						Copy
+					</Button>
+				</Clipboard.Trigger>
+				<Button asChild colorPalette="highlight">
 					<a href={shareUrl} rel="noreferrer" target="_blank">
 						Preview
 						<ExternalLink aria-hidden="true" size={16} />
 					</a>
 				</Button>
-			</Grid>
+			</Clipboard.Root>
 
 			<Box mt="12">
 				<Flex align="baseline" justify="space-between">
 					<Box>
-						<Heading fontFamily="display" fontSize="2xl">
-							Participant attempts
-						</Heading>
+						<Heading fontSize="2xl">Participant attempts</Heading>
 						<Text color="muted" fontSize="sm" mt="1">
 							Candidate identity, live state, topic progress, and timing.
 						</Text>
@@ -235,9 +260,7 @@ export function InterviewDetailScreen({
 
 			<Box mt="12">
 				<Flex align="baseline" justify="space-between">
-					<Heading fontFamily="display" fontSize="2xl">
-						Interview topics
-					</Heading>
+					<Heading fontSize="2xl">Interview topics</Heading>
 					<Text color="muted" fontFamily="mono" fontSize="xs">
 						PRIVATE TO CREATOR
 					</Text>
@@ -276,49 +299,39 @@ export function InterviewDetailScreen({
 				</Stack>
 			</Box>
 
-			<Box
-				as="details"
-				borderBottomColor="line"
-				borderBottomWidth="1px"
-				borderTopColor="line"
-				borderTopWidth="1px"
-				mt="12"
-				py="5"
-			>
-				<Box
-					as="summary"
-					cursor="pointer"
-					fontFamily="display"
-					fontSize="lg"
-					fontWeight="700"
-				>
-					Original topic notes
-				</Box>
-				<Text
-					bg="surface"
-					fontFamily="mono"
-					fontSize="sm"
-					lineHeight="1.7"
-					mt="5"
-					p="5"
-					whiteSpace="pre-wrap"
-				>
-					{detail.rawQuestions}
-				</Text>
-			</Box>
+			<Accordion.Root collapsible mt="12">
+				<Accordion.Item value="original-notes">
+					<Accordion.ItemTrigger>
+						<Text flex="1" fontFamily="display" fontSize="lg" fontWeight="700">
+							Original topic notes
+						</Text>
+						<Accordion.ItemIndicator />
+					</Accordion.ItemTrigger>
+					<Accordion.ItemContent>
+						<Accordion.ItemBody>
+							<Text
+								bg="bg.panel"
+								fontFamily="mono"
+								fontSize="sm"
+								lineHeight="1.7"
+								p="5"
+								whiteSpace="pre-wrap"
+							>
+								{detail.rawQuestions}
+							</Text>
+						</Accordion.ItemBody>
+					</Accordion.ItemContent>
+				</Accordion.Item>
+			</Accordion.Root>
 		</CreatorAppShell>
 	);
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
+function InterviewFact({ label, value }: { label: string; value: string }) {
 	return (
-		<Box>
-			<Text color="muted" fontFamily="mono" fontSize="2xs">
-				{label.toUpperCase()}
-			</Text>
-			<Text fontSize="sm" fontWeight="700" mt="1">
-				{value}
-			</Text>
-		</Box>
+		<DataList.Item>
+			<DataList.ItemLabel>{label}</DataList.ItemLabel>
+			<DataList.ItemValue>{value}</DataList.ItemValue>
+		</DataList.Item>
 	);
 }

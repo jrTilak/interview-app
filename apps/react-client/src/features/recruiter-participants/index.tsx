@@ -1,5 +1,6 @@
-import { Box, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Card, EmptyState, Flex, Stack } from "@chakra-ui/react";
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { UsersRound } from "lucide-react";
 import { ErrorState } from "@/components/atoms/error-state";
 import { LoadingState } from "@/components/atoms/loading-state";
 import { CreatorAppShell } from "@/components/layouts/app-shell";
@@ -37,40 +38,30 @@ export function RecruiterParticipantsScreen() {
 					/>
 				)}
 				{interviews.data?.length === 0 && (
-					<Flex
-						align="center"
-						bg="surface"
-						borderColor="line"
-						borderRadius="xl"
-						borderWidth="1px"
-						justify="center"
-						minH="260px"
-					>
-						<Text color="muted">No interview activity yet.</Text>
-					</Flex>
+					<EmptyState.Root minH="260px">
+						<EmptyState.Content>
+							<EmptyState.Indicator>
+								<UsersRound aria-hidden="true" />
+							</EmptyState.Indicator>
+							<EmptyState.Title>No interview activity yet.</EmptyState.Title>
+						</EmptyState.Content>
+					</EmptyState.Root>
 				)}
 				{interviews.data && interviews.data.length > 0 && (
 					<Stack gap="6">
 						{interviews.data.map((interview, index) => {
 							const result = attempts[index];
 							return (
-								<Box
-									bg="surface"
-									borderColor="line"
-									borderRadius="xl"
-									borderWidth="1px"
-									key={interview.id}
-									p="6"
-								>
-									<Flex align="baseline" justify="space-between">
-										<Heading fontFamily="display" fontSize="xl">
-											{interview.title}
-										</Heading>
-										<Text color="muted" fontSize="xs">
-											{result?.data?.length ?? 0} attempts
-										</Text>
-									</Flex>
-									<Box mt="4">
+								<Card.Root key={interview.id}>
+									<Card.Header>
+										<Flex align="baseline" justify="space-between">
+											<Card.Title>{interview.title}</Card.Title>
+											<Badge variant="outline">
+												{result?.data?.length ?? 0} attempts
+											</Badge>
+										</Flex>
+									</Card.Header>
+									<Card.Body>
 										{result?.isPending && (
 											<LoadingState label="Loading attempts" />
 										)}
@@ -90,8 +81,8 @@ export function RecruiterParticipantsScreen() {
 												}))}
 											/>
 										)}
-									</Box>
-								</Box>
+									</Card.Body>
+								</Card.Root>
 							);
 						})}
 					</Stack>

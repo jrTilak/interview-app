@@ -1,11 +1,12 @@
 import {
+	Badge,
 	Box,
 	Button,
+	Card,
+	EmptyState,
 	Flex,
 	Grid,
-	Heading,
 	IconButton,
-	Text,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -47,7 +48,7 @@ export function RecruiterInterviewsScreen() {
 		<CreatorAppShell>
 			<PageHeader
 				action={
-					<Button asChild bg="forest" color="paper">
+					<Button asChild>
 						<Link to="/interviews/new">
 							<FilePlus2 aria-hidden="true" size={16} /> New interview
 						</Link>
@@ -70,75 +71,62 @@ export function RecruiterInterviewsScreen() {
 					/>
 				)}
 				{interviews.data?.length === 0 && (
-					<Flex
-						align="center"
-						bg="surface"
-						borderColor="line"
-						borderRadius="xl"
-						borderWidth="1px"
-						direction="column"
-						justify="center"
-						minH="320px"
-						p="10"
-					>
-						<Heading fontFamily="display" fontSize="2xl">
-							Create your first interview
-						</Heading>
-						<Button asChild mt="5" variant="outline">
-							<Link to="/interviews/new">Get started</Link>
-						</Button>
-					</Flex>
+					<EmptyState.Root minH="320px">
+						<EmptyState.Content>
+							<EmptyState.Indicator>
+								<FilePlus2 aria-hidden="true" />
+							</EmptyState.Indicator>
+							<EmptyState.Title>Create your first interview</EmptyState.Title>
+							<Button asChild variant="outline">
+								<Link to="/interviews/new">Get started</Link>
+							</Button>
+						</EmptyState.Content>
+					</EmptyState.Root>
 				)}
 				{interviews.data && interviews.data.length > 0 && (
 					<Grid gap="5" templateColumns="repeat(2, minmax(0, 1fr))">
 						{interviews.data.map((interview) => (
-							<Box
-								_hover={{
-									borderColor: "cobalt",
-									transform: "translateY(-2px)",
-								}}
-								bg="surface"
-								borderColor="line"
-								borderRadius="xl"
-								borderWidth="1px"
-								key={interview.id}
-								p="6"
-								transition="all 150ms ease"
-							>
-								<Flex align="start" gap="4" justify="space-between">
-									<Box minW="0">
-										<Heading fontFamily="display" fontSize="xl" truncate>
-											{interview.title}
-										</Heading>
-										<Text color="muted" fontSize="sm" mt="1" truncate>
-											{interview.description || "No description"}
-										</Text>
-									</Box>
-									<IconButton
-										aria-label={`Copy link for ${interview.title}`}
-										onClick={() => void copyLink(interview.shareCode)}
-										size="sm"
-										variant="ghost"
+							<Card.Root key={interview.id}>
+								<Card.Header>
+									<Flex align="start" gap="4" justify="space-between">
+										<Box minW="0">
+											<Card.Title truncate>{interview.title}</Card.Title>
+											<Card.Description mt="1" truncate>
+												{interview.description || "No description"}
+											</Card.Description>
+										</Box>
+										<IconButton
+											aria-label={`Copy link for ${interview.title}`}
+											onClick={() => void copyLink(interview.shareCode)}
+											size="sm"
+											variant="ghost"
+										>
+											<Copy aria-hidden="true" size={16} />
+										</IconButton>
+									</Flex>
+								</Card.Header>
+								<Card.Body>
+									<Flex gap="2">
+										<Badge variant="outline">
+											<ListChecks aria-hidden="true" size={15} />
+											{interview.questionCount} topics
+										</Badge>
+										<Badge variant="outline">
+											<Clock3 aria-hidden="true" size={15} />
+											{formatDuration(interview.durationMinutes)}
+										</Badge>
+									</Flex>
+								</Card.Body>
+								<Card.Footer justifyContent="space-between">
+									<Badge
+										colorPalette={
+											interview.allowMultipleAttempts ? "brand" : "gray"
+										}
 									>
-										<Copy aria-hidden="true" size={16} />
-									</IconButton>
-								</Flex>
-								<Flex color="muted" fontSize="sm" gap="5" mt="6">
-									<Flex align="center" gap="2">
-										<ListChecks aria-hidden="true" size={15} />
-										{interview.questionCount} topics
-									</Flex>
-									<Flex align="center" gap="2">
-										<Clock3 aria-hidden="true" size={15} />
-										{formatDuration(interview.durationMinutes)}
-									</Flex>
-								</Flex>
-								<Flex align="center" justify="space-between" mt="7">
-									<Text color="muted" fontSize="xs">
 										{interview.allowMultipleAttempts
 											? "Repeat attempts"
 											: "Single attempt"}
-									</Text>
+									</Badge>
 									<Button asChild size="sm" variant="outline">
 										<Link
 											params={{ interviewId: interview.id }}
@@ -147,8 +135,8 @@ export function RecruiterInterviewsScreen() {
 											Manage <ArrowUpRight aria-hidden="true" size={15} />
 										</Link>
 									</Button>
-								</Flex>
-							</Box>
+								</Card.Footer>
+							</Card.Root>
 						))}
 					</Grid>
 				)}

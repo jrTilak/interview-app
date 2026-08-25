@@ -19,7 +19,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 				<Text color="cobalt" fontFamily="mono" fontSize="xs">
 					ROUTE ERROR
 				</Text>
-				<Heading fontFamily="display" fontSize="4xl" mt="3">
+				<Heading fontSize="4xl" mt="3">
 					This workspace could not be opened.
 				</Heading>
 				<Text color="muted" mt="3">
@@ -38,7 +38,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 				<Text color="cobalt" fontFamily="mono" fontSize="xs">
 					404 · NOT FOUND
 				</Text>
-				<Heading fontFamily="display" fontSize="4xl" mt="3">
+				<Heading fontSize="4xl" mt="3">
 					That interview route does not exist.
 				</Heading>
 				<Button asChild mt="6" variant="outline">

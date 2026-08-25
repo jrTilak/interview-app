@@ -1,3 +1,4 @@
+import { Box } from "@chakra-ui/react";
 import { CreatorAppShell } from "@/components/layouts/app-shell";
 import { PageHeader } from "@/components/molecules/page-header";
 import { CreateInterviewForm } from "./create-interview-form";
@@ -11,9 +12,9 @@ export function CreateInterviewScreen() {
 				eyebrow="Recruiter mode"
 				title="New interview"
 			/>
-			<div style={{ marginTop: "2.5rem" }}>
+			<Box mt="10">
 				<CreateInterviewForm />
-			</div>
+			</Box>
 		</CreatorAppShell>
 	);
 }

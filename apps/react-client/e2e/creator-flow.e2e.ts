@@ -150,10 +150,7 @@ test("separates candidate history from recruiter management and creates an inter
 	await expect(
 		page.getByRole("heading", { name: "My interviews" }),
 	).toBeVisible();
-	await expect(page.getByRole("button", { name: "Interview" })).toHaveAttribute(
-		"aria-pressed",
-		"true",
-	);
+	await expect(page.getByRole("radio", { name: "Interview" })).toBeChecked();
 	await expect(page.getByText("Ada Creator")).toBeVisible();
 	await expect(
 		page.getByRole("heading", {
@@ -164,12 +161,12 @@ test("separates candidate history from recruiter management and creates an inter
 	await expect(page.getByText("Attempt 2")).toBeVisible();
 	await expect(page.getByText("Attempt 1")).toBeVisible();
 
-	await page.getByRole("button", { name: "Recruiter" }).click();
+	await page
+		.getByRole("radiogroup", { name: "Workspace mode" })
+		.getByText("Recruiter", { exact: true })
+		.click();
 	await expect(page).toHaveURL("/recruiter/interviews");
-	await expect(page.getByRole("button", { name: "Recruiter" })).toHaveAttribute(
-		"aria-pressed",
-		"true",
-	);
+	await expect(page.getByRole("radio", { name: "Recruiter" })).toBeChecked();
 	await expect(
 		page.getByRole("heading", { exact: true, name: "Interviews" }),
 	).toBeVisible();
@@ -211,10 +208,7 @@ test("separates candidate history from recruiter management and creates an inter
 	await page.getByRole("button", { name: "Create interview" }).click();
 
 	await expect(page).toHaveURL(`/interviews/owned/${interviewId}`);
-	await expect(page.getByRole("button", { name: "Recruiter" })).toHaveAttribute(
-		"aria-pressed",
-		"true",
-	);
+	await expect(page.getByRole("radio", { name: "Recruiter" })).toBeChecked();
 	await expect(
 		page.getByRole("heading", { name: "Realtime React interview" }),
 	).toBeVisible();

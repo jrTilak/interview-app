@@ -1,11 +1,16 @@
 import {
+	Alert,
+	Blockquote,
 	Box,
 	Button,
 	Link as ChakraLink,
 	Flex,
 	Grid,
 	Heading,
+	Icon,
+	Spinner,
 	Stack,
+	Status,
 	Text,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
@@ -16,10 +21,8 @@ import {
 	ArrowLeft,
 	Camera,
 	CheckCircle2,
-	LoaderCircle,
 	Mic,
 	MonitorUp,
-	Radio,
 	RefreshCw,
 	ShieldCheck,
 	UserRoundX,
@@ -235,7 +238,7 @@ export function LiveInterviewScreen({
 			>
 				<Flex align="center" gap="6" minW="0">
 					<Brand inverted />
-					<Box bg="rgba(244,242,236,0.25)" h="6" w="1px" />
+					<Box bg="paper/25" h="6" w="1px" />
 					<Text fontSize="sm" fontWeight="600" truncate>
 						{preview.data.title}
 					</Text>
@@ -247,12 +250,10 @@ export function LiveInterviewScreen({
 					/>
 					<LatencyStatus latencyMs={room.latencyMs} />
 					<Flex align="center" gap="2">
-						<ShieldCheck aria-hidden="true" color="#D6FF4B" size={15} />
-						<Text
-							color="rgba(244,242,236,0.72)"
-							fontFamily="mono"
-							fontSize="xs"
-						>
+						<Icon color="accent" size="sm">
+							<ShieldCheck aria-hidden="true" />
+						</Icon>
+						<Text color="paper/72" fontFamily="mono" fontSize="xs">
 							Media transient
 						</Text>
 					</Flex>
@@ -268,24 +269,23 @@ export function LiveInterviewScreen({
 			</Flex>
 
 			{room.lastError && (
-				<Flex
-					align="center"
-					bg={room.lastError.code === "AUDIO_UNAVAILABLE" ? "cobalt" : "danger"}
-					color="white"
-					gap="3"
-					justify="space-between"
-					px="6"
-					py="3"
+				<Alert.Root
 					role="alert"
+					status={
+						room.lastError.code === "AUDIO_UNAVAILABLE" ? "info" : "error"
+					}
+					variant="solid"
 				>
-					<Flex align="center" gap="3">
-						<AlertTriangle aria-hidden="true" size={17} />
-						<Text fontSize="sm">{room.lastError.message}</Text>
-					</Flex>
+					<Alert.Indicator>
+						<AlertTriangle aria-hidden="true" />
+					</Alert.Indicator>
+					<Alert.Content>
+						<Alert.Description>{room.lastError.message}</Alert.Description>
+					</Alert.Content>
 					<Flex gap="2">
 						{canRetryAssistant && (
 							<Button
-								color="white"
+								colorPalette="inverse"
 								onClick={() => void retryAssistant()}
 								size="sm"
 								variant="outline"
@@ -294,7 +294,7 @@ export function LiveInterviewScreen({
 							</Button>
 						)}
 						<Button
-							color="white"
+							colorPalette="inverse"
 							onClick={room.clearError}
 							size="sm"
 							variant="ghost"
@@ -302,7 +302,7 @@ export function LiveInterviewScreen({
 							Dismiss
 						</Button>
 					</Flex>
-				</Flex>
+				</Alert.Root>
 			)}
 
 			<Grid flex="1" minH="0" templateColumns="minmax(0, 1fr) 340px">
@@ -329,7 +329,7 @@ export function LiveInterviewScreen({
 							>
 								<UserRoundX aria-hidden="true" size={24} />
 							</Flex>
-							<Heading fontFamily="display" fontSize="3xl" mt="5">
+							<Heading fontSize="3xl" mt="5">
 								Interview paused
 							</Heading>
 							<Text color="muted" mt="2">
@@ -352,21 +352,17 @@ export function LiveInterviewScreen({
 						<Box maxW="4xl" textAlign="center">
 							<Flex align="center" color="cobalt" gap="2" justify="center">
 								{snapshot.state === "ASSISTANT_SPEAKING" ? (
-									<Volume2
-										aria-hidden="true"
-										className="status-pulse"
-										size={18}
-									/>
+									<Icon animationStyle="status-pulse" size="sm">
+										<Volume2 aria-hidden="true" />
+									</Icon>
 								) : snapshot.state === "LISTENING" ? (
-									<Mic aria-hidden="true" className="status-pulse" size={18} />
+									<Icon animationStyle="status-pulse" size="sm">
+										<Mic aria-hidden="true" />
+									</Icon>
 								) : terminal ? (
 									<CheckCircle2 aria-hidden="true" size={18} />
 								) : (
-									<LoaderCircle
-										aria-hidden="true"
-										className="status-pulse"
-										size={18}
-									/>
+									<Spinner aria-label="Processing" size="sm" />
 								)}
 								<Text
 									fontFamily="mono"
@@ -379,7 +375,6 @@ export function LiveInterviewScreen({
 							</Flex>
 							<Heading
 								aria-live="polite"
-								fontFamily="display"
 								fontSize="4xl"
 								fontWeight="600"
 								letterSpacing="-0.035em"
@@ -395,17 +390,12 @@ export function LiveInterviewScreen({
 								{state.description}
 							</Text>
 							{room.candidateSubtitle && snapshot.state === "PROCESSING" && (
-								<Text
-									bg="surface"
-									borderColor="line"
-									borderWidth="1px"
-									color="muted"
-									fontSize="sm"
-									mt="7"
-									p="4"
-								>
-									You said: {room.candidateSubtitle}
-								</Text>
+								<Blockquote.Root colorPalette="brand" mt="7">
+									<Blockquote.Content>
+										{room.candidateSubtitle}
+									</Blockquote.Content>
+									<Blockquote.Caption>You said</Blockquote.Caption>
+								</Blockquote.Root>
 							)}
 						</Box>
 					</Flex>
@@ -419,9 +409,7 @@ export function LiveInterviewScreen({
 						py="6"
 					>
 						<Flex align="center" justify="space-between">
-							<Text fontFamily="display" fontWeight="700">
-								Conversation
-							</Text>
+							<Heading fontSize="md">Conversation</Heading>
 							<Text color="muted" fontFamily="mono" fontSize="2xs">
 								TEXT PERSISTS FOR RECONNECT
 							</Text>
@@ -464,9 +452,7 @@ export function LiveInterviewScreen({
 					overflowY="auto"
 					p="5"
 				>
-					<Text fontFamily="display" fontWeight="700">
-						Device monitor
-					</Text>
+					<Heading fontSize="md">Device monitor</Heading>
 					<Grid gap="1" mt="4" templateRows="180px 150px">
 						<MediaPreview
 							faceDetection={faceDetection}
@@ -496,25 +482,26 @@ export function LiveInterviewScreen({
 						!media.microphoneActive ||
 						!media.screenActive) &&
 						!terminal && (
-							<Box
-								bg="#FFF2D8"
-								borderColor="#E6C070"
-								borderWidth="1px"
+							<Alert.Root
 								mt="5"
-								p="4"
+								role="alert"
+								status="warning"
+								variant="surface"
 							>
-								<Text fontSize="sm" fontWeight="700">
-									A device stopped
-								</Text>
-								<Text color="muted" fontSize="sm" mt="2">
-									Return to the lobby to reconnect it, then resume this attempt.
-								</Text>
+								<Alert.Indicator />
+								<Alert.Content>
+									<Alert.Title>A device stopped</Alert.Title>
+									<Alert.Description>
+										Return to the lobby to reconnect it, then resume this
+										attempt.
+									</Alert.Description>
+								</Alert.Content>
 								<Button asChild mt="3" size="sm" variant="outline">
 									<Link params={{ shareCode }} to="/interviews/$shareCode">
 										Reconnect devices
 									</Link>
 								</Button>
-							</Box>
+							</Alert.Root>
 						)}
 				</Flex>
 			</Grid>
@@ -528,14 +515,13 @@ export function LiveInterviewScreen({
 				justify="space-between"
 				px="6"
 			>
-				<Flex align="center" gap="3">
-					<Box
-						bg={
-							microphoneRecording ? "danger" : terminal ? "success" : "cobalt"
-						}
-						className={microphoneRecording ? "status-pulse" : undefined}
-						h="2.5"
-						w="2.5"
+				<Status.Root
+					colorPalette={
+						microphoneRecording ? "red" : terminal ? "green" : "brand"
+					}
+				>
+					<Status.Indicator
+						animationStyle={microphoneRecording ? "status-pulse" : undefined}
 					/>
 					<Box>
 						<Text fontSize="sm" fontWeight="700">
@@ -547,20 +533,16 @@ export function LiveInterviewScreen({
 								: state.description}
 						</Text>
 					</Box>
-				</Flex>
+				</Status.Root>
 				<Flex align="center" gap="3">
 					{microphoneRecording && (
-						<Button
-							bg="forest"
-							color="paper"
-							onClick={() => void room.finishAnswer()}
-						>
+						<Button onClick={() => void room.finishAnswer()}>
 							<Mic aria-hidden="true" size={16} />
 							Finish answer
 						</Button>
 					)}
 					{terminal && (
-						<Button asChild bg="forest" color="paper">
+						<Button asChild>
 							<Link to="/dashboard">Return to dashboard</Link>
 						</Button>
 					)}
@@ -579,17 +561,14 @@ export function LiveInterviewScreen({
 
 function HeaderStatus({ active, label }: { active: boolean; label: string }) {
 	return (
-		<Flex align="center" gap="2">
-			<Radio
-				aria-hidden="true"
-				className={active ? undefined : "status-pulse"}
-				color={active ? "#D6FF4B" : "#F3A43B"}
-				size={14}
-			/>
-			<Text color="rgba(244,242,236,0.72)" fontFamily="mono" fontSize="xs">
-				{label}
-			</Text>
-		</Flex>
+		<Status.Root
+			color="paper/72"
+			colorPalette={active ? "highlight" : "orange"}
+			fontFamily="mono"
+		>
+			<Status.Indicator animationStyle={active ? undefined : "status-pulse"} />
+			{label}
+		</Status.Root>
 	);
 }
 
@@ -597,12 +576,12 @@ function LatencyStatus({ latencyMs }: { latencyMs: number | null }) {
 	const quality = getLatencyQuality(latencyMs);
 	const color =
 		quality === "excellent"
-			? "#D6FF4B"
+			? "accent"
 			: quality === "stable"
-				? "#A9D8C1"
+				? "successSoft"
 				: quality === "high"
-					? "#F3A43B"
-					: "rgba(244,242,236,0.48)";
+					? "warning"
+					: "paper/48";
 
 	return (
 		<Flex
@@ -610,7 +589,9 @@ function LatencyStatus({ latencyMs }: { latencyMs: number | null }) {
 			gap="2"
 			title="Authenticated realtime round-trip latency"
 		>
-			<Activity aria-hidden="true" color={color} size={14} />
+			<Icon color={color} size="sm">
+				<Activity aria-hidden="true" />
+			</Icon>
 			<Text color={color} fontFamily="mono" fontSize="xs">
 				PING {formatLatency(latencyMs)}
 			</Text>
@@ -636,20 +617,19 @@ function DeviceStatus({
 			py="3"
 		>
 			<Flex align="center" gap="3">
-				<Icon
-					aria-hidden="true"
-					color={active ? "#247552" : "#68736D"}
-					size={16}
-				/>
+				<Box color={active ? "success" : "muted"}>
+					<Icon aria-hidden="true" size={16} />
+				</Box>
 				<Text fontSize="sm">{label}</Text>
 			</Flex>
-			<Text
-				color={active ? "success" : "danger"}
+			<Status.Root
+				colorPalette={active ? "green" : "red"}
 				fontFamily="mono"
-				fontSize="2xs"
+				size="sm"
 			>
+				<Status.Indicator />
 				{active ? "ACTIVE" : "STOPPED"}
-			</Text>
+			</Status.Root>
 		</Flex>
 	);
 }

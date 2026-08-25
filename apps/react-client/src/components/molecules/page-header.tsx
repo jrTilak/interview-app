@@ -1,4 +1,4 @@
-import { Flex, Heading, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 
 type PageHeaderProps = {
@@ -17,7 +17,7 @@ export function PageHeader({
 }: PageHeaderProps) {
 	return (
 		<Flex align="flex-end" gap="8" justify="space-between">
-			<div>
+			<Box>
 				<Text
 					color="cobalt"
 					fontFamily="mono"
@@ -28,18 +28,13 @@ export function PageHeader({
 				>
 					{eyebrow}
 				</Text>
-				<Heading
-					fontFamily="display"
-					fontSize="4xl"
-					letterSpacing="-0.035em"
-					mt="2"
-				>
+				<Heading fontSize="4xl" letterSpacing="-0.035em" mt="2">
 					{title}
 				</Heading>
 				<Text color="muted" maxW="2xl" mt="2">
 					{description}
 				</Text>
-			</div>
+			</Box>
 			{action}
 		</Flex>
 	);

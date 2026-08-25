@@ -14,51 +14,6 @@ body,
 	margin: 0;
 }
 
-button,
-a,
-input,
-textarea,
-select {
-	transition:
-		background-color 150ms ease,
-		border-color 150ms ease,
-		color 150ms ease,
-		transform 150ms ease;
-}
-
-button:active:not(:disabled) {
-	transform: translateY(1px);
-}
-
-@keyframes enter-up {
-	from {
-		opacity: 0;
-		transform: translateY(4px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-@keyframes status-pulse {
-	0%,
-	100% {
-		opacity: 1;
-	}
-	50% {
-		opacity: 0.35;
-	}
-}
-
-.enter-up {
-	animation: enter-up 180ms ease-out both;
-}
-
-.status-pulse {
-	animation: status-pulse 1.25s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
