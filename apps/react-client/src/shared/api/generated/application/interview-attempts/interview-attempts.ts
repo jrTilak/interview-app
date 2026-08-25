@@ -6,9 +6,7 @@
  *
  * Application routes require a Better Auth session cookie unless explicitly documented as public. Request bodies and parameters are strictly validated. Validation failures use HTTP 422, ownership checks hide foreign resources as 404, and unexpected server failures are sanitized.
  *
- * Use a UUID `clientRequestId` when creating an interview so network retries are idempotent. Private topic boundaries and follow-up guidance are returned only to their creator; a share-link preview exposes title, description, duration, and topic count. Existing transport fields retain their `questions` and `questionCount` names for compatibility.
- *
- * The Socket.IO interview protocol is documented in the repository's `docs/REALTIME_PROTOCOL.md` file.
+ * New interviews are private. Their owner publishes or unpublishes them through `PATCH /api/interviews/:id` with `isPublic`; public previews and authenticated candidate attempts use the interview UUID itself rather than a separate share code.
  *
  * OpenAPI spec version: 0.1.0
  */
@@ -22,56 +20,52 @@ import type {
 import { apiClient } from '../../../client';
 
 
-type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
-
-  export const getInterviewAttempts = () => {
-/**
+  /**
  * @summary Join a shared interview
  */
-const interviewAttemptsControllerCreateOrResume = (
-    shareCode: string,
- options?: SecondParameter<typeof apiClient<InterviewAttemptsControllerCreateOrResume201>>,) => {
+export const interviewAttemptsControllerCreateOrResume = (
+    id: string,
+ ) => {
       return apiClient<InterviewAttemptsControllerCreateOrResume201>(
-      {url: `/api/shared-interviews/${shareCode}/attempts`, method: 'POST'
+      {url: `/api/shared-interviews/${id}/attempts`, method: 'POST'
     },
-      options);
+      );
     }
   /**
  * @summary List participant attempts for my interview
  */
-const interviewAttemptsControllerFindAttempts = (
+export const interviewAttemptsControllerFindAttempts = (
     id: string,
- options?: SecondParameter<typeof apiClient<InterviewAttemptsControllerFindAttempts200>>,) => {
+ ) => {
       return apiClient<InterviewAttemptsControllerFindAttempts200>(
       {url: `/api/interviews/${id}/attempts`, method: 'GET'
     },
-      options);
+      );
     }
   /**
  * @summary List my taken interview history
  */
-const interviewAttemptsControllerFindAllHistory = (
+export const interviewAttemptsControllerFindAllHistory = (
 
- options?: SecondParameter<typeof apiClient<InterviewAttemptsControllerFindAllHistory200>>,) => {
+ ) => {
       return apiClient<InterviewAttemptsControllerFindAllHistory200>(
       {url: `/api/interview-attempts`, method: 'GET'
     },
-      options);
+      );
     }
   /**
  * @summary Get my interview attempt snapshot
  */
-const interviewAttemptsControllerFindSnapshot = (
+export const interviewAttemptsControllerFindSnapshot = (
     id: string,
- options?: SecondParameter<typeof apiClient<InterviewAttemptsControllerFindSnapshot200>>,) => {
+ ) => {
       return apiClient<InterviewAttemptsControllerFindSnapshot200>(
       {url: `/api/interview-attempts/${id}`, method: 'GET'
     },
-      options);
+      );
     }
-  return {interviewAttemptsControllerCreateOrResume,interviewAttemptsControllerFindAttempts,interviewAttemptsControllerFindAllHistory,interviewAttemptsControllerFindSnapshot}};
-export type InterviewAttemptsControllerCreateOrResumeResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviewAttempts>['interviewAttemptsControllerCreateOrResume']>>>
-export type InterviewAttemptsControllerFindAttemptsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviewAttempts>['interviewAttemptsControllerFindAttempts']>>>
-export type InterviewAttemptsControllerFindAllHistoryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviewAttempts>['interviewAttemptsControllerFindAllHistory']>>>
-export type InterviewAttemptsControllerFindSnapshotResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviewAttempts>['interviewAttemptsControllerFindSnapshot']>>>
+  export type InterviewAttemptsControllerCreateOrResumeResult = NonNullable<Awaited<ReturnType<typeof interviewAttemptsControllerCreateOrResume>>>
+export type InterviewAttemptsControllerFindAttemptsResult = NonNullable<Awaited<ReturnType<typeof interviewAttemptsControllerFindAttempts>>>
+export type InterviewAttemptsControllerFindAllHistoryResult = NonNullable<Awaited<ReturnType<typeof interviewAttemptsControllerFindAllHistory>>>
+export type InterviewAttemptsControllerFindSnapshotResult = NonNullable<Awaited<ReturnType<typeof interviewAttemptsControllerFindSnapshot>>>

@@ -12,8 +12,8 @@ import { cleanupOpenApiDoc } from "nestjs-zod";
 import {
 	ALLOWED_AUTH_PATHS,
 	type ApplicationAuth,
-} from "#/modules/auth/auth.factory.js";
-import type { AppConfigService } from "#/types/index.js";
+} from "#src/modules/auth/auth.factory.js";
+import type { AppConfigService } from "#src/types/index.js";
 
 @Injectable()
 export class OpenApiService {

@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { jest } from "@jest/globals";
 import { Logger } from "@nestjs/common";
 import type { migrate as migrateDatabase } from "drizzle-orm/node-postgres/migrator";
-import type { AppConfigService } from "#/types/index.js";
+import type { AppConfigService } from "#src/types/index.js";
 import type { AppDatabase } from "./database.provider.js";
 
 const migrate = jest.fn<typeof migrateDatabase>();

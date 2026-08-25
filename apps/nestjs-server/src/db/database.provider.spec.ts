@@ -4,7 +4,7 @@ import { Pool } from "pg";
 import {
 	DATABASE_CONFIG,
 	type DatabaseConfig,
-} from "#/config/database.config.js";
+} from "#src/config/database.config.js";
 import {
 	type AppDatabase,
 	DATABASE,

@@ -62,6 +62,17 @@ describe("shared API decorators", () => {
 			"ApiErrorResponseDto",
 		);
 		expect(JSON.stringify(one?.responses["200"])).toContain("ContractItemDto");
+		expect(one?.responses["200"]).toMatchObject({
+			content: {
+				"application/json": {
+					schema: {
+						allOf: expect.arrayContaining([
+							expect.objectContaining({ required: ["data"] }),
+						]),
+					},
+				},
+			},
+		});
 		expect(many?.responses["200"]).toMatchObject({
 			description: "Many items.",
 		});

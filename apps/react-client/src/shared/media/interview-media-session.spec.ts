@@ -58,5 +58,28 @@ describe("InterviewMediaSession screen capture", () => {
 		await expect(session.acquireScreen()).rejects.toThrow("Entire Screen");
 		expect(stop).toHaveBeenCalledOnce();
 		expect(session.getSnapshot().screenActive).toBe(false);
+		expect(session.getSnapshot().screenStream).toBeNull();
+	});
+
+	it("clears an existing screen before requesting its replacement", async () => {
+		const current = displayStream("monitor");
+		const rejected = displayStream("window");
+		const getDisplayMedia = vi
+			.fn()
+			.mockResolvedValueOnce(current.stream)
+			.mockResolvedValueOnce(rejected.stream);
+		Object.defineProperty(navigator, "mediaDevices", {
+			configurable: true,
+			value: { getDisplayMedia },
+		});
+
+		const session = new InterviewMediaSession();
+		await session.acquireScreen();
+		await expect(session.acquireScreen()).rejects.toThrow("Entire Screen");
+
+		expect(current.stop).toHaveBeenCalledOnce();
+		expect(rejected.stop).toHaveBeenCalledOnce();
+		expect(session.getSnapshot().screenActive).toBe(false);
+		expect(session.getSnapshot().screenStream).toBeNull();
 	});
 });

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { type AppDatabase, InjectDatabase } from "#/db/database.provider.js";
+import { type AppDatabase, InjectDatabase } from "#src/db/database.provider.js";
 import type { HealthResponseDto, ReadinessResponseDto } from "./health.dto.js";
 
 @Injectable()

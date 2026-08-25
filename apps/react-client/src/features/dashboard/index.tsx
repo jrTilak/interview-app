@@ -27,7 +27,7 @@ export function DashboardScreen() {
 	const history = useQuery(attemptHistoryQueryOptions());
 
 	return (
-		<CreatorAppShell>
+		<CreatorAppShell title="My interviews">
 			<PageHeader
 				action={
 					<Button asChild>
@@ -37,9 +37,7 @@ export function DashboardScreen() {
 						</Link>
 					</Button>
 				}
-				description="Your attempts, progress, and resumable interviews."
-				eyebrow="Interview mode"
-				title="My interviews"
+				description="Your interview attempts and topic progress."
 			/>
 
 			<Box mt="8">
@@ -77,6 +75,11 @@ export function DashboardScreen() {
 							const latestStatus = latest
 								? attemptStatePresentation[latest.state]
 								: attemptStatePresentation.READY;
+							const canOpen =
+								!latest ||
+								latest.state === "READY" ||
+								(item.interview.allowMultipleAttempts &&
+									(latest.state === "COMPLETED" || latest.state === "FAILED"));
 							return (
 								<Card.Root key={item.interview.id}>
 									<Card.Body>
@@ -102,14 +105,20 @@ export function DashboardScreen() {
 													{item.attempts.length === 1 ? "attempt" : "attempts"}
 												</Card.Description>
 											</Box>
-											<Button asChild size="sm" variant="outline">
-												<Link
-													params={{ shareCode: item.interview.shareCode }}
-													to="/interviews/$shareCode"
-												>
-													Open <ArrowUpRight aria-hidden="true" size={15} />
-												</Link>
-											</Button>
+											{canOpen ? (
+												<Button asChild size="sm" variant="outline">
+													<Link
+														params={{ shareCode: item.interview.id }}
+														to="/interviews/$shareCode"
+													>
+														Open <ArrowUpRight aria-hidden="true" size={15} />
+													</Link>
+												</Button>
+											) : (
+												<Button disabled size="sm" variant="outline">
+													Unavailable
+												</Button>
+											)}
 										</Grid>
 										<Box mt="5">
 											<AttemptHistoryTable

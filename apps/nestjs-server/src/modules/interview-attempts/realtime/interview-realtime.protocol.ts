@@ -3,7 +3,7 @@ import z from "zod";
 import {
 	normalizeAudioMimeType,
 	TRANSCRIPTION_AUDIO_MIME_TYPES,
-} from "#/modules/ai/audio-formats.js";
+} from "#src/modules/ai/audio-formats.js";
 
 const AttemptEventSchema = z.object({ attemptId: UuidSchema });
 const TurnEventSchema = AttemptEventSchema.extend({ turnId: UuidSchema });

@@ -28,7 +28,7 @@ import {
 	UserRoundX,
 	Volume2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Brand } from "@/components/atoms/brand";
 import { ErrorState } from "@/components/atoms/error-state";
 import { LoadingState } from "@/components/atoms/loading-state";
@@ -37,7 +37,14 @@ import type { AttemptSnapshotResponseDtoState } from "@/shared/api/generated/app
 import { DEFAULT_DEV_FLAGS } from "@/shared/api/modules/dev-flags/lib";
 import { devFlagsQueryOptions } from "@/shared/api/modules/dev-flags/queries";
 import { sharedInterviewQueryOptions } from "@/shared/api/modules/interviews/queries";
-import { useInterviewFullscreen } from "@/shared/browser/interview-fullscreen";
+import {
+	consumeInterviewAttemptHandoff,
+	hasInterviewAttemptHandoff,
+} from "@/shared/browser/interview-attempt-admission";
+import {
+	exitInterviewFullscreen,
+	useInterviewFullscreen,
+} from "@/shared/browser/interview-fullscreen";
 import { parseError } from "@/shared/lib/parse-error";
 import { toaster } from "@/shared/lib/toaster";
 import {
@@ -93,6 +100,26 @@ export function LiveInterviewScreen({
 	attemptId: string;
 	shareCode: string;
 }) {
+	const [admitted] = useState(() => hasInterviewAttemptHandoff(attemptId));
+
+	useEffect(() => {
+		if (admitted) consumeInterviewAttemptHandoff(attemptId);
+	}, [admitted, attemptId]);
+
+	if (!admitted) return <ClosedInterviewScreen />;
+
+	return (
+		<ActiveLiveInterviewScreen attemptId={attemptId} shareCode={shareCode} />
+	);
+}
+
+function ActiveLiveInterviewScreen({
+	attemptId,
+	shareCode,
+}: {
+	attemptId: string;
+	shareCode: string;
+}) {
 	const preview = useQuery(sharedInterviewQueryOptions(shareCode));
 	const flagsQuery = useQuery(devFlagsQueryOptions());
 	const flags = flagsQuery.data ?? DEFAULT_DEV_FLAGS;
@@ -126,6 +153,11 @@ export function LiveInterviewScreen({
 	const [remaining, setRemaining] = useState<number | null>(() =>
 		getRemainingSeconds(room.attempt.data?.deadlineAt ?? null),
 	);
+	const conversationRef = useRef<HTMLDivElement>(null);
+	const latestTurn = room.attempt.data?.turns.at(-1);
+	const latestTurnKey = latestTurn
+		? `${latestTurn.id}:${latestTurn.text}`
+		: null;
 
 	useEffect(() => {
 		const update = () =>
@@ -134,6 +166,24 @@ export function LiveInterviewScreen({
 		const interval = window.setInterval(update, 1_000);
 		return () => window.clearInterval(interval);
 	}, [room.attempt.data?.deadlineAt]);
+
+	useEffect(() => {
+		if (!latestTurnKey) return;
+		const frame = window.requestAnimationFrame(() => {
+			const conversation = conversationRef.current;
+			conversation?.scrollTo({
+				behavior: "smooth",
+				top: conversation.scrollHeight,
+			});
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [latestTurnKey]);
+
+	useEffect(() => {
+		if (room.connection.status === "disconnected") {
+			void exitInterviewFullscreen().catch(() => undefined);
+		}
+	}, [room.connection.status]);
 
 	const restoreFocusedRoom = async () => {
 		try {
@@ -156,6 +206,9 @@ export function LiveInterviewScreen({
 
 	const audioOnlyBlock =
 		fullscreen.active && (!roomEnabled || room.audioUnlockRequired);
+	if (room.connection.status === "disconnected") {
+		return <ClosedInterviewScreen disconnected />;
+	}
 	if (!fullscreen.active || !roomEnabled || room.audioUnlockRequired) {
 		return (
 			<FullscreenInterruption
@@ -172,7 +225,7 @@ export function LiveInterviewScreen({
 	if (room.attempt.isPending || preview.isPending) {
 		return (
 			<Box p="10">
-				<LoadingState label="Restoring interview room" />
+				<LoadingState label="Starting interview room" />
 			</Box>
 		);
 	}
@@ -191,7 +244,7 @@ export function LiveInterviewScreen({
 					<ErrorState
 						description={parseError(
 							error,
-							"This interview room could not be restored.",
+							"This interview room could not be opened.",
 						)}
 						onRetry={() => {
 							void room.attempt.refetch();
@@ -407,11 +460,12 @@ export function LiveInterviewScreen({
 						overflowY="auto"
 						px="8"
 						py="6"
+						ref={conversationRef}
 					>
 						<Flex align="center" justify="space-between">
 							<Heading fontSize="md">Conversation</Heading>
 							<Text color="muted" fontFamily="mono" fontSize="2xs">
-								TEXT PERSISTS FOR RECONNECT
+								LATEST MESSAGE SHOWN AUTOMATICALLY
 							</Text>
 						</Flex>
 						<Stack gap="4" mt="5">
@@ -478,31 +532,6 @@ export function LiveInterviewScreen({
 							label="Screen"
 						/>
 					</Stack>
-					{(!media.cameraActive ||
-						!media.microphoneActive ||
-						!media.screenActive) &&
-						!terminal && (
-							<Alert.Root
-								mt="5"
-								role="alert"
-								status="warning"
-								variant="surface"
-							>
-								<Alert.Indicator />
-								<Alert.Content>
-									<Alert.Title>A device stopped</Alert.Title>
-									<Alert.Description>
-										Return to the lobby to reconnect it, then resume this
-										attempt.
-									</Alert.Description>
-								</Alert.Content>
-								<Button asChild mt="3" size="sm" variant="outline">
-									<Link params={{ shareCode }} to="/interviews/$shareCode">
-										Reconnect devices
-									</Link>
-								</Button>
-							</Alert.Root>
-						)}
 				</Flex>
 			</Grid>
 
@@ -555,6 +584,38 @@ export function LiveInterviewScreen({
 					)}
 				</Flex>
 			</Flex>
+		</Flex>
+	);
+}
+
+function ClosedInterviewScreen({
+	disconnected = false,
+}: {
+	disconnected?: boolean;
+}) {
+	return (
+		<Flex
+			align="center"
+			bg="paper"
+			direction="column"
+			justify="center"
+			minH="100dvh"
+			p="10"
+			textAlign="center"
+		>
+			<Heading fontSize="3xl">
+				{disconnected
+					? "Interview disconnected"
+					: "Interview cannot be resumed"}
+			</Heading>
+			<Text color="muted" lineHeight="1.7" maxW="xl" mt="3">
+				{disconnected
+					? "The connection or a required device stopped. This attempt cannot be reopened."
+					: "This attempt was already opened. Reloading or returning to its room is not allowed."}
+			</Text>
+			<Button asChild mt="6">
+				<Link to="/dashboard">Return to dashboard</Link>
+			</Button>
 		</Flex>
 	);
 }

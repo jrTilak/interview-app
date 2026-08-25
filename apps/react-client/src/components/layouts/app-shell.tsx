@@ -14,11 +14,9 @@ import {
 	BriefcaseBusiness,
 	ClipboardList,
 	FilePlus2,
-	FlaskConical,
 	History,
 	Link2,
 	LogOut,
-	UsersRound,
 } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { Brand } from "@/components/atoms/brand";
@@ -36,13 +34,24 @@ import {
 type AppShellProps = {
 	children: ReactNode;
 	session: Exclude<AuthSession, null>;
+	title: string;
 };
 
 /** Loads the protected session before rendering a workspace page. */
-export function CreatorAppShell({ children }: { children: ReactNode }) {
+export function CreatorAppShell({
+	children,
+	title,
+}: {
+	children: ReactNode;
+	title: string;
+}) {
 	const session = useQuery(sessionQueryOptions());
 	if (!session.data) return null;
-	return <AppShell session={session.data}>{children}</AppShell>;
+	return (
+		<AppShell session={session.data} title={title}>
+			{children}
+		</AppShell>
+	);
 }
 
 const interviewNavigation = [
@@ -56,16 +65,11 @@ const recruiterNavigation = [
 		label: "Interviews",
 		to: "/recruiter/interviews" as const,
 	},
-	{
-		icon: UsersRound,
-		label: "Participants",
-		to: "/recruiter/participants" as const,
-	},
 	{ icon: FilePlus2, label: "Create", to: "/interviews/new" as const },
 ];
 
 /** Renders mode-aware navigation around one focused page. */
-export function AppShell({ children, session }: AppShellProps) {
+export function AppShell({ children, session, title }: AppShellProps) {
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
@@ -116,18 +120,22 @@ export function AppShell({ children, session }: AppShellProps) {
 	};
 
 	return (
-		<Flex bg="canvas" minH="100dvh">
+		<Flex bg="canvas" h="100dvh" overflow="hidden">
 			<Flex
+				aria-label="Application sidebar"
+				as="aside"
 				bg="forest"
 				color="paper"
 				direction="column"
+				h="100dvh"
 				justify="space-between"
-				minH="100dvh"
-				position="sticky"
+				left="0"
+				position="fixed"
 				px="5"
 				py="6"
 				top="0"
 				w="236px"
+				zIndex="1"
 			>
 				<Box>
 					<Brand inverted />
@@ -164,19 +172,10 @@ export function AppShell({ children, session }: AppShellProps) {
 									pathname.startsWith("/interviews/owned/"));
 							return (
 								<ChakraLink
-									_hover={{ bg: "paper/8" }}
+									aria-current={active ? "page" : undefined}
 									asChild
-									bg={active ? "accent" : "transparent"}
-									color={active ? "forest" : "paper/82"}
-									display="flex"
-									fontSize="sm"
-									fontWeight="650"
-									gap="3"
 									key={to}
-									mb="1"
-									px="3"
-									py="2.5"
-									textDecoration="none"
+									layerStyle="sidebar-navigation"
 								>
 									<Link to={to}>
 										<Icon aria-hidden="true" size={17} />
@@ -189,22 +188,6 @@ export function AppShell({ children, session }: AppShellProps) {
 				</Box>
 
 				<Box>
-					<ChakraLink
-						_hover={{ color: "paper" }}
-						asChild
-						color="paper/55"
-						display="flex"
-						fontSize="xs"
-						gap="2"
-						mb="5"
-						px="2"
-						textDecoration="none"
-					>
-						<Link to="/__flags__">
-							<FlaskConical aria-hidden="true" size={14} />
-							Dev flags
-						</Link>
-					</ChakraLink>
 					<Flex
 						align="center"
 						borderColor="paper/14"
@@ -238,29 +221,28 @@ export function AppShell({ children, session }: AppShellProps) {
 				</Box>
 			</Flex>
 
-			<Box flex="1" minW="0">
+			<Flex direction="column" h="100dvh" ml="236px" w="calc(100% - 236px)">
 				<Flex
 					align="center"
+					as="header"
 					bg="surface"
 					borderBottomColor="line"
 					borderBottomWidth="1px"
+					flexShrink="0"
 					h="16"
-					justify="space-between"
 					px="9"
 				>
-					<Heading fontSize="md">
-						{activeMode === "recruiter"
-							? "Recruiter workspace"
-							: "Interview workspace"}
+					<Heading as="h1" fontSize="md">
+						{title}
 					</Heading>
-					<Text color="muted" fontSize="xs">
-						{activeMode === "recruiter" ? "Build & manage" : "Take & review"}
-					</Text>
 				</Flex>
-				<Box animationStyle="enter-up" maxW="1500px" mx="auto" px="9" py="8">
-					{children}
+
+				<Box as="main" flex="1" minH="0" overflowX="hidden" overflowY="auto">
+					<Box animationStyle="enter-up" maxW="1500px" mx="auto" px="9" py="8">
+						{children}
+					</Box>
 				</Box>
-			</Box>
+			</Flex>
 		</Flex>
 	);
 }

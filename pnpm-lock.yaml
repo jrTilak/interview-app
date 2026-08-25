@@ -148,6 +148,9 @@ importers:
       '@fontsource-variable/instrument-sans':
         specifier: 5.3.0
         version: 5.3.0
+      '@interview-desk/validations':
+        specifier: workspace:*
+        version: link:../../packages/validations
       '@mediapipe/tasks-vision':
         specifier: 1.0.1
         version: 1.0.1

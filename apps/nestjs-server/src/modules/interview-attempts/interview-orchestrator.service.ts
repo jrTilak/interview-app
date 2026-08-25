@@ -4,15 +4,15 @@ import {
 	type GeneratedInterviewTurn,
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
-} from "#/modules/ai/llm/llm.port.js";
+} from "#src/modules/ai/llm/llm.port.js";
 import {
 	SPEECH_TO_TEXT,
 	type SpeechToTextPort,
-} from "#/modules/ai/stt/stt.port.js";
+} from "#src/modules/ai/stt/stt.port.js";
 import {
 	TEXT_TO_SPEECH,
 	type TextToSpeechPort,
-} from "#/modules/ai/tts/tts.port.js";
+} from "#src/modules/ai/tts/tts.port.js";
 import type { AttemptSnapshot } from "./dto/response.dto.js";
 import { TIME_LIMIT_CLOSING_TEXT } from "./interview-attempt.constants.js";
 import { InterviewAttemptStateService } from "./interview-attempt-state.service.js";

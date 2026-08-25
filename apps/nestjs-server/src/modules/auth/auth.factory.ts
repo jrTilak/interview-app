@@ -2,9 +2,9 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { openAPI } from "better-auth/plugins";
-import type { AppDatabase } from "#/db/database.provider.js";
-import * as schema from "#/db/schema/index.js";
-import type { AppConfigService } from "#/types/index.js";
+import type { AppDatabase } from "#src/db/database.provider.js";
+import * as schema from "#src/db/schema/index.js";
+import type { AppConfigService } from "#src/types/index.js";
 
 export const ALLOWED_AUTH_PATHS = [
 	"/sign-up/email",

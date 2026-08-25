@@ -1,6 +1,6 @@
 import { jest } from "@jest/globals";
 import { ConfigService } from "@nestjs/config";
-import type { AppConfigService } from "#/types/index.js";
+import type { AppConfigService } from "#src/types/index.js";
 import {
 	DATABASE_CONFIG,
 	type DatabaseConfig,

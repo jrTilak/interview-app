@@ -73,9 +73,11 @@ automatic six-thread choice outperformed both ten and sixteen forced threads.
 
 The response contains ordered topic seeds with only `title`, `prompt`,
 `objective`, and `followUpGuidance`. `prompt` is a private boundary cue, not a
-fixed question to read aloud. The response never adds attempt IDs or completion
-state. The `/questions/structure` route and internal `question*` names remain for
-API and database compatibility, but these records are treated as topics.
+fixed question to read aloud. The model chooses the topic count from the brief:
+it splits distinct named subjects and infers several relevant topics when the
+brief is broad. The response never adds attempt IDs or completion state. The
+`/questions/structure` route and internal `question*` names remain for API and
+database compatibility, but these records are treated as topics.
 
 ### Generate an interview turn
 

@@ -7,6 +7,7 @@ import {
 	Flex,
 	Grid,
 	IconButton,
+	Text,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -16,6 +17,7 @@ import {
 	Copy,
 	FilePlus2,
 	ListChecks,
+	LockKeyhole,
 } from "lucide-react";
 import { ErrorState } from "@/components/atoms/error-state";
 import { LoadingState } from "@/components/atoms/loading-state";
@@ -23,7 +25,7 @@ import { CreatorAppShell } from "@/components/layouts/app-shell";
 import { PageHeader } from "@/components/molecules/page-header";
 import { interviewListQueryOptions } from "@/shared/api/modules/interviews/queries";
 import { copyText } from "@/shared/lib/copy-text";
-import { formatDuration } from "@/shared/lib/format";
+import { formatDateTime, formatDuration } from "@/shared/lib/format";
 import { parseError } from "@/shared/lib/parse-error";
 import { getInterviewShareUrl } from "@/shared/lib/share-url";
 import { toaster } from "@/shared/lib/toaster";
@@ -32,9 +34,9 @@ import { toaster } from "@/shared/lib/toaster";
 export function RecruiterInterviewsScreen() {
 	const interviews = useQuery(interviewListQueryOptions());
 
-	const copyLink = async (shareCode: string) => {
+	const copyLink = async (interviewId: string) => {
 		try {
-			await copyText(getInterviewShareUrl(shareCode));
+			await copyText(getInterviewShareUrl(interviewId));
 			toaster.success({ title: "Link copied" });
 		} catch (error) {
 			toaster.error({
@@ -45,7 +47,7 @@ export function RecruiterInterviewsScreen() {
 	};
 
 	return (
-		<CreatorAppShell>
+		<CreatorAppShell title="Interviews">
 			<PageHeader
 				action={
 					<Button asChild>
@@ -55,8 +57,6 @@ export function RecruiterInterviewsScreen() {
 					</Button>
 				}
 				description="Create, share, and manage interview plans."
-				eyebrow="Recruiter mode"
-				title="Interviews"
 			/>
 
 			<Box mt="8">
@@ -94,15 +94,32 @@ export function RecruiterInterviewsScreen() {
 											<Card.Description mt="1" truncate>
 												{interview.description || "No description"}
 											</Card.Description>
+											<Text
+												color="muted"
+												fontFamily="mono"
+												fontSize="xs"
+												mt="3"
+											>
+												<time dateTime={interview.createdAt}>
+													Created {formatDateTime(interview.createdAt)}
+												</time>
+											</Text>
 										</Box>
-										<IconButton
-											aria-label={`Copy link for ${interview.title}`}
-											onClick={() => void copyLink(interview.shareCode)}
-											size="sm"
-											variant="ghost"
-										>
-											<Copy aria-hidden="true" size={16} />
-										</IconButton>
+										{interview.isPublic ? (
+											<IconButton
+												aria-label={`Copy link for ${interview.title}`}
+												onClick={() => void copyLink(interview.id)}
+												size="sm"
+												variant="ghost"
+											>
+												<Copy aria-hidden="true" size={16} />
+											</IconButton>
+										) : (
+											<Badge colorPalette="gray" variant="subtle">
+												<LockKeyhole aria-hidden="true" size={13} />
+												Private
+											</Badge>
+										)}
 									</Flex>
 								</Card.Header>
 								<Card.Body>

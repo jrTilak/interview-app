@@ -3,7 +3,11 @@ import {
 	ATTEMPT_STATES,
 	INTERVIEW_TURN_ROLES,
 } from "@interview-desk/validations";
-import { attemptEndReason, attemptState, turnRole } from "#/db/schema/index.js";
+import {
+	attemptEndReason,
+	attemptState,
+	turnRole,
+} from "#src/db/schema/index.js";
 import {
 	AttemptSnapshotResponseSchema,
 	AttemptTurnResponseSchema,

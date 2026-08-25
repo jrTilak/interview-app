@@ -23,11 +23,9 @@ import {
 	type Mic,
 	MonitorUp,
 	Repeat2,
-	ShieldCheck,
 	UserRoundCheck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Brand } from "@/components/atoms/brand";
 import { ErrorState } from "@/components/atoms/error-state";
 import { LoadingState } from "@/components/atoms/loading-state";
 import { MediaPreview } from "@/components/molecules/media-preview";
@@ -35,6 +33,7 @@ import { useJoinInterview } from "@/shared/api/modules/attempts/hooks";
 import { DEFAULT_DEV_FLAGS } from "@/shared/api/modules/dev-flags/lib";
 import { devFlagsQueryOptions } from "@/shared/api/modules/dev-flags/queries";
 import { sharedInterviewQueryOptions } from "@/shared/api/modules/interviews/queries";
+import { prepareInterviewAttemptHandoff } from "@/shared/browser/interview-attempt-admission";
 import {
 	exitInterviewFullscreen,
 	requestInterviewFullscreen,
@@ -60,6 +59,8 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 	const handingOff = useRef(false);
 	const [acquiringCamera, setAcquiringCamera] = useState(false);
 	const [acquiringScreen, setAcquiringScreen] = useState(false);
+	const [attemptError, setAttemptError] = useState<string | null>(null);
+	const [screenError, setScreenError] = useState<string | null>(null);
 	const faceDetection = useFaceDetection(
 		media.cameraStream,
 		flags.faceDetectionEnabled,
@@ -105,9 +106,15 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 			await interviewMediaSession.acquireScreen({
 				requireMonitor: flags.requireWholeScreen,
 			});
+			setScreenError(null);
 		} catch (error) {
+			const description = parseError(
+				error,
+				"Choose Entire Screen to continue.",
+			);
+			setScreenError(description);
 			toaster.error({
-				description: parseError(error, "Choose Entire Screen to continue."),
+				description,
 				title: "Screen share not selected",
 			});
 		} finally {
@@ -117,13 +124,31 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 
 	const beginInterview = async () => {
 		handingOff.current = false;
+		setAttemptError(null);
+		if (!interviewMediaSession.getSnapshot().screenActive) {
+			setScreenError(
+				"Share your Entire Screen before beginning the interview.",
+			);
+			return;
+		}
 		try {
 			// Both protected browser capabilities must start inside this click gesture.
 			await Promise.all([
 				interviewAudioPlayer.resume(),
 				requestInterviewFullscreen(),
 			]);
-			const attempt = await join.mutateAsync(shareCode);
+			const { data: attempt } = await join.mutateAsync(shareCode);
+			if (
+				attempt.startedAt !== null ||
+				!prepareInterviewAttemptHandoff(attempt.id)
+			) {
+				interviewMediaSession.stopAll();
+				await exitInterviewFullscreen().catch(() => undefined);
+				setAttemptError(
+					"This interview attempt was already opened and cannot be resumed.",
+				);
+				return;
+			}
 			handingOff.current = true;
 			await router.navigate({
 				params: { attemptId: attempt.id, shareCode },
@@ -154,25 +179,6 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 
 	return (
 		<Box bg="paper" minH="100dvh">
-			<Flex
-				align="center"
-				borderBottomColor="line"
-				borderBottomWidth="1px"
-				h="18"
-				justify="space-between"
-				px="10"
-			>
-				<Brand />
-				<Flex align="center" gap="2">
-					<Box color="success">
-						<ShieldCheck aria-hidden="true" size={16} />
-					</Box>
-					<Text color="muted" fontFamily="mono" fontSize="xs">
-						Authenticated candidate lobby
-					</Text>
-				</Flex>
-			</Flex>
-
 			<Box maxW="1440px" mx="auto" px="10" py="9">
 				<ChakraLink
 					asChild
@@ -289,6 +295,36 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 								</Stack>
 							</Box>
 
+							{screenError && (
+								<Alert.Root
+									mt="6"
+									role="alert"
+									status="error"
+									variant="surface"
+								>
+									<Alert.Indicator />
+									<Alert.Content>
+										<Alert.Title>Entire Screen required</Alert.Title>
+										<Alert.Description>{screenError}</Alert.Description>
+									</Alert.Content>
+								</Alert.Root>
+							)}
+
+							{attemptError && (
+								<Alert.Root
+									mt="6"
+									role="alert"
+									status="error"
+									variant="surface"
+								>
+									<Alert.Indicator />
+									<Alert.Content>
+										<Alert.Title>Attempt already used</Alert.Title>
+										<Alert.Description>{attemptError}</Alert.Description>
+									</Alert.Content>
+								</Alert.Root>
+							)}
+
 							{(!secure || !mediaSupported) && (
 								<Alert.Root mt="6" role="alert" status="error" variant="solid">
 									<Alert.Indicator />
@@ -305,15 +341,19 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 
 							<Button
 								disabled={
-									!ready || !secure || !mediaSupported || join.isPending
+									!ready ||
+									!secure ||
+									!mediaSupported ||
+									join.isPending ||
+									Boolean(attemptError)
 								}
 								loading={join.isPending}
-								loadingText="Opening secure room…"
+								loadingText="Beginning interview…"
 								mt="8"
 								onClick={() => void beginInterview()}
 								size="lg"
 							>
-								Begin or resume interview
+								Begin interview
 								<ArrowRight aria-hidden="true" size={17} />
 							</Button>
 							<Text
@@ -340,17 +380,6 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 									stream={media.screenStream}
 								/>
 							</Grid>
-							<Alert.Root mt="5" status="success" variant="surface">
-								<Alert.Indicator />
-								<Alert.Content>
-									<Alert.Title>Media handling in this phase</Alert.Title>
-									<Alert.Description>
-										Video stays in the browser unless its development streaming
-										flag is on. Microphone audio is discarded after
-										transcription.
-									</Alert.Description>
-								</Alert.Content>
-							</Alert.Root>
 						</Box>
 					</Grid>
 				)}
@@ -415,7 +444,13 @@ function DeviceRow({
 					<Check aria-hidden="true" size={15} /> Ready
 				</Status.Root>
 			) : onClick ? (
-				<Button loading={pending} onClick={onClick} size="sm" variant="outline">
+				<Button
+					aria-label={`Connect ${label.toLowerCase()}`}
+					loading={pending}
+					onClick={onClick}
+					size="sm"
+					variant="outline"
+				>
 					{pending ? "Waiting…" : "Connect"}
 				</Button>
 			) : (

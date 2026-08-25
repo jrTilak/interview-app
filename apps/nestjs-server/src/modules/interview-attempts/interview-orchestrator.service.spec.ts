@@ -2,9 +2,9 @@ import { jest } from "@jest/globals";
 import type {
 	GeneratedInterviewTurn,
 	InterviewLlmPort,
-} from "#/modules/ai/llm/llm.port.js";
-import type { SpeechToTextPort } from "#/modules/ai/stt/stt.port.js";
-import type { TextToSpeechPort } from "#/modules/ai/tts/tts.port.js";
+} from "#src/modules/ai/llm/llm.port.js";
+import type { SpeechToTextPort } from "#src/modules/ai/stt/stt.port.js";
+import type { TextToSpeechPort } from "#src/modules/ai/tts/tts.port.js";
 import type { AttemptSnapshot } from "./dto/response.dto.js";
 import type { InterviewAttemptStateService } from "./interview-attempt-state.service.js";
 import type { InterviewConversationService } from "./interview-conversation.service.js";

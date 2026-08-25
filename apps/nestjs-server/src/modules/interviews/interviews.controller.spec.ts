@@ -2,7 +2,7 @@ import { jest } from "@jest/globals";
 import { NotFoundException } from "@nestjs/common";
 import type { UserSession } from "@thallesp/nestjs-better-auth";
 import type { User } from "better-auth/types";
-import { ApiResponse } from "#/common/dto/api-response.dto.js";
+import { ApiResponse } from "#src/common/dto/api-response.dto.js";
 import type {
 	CreateInterviewDto,
 	UpdateInterviewDto,

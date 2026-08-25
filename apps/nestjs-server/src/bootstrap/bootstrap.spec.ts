@@ -11,8 +11,8 @@ const createApplication =
 jest.unstable_mockModule("@nestjs/core", () => ({
 	NestFactory: { create: createApplication },
 }));
-jest.unstable_mockModule("#/app.module.js", () => ({ AppModule }));
-jest.unstable_mockModule("#/modules/open-api/open-api.service.js", () => ({
+jest.unstable_mockModule("#src/app.module.js", () => ({ AppModule }));
+jest.unstable_mockModule("#src/modules/open-api/open-api.service.js", () => ({
 	OpenApiService,
 }));
 

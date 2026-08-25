@@ -1,7 +1,7 @@
 import { TRANSCRIPT_LENGTH } from "@interview-desk/validations";
 import { jest } from "@jest/globals";
-import { AiHttpService } from "#/modules/ai/ai-http.service.js";
-import type { AppConfigService } from "#/types/index.js";
+import { AiHttpService } from "#src/modules/ai/ai-http.service.js";
+import type { AppConfigService } from "#src/types/index.js";
 import { LocalSpeechToTextAdapter } from "./local-stt.adapter.js";
 
 function config(overrides: Record<string, unknown> = {}): AppConfigService {

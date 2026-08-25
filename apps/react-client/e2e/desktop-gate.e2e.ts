@@ -15,7 +15,9 @@ test("blocks narrow desktop routing and protected API work", async ({
 	await expect(
 		page.getByRole("heading", { name: "Give the room more space." }),
 	).toBeVisible();
-	await expect(page.getByText("Minimum workspace · 1100 px")).toBeVisible();
+	await expect(
+		page.getByText(/Widen this desktop window to at least 1100 pixels/),
+	).toBeVisible();
 	expect(apiRequests).toBe(0);
 
 	await page.setViewportSize({ height: 800, width: 1280 });

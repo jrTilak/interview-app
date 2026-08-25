@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import type { AppDatabase } from "#/db/database.provider.js";
+import type { AppDatabase } from "#src/db/database.provider.js";
 import { HealthService } from "./health.service.js";
 
 function database(query: jest.Mock): AppDatabase {

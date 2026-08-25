@@ -5,14 +5,14 @@ import {
 } from "@nestjs/common";
 import type { User } from "better-auth/types";
 import { and, count, desc, eq, notInArray, sql } from "drizzle-orm";
-import { type AppDatabase, InjectDatabase } from "#/db/database.provider.js";
+import { type AppDatabase, InjectDatabase } from "#src/db/database.provider.js";
 import {
 	attemptQuestionProgress,
 	interview,
 	interviewAttempt,
 	interviewQuestion,
 	user,
-} from "#/db/schema/index.js";
+} from "#src/db/schema/index.js";
 import type {
 	AttemptSnapshot,
 	CandidateInterviewHistory,

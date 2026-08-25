@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import { NotFoundException } from "@nestjs/common";
-import { ApiResponse } from "#/common/dto/api-response.dto.js";
-import type { AppConfigService } from "#/types/index.js";
+import { ApiResponse } from "#src/common/dto/api-response.dto.js";
+import type { AppConfigService } from "#src/types/index.js";
 import { DevFlagsController } from "./dev-flags.controller.js";
 import { DEFAULT_DEV_FLAGS } from "./dev-flags.schema.js";
 import type { DevFlagsService } from "./dev-flags.service.js";

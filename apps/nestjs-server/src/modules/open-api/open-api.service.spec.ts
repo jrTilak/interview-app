@@ -5,8 +5,8 @@ import type { AuthService } from "@thallesp/nestjs-better-auth";
 import {
 	ALLOWED_AUTH_PATHS,
 	type ApplicationAuth,
-} from "#/modules/auth/auth.factory.js";
-import type { AppConfigService } from "#/types/index.js";
+} from "#src/modules/auth/auth.factory.js";
+import type { AppConfigService } from "#src/types/index.js";
 import { OpenApiService } from "./open-api.service.js";
 
 const applicationDocument: OpenAPIObject = {

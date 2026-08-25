@@ -7,6 +7,7 @@ export function interviewListQueryOptions() {
 		meta: { persist: false },
 		queryFn: listInterviews,
 		queryKey: QUERY_KEYS.interviews.list(),
+		select: (response) => response.data,
 	});
 }
 
@@ -16,6 +17,7 @@ export function interviewDetailQueryOptions(id: string) {
 		meta: { persist: false },
 		queryFn: () => getInterview(id),
 		queryKey: QUERY_KEYS.interviews.detail(id),
+		select: (response) => response.data,
 	});
 }
 
@@ -25,6 +27,7 @@ export function sharedInterviewQueryOptions(shareCode: string) {
 		meta: { persist: false },
 		queryFn: () => getSharedInterview(shareCode),
 		queryKey: QUERY_KEYS.sharedInterviews.preview(shareCode),
+		select: (response) => response.data,
 		staleTime: 5 * 60 * 1000,
 	});
 }

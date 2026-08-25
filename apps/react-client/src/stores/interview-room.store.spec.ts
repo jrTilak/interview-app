@@ -83,7 +83,7 @@ describe("interview room store", () => {
 	it("resets every ephemeral value while retaining stable actions", () => {
 		const actions = useInterviewRoomStore.getState();
 		const reset = actions.reset;
-		actions.setConnectionStatus("reconnecting");
+		actions.setConnectionStatus("disconnected");
 		actions.beginPlayback(assistantTurnId);
 		actions.beginMicrophoneTurn(microphoneTurnId);
 		actions.setLastError({

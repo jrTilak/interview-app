@@ -2,8 +2,8 @@ import { TRANSCRIPT_LENGTH } from "@interview-desk/validations";
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import z from "zod";
-import { AiHttpService } from "#/modules/ai/ai-http.service.js";
-import type { AppConfigService } from "#/types/index.js";
+import { AiHttpService } from "#src/modules/ai/ai-http.service.js";
+import type { AppConfigService } from "#src/types/index.js";
 import type {
 	GeneratedInterviewTurn,
 	GenerateInterviewTurnInput,

@@ -24,11 +24,11 @@ import { AuthService, type UserSession } from "@thallesp/nestjs-better-auth";
 import { fromNodeHeaders } from "better-auth/node";
 import type { Server, Socket } from "socket.io";
 import type z from "zod";
-import { DevFlagsService } from "#/modules/dev-flags/dev-flags.service.js";
-import type { AttemptSnapshot } from "#/modules/interview-attempts/dto/response.dto.js";
-import { InterviewAttemptStateService } from "#/modules/interview-attempts/interview-attempt-state.service.js";
-import { InterviewOrchestratorService } from "#/modules/interview-attempts/interview-orchestrator.service.js";
-import type { AppConfigService } from "#/types/index.js";
+import { DevFlagsService } from "#src/modules/dev-flags/dev-flags.service.js";
+import type { AttemptSnapshot } from "#src/modules/interview-attempts/dto/response.dto.js";
+import { InterviewAttemptStateService } from "#src/modules/interview-attempts/interview-attempt-state.service.js";
+import { InterviewOrchestratorService } from "#src/modules/interview-attempts/interview-orchestrator.service.js";
+import type { AppConfigService } from "#src/types/index.js";
 import { AudioTurnBufferService } from "./audio-turn-buffer.service.js";
 import {
 	AttemptJoinEventSchema,

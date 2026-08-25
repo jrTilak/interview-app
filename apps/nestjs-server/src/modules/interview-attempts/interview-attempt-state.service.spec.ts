@@ -3,7 +3,7 @@ import { ConflictException, NotFoundException } from "@nestjs/common";
 import type { User } from "better-auth/types";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
-import type { AppDatabase } from "#/db/database.provider.js";
+import type { AppDatabase } from "#src/db/database.provider.js";
 import type { AttemptSnapshot } from "./dto/response.dto.js";
 import { InterviewAttemptStateService } from "./interview-attempt-state.service.js";
 

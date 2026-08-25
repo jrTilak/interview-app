@@ -5,7 +5,7 @@
 	"private": true,
 	"type": "module",
 	"imports": {
-		"#/*": {
+		"#src/*": {
 			"types": "./src/*",
 			"default": "./dist/*"
 		}
@@ -89,7 +89,7 @@
 			]
 		},
 		"moduleNameMapper": {
-			"^#/(.*)\\.js$": "<rootDir>/$1",
+			"^#src/(.*)\\.js$": "<rootDir>/$1",
 			"^(\\.{1,2}/.*)\\.js$": "$1"
 		},
 		"collectCoverageFrom": [

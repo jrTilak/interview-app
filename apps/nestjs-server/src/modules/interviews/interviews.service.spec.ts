@@ -8,12 +8,12 @@ import {
 import type { User } from "better-auth/types";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
-import type { AppDatabase } from "#/db/database.provider.js";
-import { interview, interviewQuestion } from "#/db/schema/index.js";
+import type { AppDatabase } from "#src/db/database.provider.js";
+import { interview, interviewQuestion } from "#src/db/schema/index.js";
 import type {
 	InterviewLlmPort,
 	StructuredInterviewQuestion,
-} from "#/modules/ai/llm/llm.port.js";
+} from "#src/modules/ai/llm/llm.port.js";
 import { InterviewsService } from "./interviews.service.js";
 
 const owner: User = {

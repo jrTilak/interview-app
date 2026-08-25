@@ -1,8 +1,8 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
-import { ApiSuccess } from "#/common/decorators/api-success.decorator.js";
-import { ApiResponse } from "#/common/dto/api-response.dto.js";
+import { ApiSuccess } from "#src/common/decorators/api-success.decorator.js";
+import { ApiResponse } from "#src/common/dto/api-response.dto.js";
 import { HealthResponseDto, ReadinessResponseDto } from "./health.dto.js";
 import { HealthService } from "./health.service.js";
 

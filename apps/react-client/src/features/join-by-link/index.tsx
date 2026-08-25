@@ -7,57 +7,52 @@ import {
 	Heading,
 	Input,
 } from "@chakra-ui/react";
+import { UuidSchema } from "@interview-desk/validations";
 import { useRouter } from "@tanstack/react-router";
 import { ArrowRight, Link2 } from "lucide-react";
 import { useState } from "react";
 import { CreatorAppShell } from "@/components/layouts/app-shell";
 import { PageHeader } from "@/components/molecules/page-header";
 
-const SHARE_CODE_PATTERN = /^[A-Za-z0-9_-]{32}$/;
-
-function readShareCode(value: string): string | null {
+function readInterviewId(value: string): string | null {
 	const trimmed = value.trim();
-	if (SHARE_CODE_PATTERN.test(trimmed)) return trimmed;
+	const id = UuidSchema.safeParse(trimmed);
+	if (id.success) return id.data;
 	try {
 		const url = new URL(trimmed);
-		const match = url.pathname.match(
-			/\/interviews\/([A-Za-z0-9_-]{32})(?:\/|$)/,
-		);
-		return match?.[1] ?? null;
+		const match = url.pathname.match(/\/interviews\/([^/]+)(?:\/|$)/);
+		const linkedId = UuidSchema.safeParse(match?.[1]);
+		return linkedId.success ? linkedId.data : null;
 	} catch {
 		return null;
 	}
 }
 
-/** Opens a candidate lobby from either a complete link or a share code. */
+/** Opens a candidate lobby from either a complete link or an interview ID. */
 export function JoinByLinkScreen() {
 	const [value, setValue] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const router = useRouter();
 
 	const open = async () => {
-		const shareCode = readShareCode(value);
-		if (!shareCode) {
-			setError("Paste a valid interview link or 32-character code.");
+		const interviewId = readInterviewId(value);
+		if (!interviewId) {
+			setError("Paste a valid interview link or ID.");
 			return;
 		}
 		setError(null);
 		await router.navigate({
-			params: { shareCode },
+			params: { shareCode: interviewId },
 			to: "/interviews/$shareCode",
 		});
 	};
 
 	return (
-		<CreatorAppShell>
-			<PageHeader
-				description="Open the device check before entering an interview."
-				eyebrow="Interview mode"
-				title="Join with a link"
-			/>
-			<Card.Root mt="8">
+		<CreatorAppShell title="Join with a link">
+			<PageHeader description="Open the device check before entering an interview." />
+			<Card.Root mt="8" w="full">
 				<Card.Body>
-					<Flex align="center" gap="8">
+					<Flex align="center" gap="4">
 						<Flex
 							align="center"
 							bg="softAccent"
@@ -68,32 +63,35 @@ export function JoinByLinkScreen() {
 						>
 							<Link2 aria-hidden="true" size={23} />
 						</Flex>
-						<Box flex="1">
-							<Heading fontSize="xl">Interview link</Heading>
-							<form
-								onSubmit={(event) => {
-									event.preventDefault();
-									void open();
-								}}
-							>
-								<Field.Root invalid={Boolean(error)} mt="4">
-									<Field.Label srOnly>Interview link or code</Field.Label>
-									<Flex gap="3">
-										<Input
-											autoFocus
-											onChange={(event) => setValue(event.target.value)}
-											placeholder="https://…/interviews/…"
-											value={value}
-										/>
-										<Button type="submit">
-											Continue <ArrowRight aria-hidden="true" size={16} />
-										</Button>
-									</Flex>
-									{error && <Field.ErrorText>{error}</Field.ErrorText>}
-								</Field.Root>
-							</form>
-						</Box>
+						<Heading fontSize="xl">Interview link</Heading>
 					</Flex>
+					<Box
+						as="form"
+						mt="5"
+						onSubmit={(event) => {
+							event.preventDefault();
+							void open();
+						}}
+						w="full"
+					>
+						<Field.Root invalid={Boolean(error)} w="full">
+							<Field.Label srOnly>Interview link or ID</Field.Label>
+							<Flex gap="3" w="full">
+								<Input
+									autoFocus
+									flex="1"
+									minW="0"
+									onChange={(event) => setValue(event.target.value)}
+									placeholder="https://…/interviews/…"
+									value={value}
+								/>
+								<Button flexShrink="0" type="submit">
+									Continue <ArrowRight aria-hidden="true" size={16} />
+								</Button>
+							</Flex>
+							{error && <Field.ErrorText>{error}</Field.ErrorText>}
+						</Field.Root>
+					</Box>
 				</Card.Body>
 			</Card.Root>
 		</CreatorAppShell>

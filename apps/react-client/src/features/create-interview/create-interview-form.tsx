@@ -12,7 +12,6 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { useRouter } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
-import { useRef } from "react";
 import { FieldShell } from "@/components/atoms/form-field";
 import { useCreateInterview } from "@/shared/api/modules/interviews/hooks";
 import { firstFormError, parseError } from "@/shared/lib/parse-error";
@@ -21,10 +20,9 @@ import { CreateInterviewSchema } from "./create-interview.validation";
 
 const durationOptions = [15, 20, 30, 45, 60, 90, 120];
 
-/** Collects raw creator notes and preserves one idempotency UUID across retries. */
+/** Collects raw creator notes and creates a structured interview. */
 export function CreateInterviewForm() {
 	const createInterview = useCreateInterview();
-	const requestId = useRef(crypto.randomUUID());
 	const router = useRouter();
 	const form = useForm({
 		defaultValues: {
@@ -38,11 +36,7 @@ export function CreateInterviewForm() {
 		async onSubmit({ value }) {
 			try {
 				const parsed = CreateInterviewSchema.parse(value);
-				const interview = await createInterview.mutateAsync({
-					...parsed,
-					clientRequestId: requestId.current,
-				});
-				requestId.current = crypto.randomUUID();
+				const { data: interview } = await createInterview.mutateAsync(parsed);
 				toaster.success({
 					description: `${interview.questionCount} topics are ready to share.`,
 					title: "Interview plan ready",
@@ -71,7 +65,7 @@ export function CreateInterviewForm() {
 				void form.handleSubmit();
 			}}
 		>
-			<Card.Root maxW="820px">
+			<Card.Root maxW="820px" mx="auto" w="full">
 				<Card.Body>
 					<Stack gap="6">
 						<form.Field name="title">
@@ -198,7 +192,7 @@ export function CreateInterviewForm() {
 						>
 							{([canSubmit, isSubmitting]) => (
 								<Button
-									alignSelf="flex-start"
+									alignSelf="flex-end"
 									disabled={!canSubmit || createInterview.isPending}
 									loading={isSubmitting || createInterview.isPending}
 									loadingText="Building topic plan…"

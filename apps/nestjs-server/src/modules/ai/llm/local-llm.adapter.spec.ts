@@ -1,6 +1,6 @@
 import { TRANSCRIPT_LENGTH } from "@interview-desk/validations";
 import { jest } from "@jest/globals";
-import type { AppConfigService } from "#/types/index.js";
+import type { AppConfigService } from "#src/types/index.js";
 import { AiHttpService } from "../ai-http.service.js";
 import type { GenerateInterviewTurnInput } from "./llm.port.js";
 import { LocalLlmAdapter } from "./local-llm.adapter.js";

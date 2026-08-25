@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import type { CallHandler, ExecutionContext } from "@nestjs/common";
 import { firstValueFrom, of, throwError } from "rxjs";
-import { ApiResponse } from "#/common/dto/api-response.dto.js";
+import { ApiResponse } from "#src/common/dto/api-response.dto.js";
 import { ApiResponseInterceptor } from "./api-response.interceptor.js";
 
 function context(method: string): ExecutionContext {

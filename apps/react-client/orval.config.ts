@@ -11,7 +11,7 @@ export default defineConfig({
 	application: {
 		input: { target: applicationSchema },
 		output: {
-			client: "axios",
+			client: "axios-functions",
 			clean: true,
 			mode: "tags-split",
 			mock: false,
@@ -28,7 +28,7 @@ export default defineConfig({
 	authentication: {
 		input: { target: authenticationSchema },
 		output: {
-			client: "axios",
+			client: "axios-functions",
 			clean: true,
 			mode: "single",
 			mock: false,

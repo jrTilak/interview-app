@@ -6,9 +6,7 @@
  *
  * Application routes require a Better Auth session cookie unless explicitly documented as public. Request bodies and parameters are strictly validated. Validation failures use HTTP 422, ownership checks hide foreign resources as 404, and unexpected server failures are sanitized.
  *
- * Use a UUID `clientRequestId` when creating an interview so network retries are idempotent. Private topic boundaries and follow-up guidance are returned only to their creator; a share-link preview exposes title, description, duration, and topic count. Existing transport fields retain their `questions` and `questionCount` names for compatibility.
- *
- * The Socket.IO interview protocol is documented in the repository's `docs/REALTIME_PROTOCOL.md` file.
+ * New interviews are private. Their owner publishes or unpublishes them through `PATCH /api/interviews/:id` with `isPublic`; public previews and authenticated candidate attempts use the interview UUID itself rather than a separate share code.
  *
  * OpenAPI spec version: 0.1.0
  */
@@ -22,34 +20,30 @@ import { apiClient } from '../../../client';
 import type { BodyType } from '../../../client';
 
 
-type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
-
-  export const getDevelopmentFlags = () => {
-/**
+  /**
  * @summary Read process-wide development flags
  */
-const devFlagsControllerRead = (
+export const devFlagsControllerRead = (
 
- options?: SecondParameter<typeof apiClient<DevFlagsControllerRead200>>,) => {
+ ) => {
       return apiClient<DevFlagsControllerRead200>(
       {url: `/api/__flags__`, method: 'GET'
     },
-      options);
+      );
     }
   /**
  * @summary Update process-wide development flags
  */
-const devFlagsControllerUpdate = (
+export const devFlagsControllerUpdate = (
     updateDevFlagsDto: BodyType<UpdateDevFlagsDto>,
- options?: SecondParameter<typeof apiClient<DevFlagsControllerUpdate200>>,) => {
+ ) => {
       return apiClient<DevFlagsControllerUpdate200>(
       {url: `/api/__flags__`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: updateDevFlagsDto
     },
-      options);
+      );
     }
-  return {devFlagsControllerRead,devFlagsControllerUpdate}};
-export type DevFlagsControllerReadResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getDevelopmentFlags>['devFlagsControllerRead']>>>
-export type DevFlagsControllerUpdateResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getDevelopmentFlags>['devFlagsControllerUpdate']>>>
+  export type DevFlagsControllerReadResult = NonNullable<Awaited<ReturnType<typeof devFlagsControllerRead>>>
+export type DevFlagsControllerUpdateResult = NonNullable<Awaited<ReturnType<typeof devFlagsControllerUpdate>>>

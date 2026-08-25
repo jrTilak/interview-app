@@ -7,7 +7,7 @@ import {
 } from "@nestjs/common";
 import type { User } from "better-auth/types";
 import { and, asc, count, eq, inArray, isNull, max, sql } from "drizzle-orm";
-import { type AppDatabase, InjectDatabase } from "#/db/database.provider.js";
+import { type AppDatabase, InjectDatabase } from "#src/db/database.provider.js";
 import {
 	attemptQuestionProgress,
 	interview,
@@ -15,11 +15,11 @@ import {
 	interviewQuestion,
 	interviewTurn,
 	user,
-} from "#/db/schema/index.js";
+} from "#src/db/schema/index.js";
 import type {
 	GenerateInterviewTurnInput,
 	InterviewTaskContext,
-} from "#/modules/ai/llm/llm.port.js";
+} from "#src/modules/ai/llm/llm.port.js";
 import { TIME_LIMIT_CLOSING_TEXT } from "./interview-attempt.constants.js";
 
 export type SavedAssistantTurn = {

@@ -6,7 +6,7 @@ import {
 	PayloadTooLargeException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { AppConfigService } from "#/types/index.js";
+import type { AppConfigService } from "#src/types/index.js";
 import type {
 	BufferedCandidateAudio,
 	MicrophoneStartEvent,

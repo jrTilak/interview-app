@@ -42,7 +42,6 @@ services:
       NODE_ENV: production
       PORT: 3000
       APP_NAME: ${APP_NAME:-Interview Desk}
-      APP_WEB_URL: ${APP_WEB_URL:-http://localhost:${FRONTEND_PORT:-18080}}
       API_PREFIX: api
       API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-18080},http://127.0.0.1:${FRONTEND_PORT:-18080}}
       API_DOCS_FILE_PATH: docs/api-info.md

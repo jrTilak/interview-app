@@ -5,10 +5,10 @@ import {
 	Session,
 	type UserSession,
 } from "@thallesp/nestjs-better-auth";
-import { ApiSessionAuth } from "#/common/decorators/api-session-auth.decorator.js";
-import { ApiSuccess } from "#/common/decorators/api-success.decorator.js";
-import { ApiResponse } from "#/common/dto/api-response.dto.js";
-import { InterviewIdParamsDto } from "#/modules/interviews/dto/request.dto.js";
+import { ApiSessionAuth } from "#src/common/decorators/api-session-auth.decorator.js";
+import { ApiSuccess } from "#src/common/decorators/api-success.decorator.js";
+import { ApiResponse } from "#src/common/dto/api-response.dto.js";
+import { InterviewIdParamsDto } from "#src/modules/interviews/dto/request.dto.js";
 import { AttemptIdParamsDto } from "./dto/request.dto.js";
 import {
 	AttemptSnapshotResponseDto,

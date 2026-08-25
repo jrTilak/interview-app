@@ -15,12 +15,12 @@ import {
 	notInArray,
 	sql,
 } from "drizzle-orm";
-import { type AppDatabase, InjectDatabase } from "#/db/database.provider.js";
+import { type AppDatabase, InjectDatabase } from "#src/db/database.provider.js";
 import {
 	interview,
 	interviewAttempt,
 	interviewTurn,
-} from "#/db/schema/index.js";
+} from "#src/db/schema/index.js";
 import type { AttemptSnapshot } from "./dto/response.dto.js";
 
 type AttemptRow = typeof interviewAttempt.$inferSelect;

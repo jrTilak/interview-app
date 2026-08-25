@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { ApiResponse } from "#/common/dto/api-response.dto.js";
+import { ApiResponse } from "#src/common/dto/api-response.dto.js";
 import { HealthController } from "./health.controller.js";
 import type { HealthService } from "./health.service.js";
 

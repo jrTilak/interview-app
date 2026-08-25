@@ -2,7 +2,7 @@ import z from "zod";
 import {
 	stringAsBoolean,
 	stringAsInteger,
-} from "#/common/validation/string-value.js";
+} from "#src/common/validation/string-value.js";
 
 const BaseEnvironmentSchema = z.object({
 	NODE_ENV: z

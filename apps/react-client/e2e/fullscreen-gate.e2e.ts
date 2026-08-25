@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 const attemptId = "06597a50-e835-4527-b7eb-b8d5405a816d";
-const shareCode = "uF7qP8Q3bFvLXrAQdS5kMK0pNPkVsU8_";
+const interviewId = "ad83ff52-d2e8-49f1-a580-8086390dc90a";
 const createdAt = "2026-08-01T08:00:00.000Z";
 const concealedQuestion = "Explain the private architecture challenge.";
+const handoffKeyPrefix = "interview-desk:interview-attempt-handoff:";
+const startedKeyPrefix = "interview-desk:started-interview-attempt:";
 
 const session = {
 	session: {
@@ -27,6 +29,21 @@ const session = {
 test("conceals a live interview until browser fullscreen is entered", async ({
 	page,
 }) => {
+	await page.addInitScript(
+		({ attemptId, handoffPrefix, startedPrefix }) => {
+			const browser = globalThis as unknown as {
+				localStorage: { setItem: (key: string, value: string) => void };
+				sessionStorage: { setItem: (key: string, value: string) => void };
+			};
+			browser.localStorage.setItem(`${startedPrefix}${attemptId}`, "1");
+			browser.sessionStorage.setItem(`${handoffPrefix}${attemptId}`, "1");
+		},
+		{
+			attemptId,
+			handoffPrefix: handoffKeyPrefix,
+			startedPrefix: startedKeyPrefix,
+		},
+	);
 	let socketRequests = 0;
 	page.on("request", (request) => {
 		if (new URL(request.url()).pathname.startsWith("/socket.io")) {
@@ -55,7 +72,7 @@ test("conceals a live interview until browser fullscreen is entered", async ({
 			status: 200,
 		});
 	});
-	await page.route(`**/api/shared-interviews/${shareCode}`, async (route) => {
+	await page.route(`**/api/interviews/public/${interviewId}`, async (route) => {
 		await route.fulfill({
 			json: {
 				message: "Retrieved successfully",
@@ -63,6 +80,7 @@ test("conceals a live interview until browser fullscreen is entered", async ({
 					title: "Focused systems interview",
 					description: "A private candidate conversation.",
 					durationMinutes: 30,
+					allowMultipleAttempts: false,
 					questionCount: 3,
 				},
 			},
@@ -88,8 +106,11 @@ test("conceals a live interview until browser fullscreen is entered", async ({
 					turns: [
 						{
 							id: "f9192558-7953-4e6b-9d64-a17ad726010d",
+							sequence: 1,
 							role: "assistant",
 							text: concealedQuestion,
+							startedAt: createdAt,
+							endedAt: createdAt,
 							createdAt,
 						},
 					],
@@ -99,7 +120,7 @@ test("conceals a live interview until browser fullscreen is entered", async ({
 		});
 	});
 
-	await page.goto(`/interviews/${shareCode}/attempts/${attemptId}`);
+	await page.goto(`/interviews/${interviewId}/attempts/${attemptId}`);
 
 	await expect(
 		page.getByRole("heading", { name: "Enter the focused interview view." }),
@@ -112,4 +133,41 @@ test("conceals a live interview until browser fullscreen is entered", async ({
 	await expect(page.getByText("Conversation", { exact: true })).toHaveCount(0);
 	await page.waitForTimeout(200);
 	expect(socketRequests).toBe(0);
+});
+
+test("blocks a previously opened attempt from being resumed directly", async ({
+	page,
+}) => {
+	const unexpectedRequests: string[] = [];
+	await page.addInitScript(
+		({ attemptId, startedPrefix }) => {
+			const browser = globalThis as unknown as {
+				localStorage: { setItem: (key: string, value: string) => void };
+			};
+			browser.localStorage.setItem(`${startedPrefix}${attemptId}`, "1");
+		},
+		{ attemptId, startedPrefix: startedKeyPrefix },
+	);
+	page.on("request", (request) => {
+		const pathname = new URL(request.url()).pathname;
+		if (
+			pathname.startsWith("/socket.io") ||
+			pathname === `/api/interview-attempts/${attemptId}`
+		) {
+			unexpectedRequests.push(pathname);
+		}
+	});
+	await page.route("**/api/auth/get-session", async (route) => {
+		await route.fulfill({ json: session, status: 200 });
+	});
+
+	await page.goto(`/interviews/${interviewId}/attempts/${attemptId}`);
+
+	await expect(
+		page.getByRole("heading", { name: "Interview cannot be resumed" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: "Return to dashboard" }),
+	).toBeVisible();
+	expect(unexpectedRequests).toEqual([]);
 });

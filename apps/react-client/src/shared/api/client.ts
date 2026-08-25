@@ -15,16 +15,10 @@ const applicationClient = axios.create({
 });
 
 /** Sends an Orval-generated application request with opaque cookie auth. */
-export async function apiClient<T>(
-	config: AxiosRequestConfig,
-	options?: AxiosRequestConfig,
-): Promise<T> {
+export async function apiClient<T>(config: AxiosRequestConfig): Promise<T> {
 	try {
-		const response: AxiosResponse<T> = await applicationClient.request<T>({
-			...config,
-			...options,
-			headers: { ...config.headers, ...options?.headers },
-		});
+		const response: AxiosResponse<T> =
+			await applicationClient.request<T>(config);
 		return response.data;
 	} catch (error) {
 		if (isAxiosError(error) && error.response?.status === 401) {

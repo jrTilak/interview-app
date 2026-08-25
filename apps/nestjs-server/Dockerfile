@@ -28,7 +28,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/nestjs-server/package.json ./apps/nestjs-server/package.json
 COPY packages/validations/package.json ./packages/validations/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-	pnpm install --frozen-lockfile
+	pnpm install --frozen-lockfile --ignore-scripts --trust-lockfile
 
 FROM build-dependencies AS build
 COPY tsconfig.json ./tsconfig.json
@@ -41,7 +41,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/nestjs-server/package.json ./apps/nestjs-server/package.json
 COPY packages/validations/package.json ./packages/validations/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-	pnpm install --frozen-lockfile --prod --filter @interview-desk/nestjs-server...
+	pnpm install --frozen-lockfile --ignore-scripts --trust-lockfile --prod --filter @interview-desk/nestjs-server...
 
 FROM node:${NODE_VERSION}-alpine AS runtime
 ENV NODE_ENV=production

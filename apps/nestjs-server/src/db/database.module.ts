@@ -1,7 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { databaseConfigProvider } from "#/config/database.config.js";
-import type { AppConfigService } from "#/types/index.js";
+import { databaseConfigProvider } from "#src/config/database.config.js";
+import type { AppConfigService } from "#src/types/index.js";
 import {
 	type AppDatabase,
 	DATABASE,

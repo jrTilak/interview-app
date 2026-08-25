@@ -37,7 +37,7 @@ const durationOptions = [15, 20, 30, 45, 60, 90, 120];
 export function EditInterviewScreen({ interviewId }: { interviewId: string }) {
 	const interview = useQuery(interviewDetailQueryOptions(interviewId));
 	return (
-		<CreatorAppShell>
+		<CreatorAppShell title="Edit interview">
 			{interview.isPending && <LoadingState label="Loading interview" />}
 			{interview.isError && (
 				<ErrorState
@@ -91,11 +91,7 @@ function EditInterviewForm({
 
 	return (
 		<>
-			<PageHeader
-				description="Update the candidate-facing details and attempt policy."
-				eyebrow="Recruiter mode"
-				title="Edit interview"
-			/>
+			<PageHeader description="Update the candidate-facing details and attempt policy." />
 			<Card.Root maxW="3xl" mt="8">
 				<Card.Body>
 					<form

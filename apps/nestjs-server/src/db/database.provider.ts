@@ -4,7 +4,7 @@ import { Pool } from "pg";
 import {
 	DATABASE_CONFIG,
 	type DatabaseConfig,
-} from "#/config/database.config.js";
+} from "#src/config/database.config.js";
 import * as schema from "./schema/index.js";
 
 export const DATABASE = Symbol("DATABASE");

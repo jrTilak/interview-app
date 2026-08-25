@@ -1,51 +1,35 @@
-import { getInterviewAttempts } from "@/shared/api/generated/application/interview-attempts/interview-attempts";
-import type {
-	AttemptSnapshotResponseDto,
-	CandidateInterviewHistoryResponseDto,
-	CreatorAttemptHistoryResponseDto,
-} from "@/shared/api/generated/application/models";
-import { requireResponseData } from "@/shared/api/response";
+import {
+	interviewAttemptsControllerFindSnapshot as getAttempt,
+	interviewAttemptsControllerCreateOrResume as joinInterview,
+	interviewAttemptsControllerFindAllHistory as listAttemptHistory,
+	interviewAttemptsControllerFindAttempts as listInterviewParticipantAttempts,
+} from "@/shared/api/generated/application/interview-attempts/interview-attempts";
 
-const attemptsApi = getInterviewAttempts();
+export type JoinInterviewInput = Parameters<typeof joinInterview>[0];
+export type JoinInterviewOutput = Awaited<ReturnType<typeof joinInterview>>;
+export { joinInterview };
 
-export type {
-	AttemptSnapshotResponseDto,
-	CandidateInterviewHistoryResponseDto,
-	CreatorAttemptHistoryResponseDto,
-};
+export type GetAttemptInput = Parameters<typeof getAttempt>[0];
+export type GetAttemptOutput = Awaited<ReturnType<typeof getAttempt>>;
+export type AttemptSnapshot = GetAttemptOutput["data"];
+export type AttemptSnapshotResponseDto = AttemptSnapshot;
+export { getAttempt };
 
-/** Creates or resumes this candidate's unique attempt. */
-export async function joinInterview(
-	shareCode: string,
-): Promise<AttemptSnapshotResponseDto> {
-	return requireResponseData(
-		await attemptsApi.interviewAttemptsControllerCreateOrResume(shareCode),
-	);
-}
+export type ListAttemptHistoryOutput = Awaited<
+	ReturnType<typeof listAttemptHistory>
+>;
+export type CandidateInterviewHistory =
+	ListAttemptHistoryOutput["data"][number];
+export type CandidateInterviewHistoryResponseDto = CandidateInterviewHistory;
+export { listAttemptHistory };
 
-/** Retrieves a candidate-owned reconnect snapshot. */
-export async function getAttempt(
-	id: string,
-): Promise<AttemptSnapshotResponseDto> {
-	return requireResponseData(
-		await attemptsApi.interviewAttemptsControllerFindSnapshot(id),
-	);
-}
-
-/** Lists every interview taken by the active user, grouped with all attempts. */
-export async function listAttemptHistory(): Promise<
-	CandidateInterviewHistoryResponseDto[]
-> {
-	return requireResponseData(
-		await attemptsApi.interviewAttemptsControllerFindAllHistory(),
-	);
-}
-
-/** Lists participant attempt facts for a creator-owned interview. */
-export async function listInterviewParticipantAttempts(
-	interviewId: string,
-): Promise<CreatorAttemptHistoryResponseDto[]> {
-	return requireResponseData(
-		await attemptsApi.interviewAttemptsControllerFindAttempts(interviewId),
-	);
-}
+export type ListInterviewParticipantAttemptsInput = Parameters<
+	typeof listInterviewParticipantAttempts
+>[0];
+export type ListInterviewParticipantAttemptsOutput = Awaited<
+	ReturnType<typeof listInterviewParticipantAttempts>
+>;
+export type CreatorAttemptHistory =
+	ListInterviewParticipantAttemptsOutput["data"][number];
+export type CreatorAttemptHistoryResponseDto = CreatorAttemptHistory;
+export { listInterviewParticipantAttempts };

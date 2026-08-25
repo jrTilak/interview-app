@@ -2,9 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const interviewId = "ad83ff52-d2e8-49f1-a580-8086390dc90a";
 const questionId = "7635f24a-adb3-457c-8e43-2d0a1a8fa0df";
-const shareCode = "uF7qP8Q3bFvLXrAQdS5kMK0pNPkVsU8_";
 const takenInterviewId = "9fc82b70-1829-45af-8a7d-aebea728c43e";
-const takenShareCode = "rP7qP8Q3bFvLXrAQdS5kMK0pNPkVsU9_";
 const createdAt = "2026-08-01T08:00:00.000Z";
 
 const session = {
@@ -33,8 +31,7 @@ const summary = {
 	durationMinutes: 30,
 	allowMultipleAttempts: true,
 	questionCount: 2,
-	shareCode,
-	shareUrl: `http://127.0.0.1:4173/interviews/${shareCode}`,
+	isPublic: true,
 	createdAt,
 };
 
@@ -42,19 +39,21 @@ test("separates candidate history from recruiter management and creates an inter
 	page,
 }) => {
 	let createBody: Record<string, unknown> | undefined;
-	const createdInterview = {
+	let publishBody: Record<string, unknown> | undefined;
+	let createdInterview = {
 		...summary,
 		title: "Realtime React interview",
 		description: "Final-year project hiring round",
 		durationMinutes: 45,
 		questionCount: 1,
-		rawQuestions: "Ask about React rendering and realtime state.",
+		isPublic: false,
+		rawQuestions: "React rendering and realtime state.",
 		questions: [
 			{
 				id: questionId,
 				position: 1,
 				title: "Realtime state",
-				prompt: "Explain how you would coordinate realtime React state.",
+				prompt: "Rendering, synchronization, and realtime state boundaries",
 				objective: "Understand state ownership",
 				followUpGuidance: null,
 			},
@@ -82,7 +81,6 @@ test("separates candidate history from recruiter management and creates an inter
 				id: takenInterviewId,
 				title: "Platform systems interview",
 				description: "A candidate interview already taken",
-				shareCode: takenShareCode,
 				durationMinutes: 30,
 				allowMultipleAttempts: true,
 			},
@@ -122,6 +120,21 @@ test("separates candidate history from recruiter management and creates an inter
 			});
 			return;
 		}
+		if (
+			request.method() === "PATCH" &&
+			pathname === `/api/interviews/${interviewId}`
+		) {
+			publishBody = request.postDataJSON() as Record<string, unknown>;
+			createdInterview = {
+				...createdInterview,
+				isPublic: publishBody.isPublic === true,
+			};
+			await route.fulfill({
+				json: { message: "Updated successfully", data: createdInterview },
+				status: 200,
+			});
+			return;
+		}
 		if (pathname === `/api/interviews/${interviewId}/attempts`) {
 			await route.fulfill({
 				json: {
@@ -152,6 +165,31 @@ test("separates candidate history from recruiter management and creates an inter
 	).toBeVisible();
 	await expect(page.getByRole("radio", { name: "Interview" })).toBeChecked();
 	await expect(page.getByText("Ada Creator")).toBeVisible();
+	const sidebar = page.getByRole("complementary", {
+		name: "Application sidebar",
+	});
+	const modeSwitcher = page.getByRole("radiogroup", {
+		name: "Workspace mode",
+	});
+	const [sidebarBounds, modeSwitcherBounds, modeSwitcherOverflow] =
+		await Promise.all([
+			sidebar.boundingBox(),
+			modeSwitcher.boundingBox(),
+			modeSwitcher.evaluate(({ clientWidth, scrollWidth }) => ({
+				clientWidth,
+				scrollWidth,
+			})),
+		]);
+	expect(sidebarBounds).not.toBeNull();
+	expect(modeSwitcherBounds).not.toBeNull();
+	expect(
+		(modeSwitcherBounds?.x ?? 0) + (modeSwitcherBounds?.width ?? 0),
+	).toBeLessThanOrEqual((sidebarBounds?.x ?? 0) + (sidebarBounds?.width ?? 0));
+	expect(modeSwitcherOverflow.scrollWidth).toBeLessThanOrEqual(
+		modeSwitcherOverflow.clientWidth,
+	);
+	const activeNavigation = page.getByRole("link", { name: "My interviews" });
+	await expect(activeNavigation).toHaveAttribute("aria-current", "page");
 	await expect(
 		page.getByRole("heading", {
 			exact: true,
@@ -173,14 +211,15 @@ test("separates candidate history from recruiter management and creates an inter
 	await expect(
 		page.getByRole("heading", { name: summary.title }),
 	).toBeVisible();
-
-	await page.getByRole("link", { name: "Participants" }).click();
 	await expect(
-		page.getByRole("heading", { exact: true, name: "Participants" }),
-	).toBeVisible();
-	await expect(page.getByText("Casey Participant")).toBeVisible();
-	await expect(page.getByText("casey@example.com")).toBeVisible();
-	await expect(page.getByText("2 / 2")).toBeVisible();
+		page.getByRole("link", { exact: true, name: "Interviews" }),
+	).toHaveAttribute("aria-current", "page");
+	await expect(
+		sidebar.getByRole("link", { exact: true, name: "Participants" }),
+	).toHaveCount(0);
+	const createdTime = page.locator(`time[datetime="${createdAt}"]`);
+	await expect(createdTime).toBeVisible();
+	await expect(createdTime).toHaveText(/Created .*\d{1,2}:\d{2}/);
 
 	await page.getByRole("link", { exact: true, name: "Create" }).click();
 
@@ -204,7 +243,7 @@ test("separates candidate history from recruiter management and creates an inter
 	await expect(repeatAttempts).toBeChecked();
 	await page
 		.getByRole("textbox", { name: /Topics to cover/ })
-		.fill("Ask about React rendering and realtime state.");
+		.fill("React rendering and realtime state.");
 	await page.getByRole("button", { name: "Create interview" }).click();
 
 	await expect(page).toHaveURL(`/interviews/owned/${interviewId}`);
@@ -212,19 +251,66 @@ test("separates candidate history from recruiter management and creates an inter
 	await expect(
 		page.getByRole("heading", { name: "Realtime React interview" }),
 	).toBeVisible();
-	await expect(page.getByText("Interview topics")).toBeVisible();
+	await expect(page.getByText("Conversation topics")).toBeVisible();
 	await expect(
-		page.getByText("Explain how you would coordinate realtime React state."),
+		page.getByText("Rendering, synchronization, and realtime state boundaries"),
 	).toBeVisible();
+	await expect(page.getByText("Original topic notes")).toBeVisible();
+	await expect(
+		page.getByText("React rendering and realtime state."),
+	).toBeVisible();
+	await expect(page.getByText("Private", { exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("button", { exact: true, name: "Publish interview" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("button", { exact: true, name: "Copy to clipboard" }),
+	).toHaveCount(0);
+	await expect(
+		page.getByRole("link", { exact: true, name: "Preview" }),
+	).toHaveCount(0);
+
+	await page
+		.getByRole("button", { exact: true, name: "Publish interview" })
+		.click();
+	await expect(page.getByText("Published", { exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("button", { exact: true, name: "Copy to clipboard" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("link", { exact: true, name: "Preview" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("button", { exact: true, name: "Unpublish" }),
+	).toBeVisible();
+	const detailOverflow = await page.getByRole("main").evaluate((element) => ({
+		clientWidth: element.clientWidth,
+		scrollWidth: element.scrollWidth,
+	}));
+	expect(detailOverflow.scrollWidth).toBeLessThanOrEqual(
+		detailOverflow.clientWidth,
+	);
+	expect(publishBody).toEqual({ isPublic: true });
+
+	await page
+		.getByRole("link", { exact: true, name: "Participant attempts" })
+		.click();
+	await expect(page).toHaveURL(`/interviews/owned/${interviewId}/participants`);
+	await expect(
+		page.getByRole("heading", { exact: true, name: "Participant attempts" }),
+	).toBeVisible();
+	await expect(
+		page.getByRole("heading", { exact: true, name: createdInterview.title }),
+	).toBeVisible();
+	await expect(page.getByText("Casey Participant")).toBeVisible();
+	await expect(page.getByText("casey@example.com")).toBeVisible();
+	await expect(page.getByText("2 / 2")).toBeVisible();
 	expect(createBody).toMatchObject({
 		allowMultipleAttempts: true,
 		description: "Final-year project hiring round",
 		durationMinutes: 45,
-		rawQuestions: "Ask about React rendering and realtime state.",
+		rawQuestions: "React rendering and realtime state.",
 		title: "Realtime React interview",
 	});
-	expect(createBody?.clientRequestId).toEqual(expect.any(String));
-	expect(createBody?.clientRequestId).toMatch(
-		/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-	);
+	expect(createBody).not.toHaveProperty("clientRequestId");
 });

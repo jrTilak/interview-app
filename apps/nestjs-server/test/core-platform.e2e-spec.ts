@@ -4,25 +4,25 @@ import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { eq, inArray } from "drizzle-orm";
 import request from "supertest";
-import { AppModule } from "#/app.module.js";
-import { type AppDatabase, DATABASE } from "#/db/database.provider.js";
-import { interview, user } from "#/db/schema/index.js";
+import { AppModule } from "#src/app.module.js";
+import { type AppDatabase, DATABASE } from "#src/db/database.provider.js";
+import { interview, user } from "#src/db/schema/index.js";
 import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
-} from "#/modules/ai/llm/llm.port.js";
+} from "#src/modules/ai/llm/llm.port.js";
 import {
 	SPEECH_TO_TEXT,
 	type SpeechToTextPort,
-} from "#/modules/ai/stt/stt.port.js";
+} from "#src/modules/ai/stt/stt.port.js";
 import {
 	TEXT_TO_SPEECH,
 	type TextToSpeechPort,
-} from "#/modules/ai/tts/tts.port.js";
-import { DEFAULT_DEV_FLAGS } from "#/modules/dev-flags/dev-flags.schema.js";
-import { DevFlagsService } from "#/modules/dev-flags/dev-flags.service.js";
-import { OpenApiService } from "#/modules/open-api/open-api.service.js";
-import type { AppConfigService } from "#/types/index.js";
+} from "#src/modules/ai/tts/tts.port.js";
+import { DEFAULT_DEV_FLAGS } from "#src/modules/dev-flags/dev-flags.schema.js";
+import { DevFlagsService } from "#src/modules/dev-flags/dev-flags.service.js";
+import { OpenApiService } from "#src/modules/open-api/open-api.service.js";
+import type { AppConfigService } from "#src/types/index.js";
 
 const runId = randomUUID();
 const password = "core-platform-password-123";

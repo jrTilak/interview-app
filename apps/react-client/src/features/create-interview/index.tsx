@@ -6,12 +6,8 @@ import { CreateInterviewForm } from "./create-interview-form";
 /** Renders the focused interview creation workflow. */
 export function CreateInterviewScreen() {
 	return (
-		<CreatorAppShell>
-			<PageHeader
-				description="Set the brief, timing, and topics to explore."
-				eyebrow="Recruiter mode"
-				title="New interview"
-			/>
+		<CreatorAppShell title="New interview">
+			<PageHeader description="Set the brief, timing, and topics to explore." />
 			<Box mt="10">
 				<CreateInterviewForm />
 			</Box>

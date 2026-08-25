@@ -1,5 +1,5 @@
 import { Injectable, type OnApplicationBootstrap } from "@nestjs/common";
-import { DatabaseLifecycleService } from "#/db/database-lifecycle.service.js";
+import { DatabaseLifecycleService } from "#src/db/database-lifecycle.service.js";
 
 @Injectable()
 export class ApplicationStartupService implements OnApplicationBootstrap {

@@ -215,8 +215,16 @@ const segmentGroupSlotRecipe = defineSlotRecipe({
 		item: {
 			_checked: { color: "forest" },
 			color: "paperAlpha.62",
+			minW: "0",
 		},
-		root: { bg: "paperAlpha.8", p: "1" },
+		root: { bg: "paperAlpha.8", minW: "0", p: "1" },
+	},
+	variants: {
+		size: {
+			sm: {
+				item: { gap: "1.5", px: "2" },
+			},
+		},
 	},
 });
 
@@ -334,6 +342,45 @@ const interviewTheme = defineConfig({
 				value: {
 					bg: "bg.inverted",
 					color: "fg.inverted",
+				},
+			},
+			"sidebar-navigation": {
+				value: {
+					_hover: { bg: "paperAlpha.8", color: "paper" },
+					_focusVisible: {
+						outlineColor: "accent",
+						outlineOffset: "2px",
+						outlineStyle: "solid",
+						outlineWidth: "2px",
+					},
+					"&[aria-current=page]": { bg: "accent", color: "forest" },
+					"&[aria-current=page]:hover": { bg: "accent", color: "forest" },
+					alignItems: "center",
+					bg: "transparent",
+					color: "paperAlpha.82",
+					display: "flex",
+					fontSize: "sm",
+					fontWeight: "650",
+					gap: "3",
+					mb: "1",
+					px: "3",
+					py: "2.5",
+					textDecoration: "none",
+					transitionDuration: "fast",
+					transitionProperty: "background-color, color",
+				},
+			},
+			"sidebar-utility": {
+				value: {
+					_hover: { color: "paper" },
+					alignItems: "center",
+					color: "paperAlpha.55",
+					display: "flex",
+					fontSize: "xs",
+					gap: "2",
+					mb: "5",
+					px: "2",
+					textDecoration: "none",
 				},
 			},
 		},

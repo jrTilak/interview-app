@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { AiHttpService } from "#/modules/ai/ai-http.service.js";
-import type { AppConfigService } from "#/types/index.js";
+import { AiHttpService } from "#src/modules/ai/ai-http.service.js";
+import type { AppConfigService } from "#src/types/index.js";
 import type {
 	SpeechChunk,
 	SynthesizeSpeechInput,

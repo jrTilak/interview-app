@@ -1,5 +1,5 @@
-import type { AppDatabase } from "#/db/database.provider.js";
-import type { AppConfigService } from "#/types/index.js";
+import type { AppDatabase } from "#src/db/database.provider.js";
+import type { AppConfigService } from "#src/types/index.js";
 import { ALLOWED_AUTH_PATHS, createApplicationAuth } from "./auth.factory.js";
 
 const values = {

@@ -8,17 +8,17 @@ import {
 } from "@nestjs/common";
 import type { User } from "better-auth/types";
 import { and, asc, count, desc, eq } from "drizzle-orm";
-import { type AppDatabase, InjectDatabase } from "#/db/database.provider.js";
+import { type AppDatabase, InjectDatabase } from "#src/db/database.provider.js";
 import {
 	interview,
 	interviewAttempt,
 	interviewQuestion,
-} from "#/db/schema/index.js";
+} from "#src/db/schema/index.js";
 import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
 	type StructuredInterviewQuestion,
-} from "#/modules/ai/llm/llm.port.js";
+} from "#src/modules/ai/llm/llm.port.js";
 import type {
 	CreateInterviewDto,
 	UpdateInterviewDto,

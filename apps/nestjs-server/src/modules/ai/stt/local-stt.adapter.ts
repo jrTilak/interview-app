@@ -2,12 +2,12 @@ import { TRANSCRIPT_LENGTH } from "@interview-desk/validations";
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import z from "zod";
-import { AiHttpService } from "#/modules/ai/ai-http.service.js";
+import { AiHttpService } from "#src/modules/ai/ai-http.service.js";
 import {
 	normalizeAudioMimeType,
 	TRANSCRIPTION_AUDIO_MIME_TYPES,
-} from "#/modules/ai/audio-formats.js";
-import type { AppConfigService } from "#/types/index.js";
+} from "#src/modules/ai/audio-formats.js";
+import type { AppConfigService } from "#src/types/index.js";
 import type { SpeechToTextPort, TranscribeAudioInput } from "./stt.port.js";
 
 @Injectable()

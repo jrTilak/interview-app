@@ -111,7 +111,7 @@ export function DevFlagsScreen() {
 	};
 
 	return (
-		<CreatorAppShell>
+		<CreatorAppShell title="Feature flags">
 			<PageHeader
 				action={
 					<Button
@@ -123,8 +123,6 @@ export function DevFlagsScreen() {
 					</Button>
 				}
 				description="Global, in-memory controls for development and demos."
-				eyebrow="Developer tools"
-				title="Feature flags"
 			/>
 			<Alert.Root mt="6" status="warning">
 				<Alert.Indicator />

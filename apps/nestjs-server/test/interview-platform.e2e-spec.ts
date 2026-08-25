@@ -5,24 +5,24 @@ import { Test } from "@nestjs/testing";
 import { asc, eq } from "drizzle-orm";
 import { io, type Socket } from "socket.io-client";
 import request from "supertest";
-import { AppModule } from "#/app.module.js";
-import { type AppDatabase, DATABASE } from "#/db/database.provider.js";
-import { interviewAttempt, interviewTurn } from "#/db/schema/index.js";
+import { AppModule } from "#src/app.module.js";
+import { type AppDatabase, DATABASE } from "#src/db/database.provider.js";
+import { interviewAttempt, interviewTurn } from "#src/db/schema/index.js";
 import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
-} from "#/modules/ai/llm/llm.port.js";
+} from "#src/modules/ai/llm/llm.port.js";
 import {
 	SPEECH_TO_TEXT,
 	type SpeechToTextPort,
-} from "#/modules/ai/stt/stt.port.js";
+} from "#src/modules/ai/stt/stt.port.js";
 import {
 	TEXT_TO_SPEECH,
 	type TextToSpeechPort,
-} from "#/modules/ai/tts/tts.port.js";
-import { InterviewAttemptStateService } from "#/modules/interview-attempts/interview-attempt-state.service.js";
-import { OpenApiService } from "#/modules/open-api/open-api.service.js";
-import type { AppConfigService } from "#/types/index.js";
+} from "#src/modules/ai/tts/tts.port.js";
+import { InterviewAttemptStateService } from "#src/modules/interview-attempts/interview-attempt-state.service.js";
+import { OpenApiService } from "#src/modules/open-api/open-api.service.js";
+import type { AppConfigService } from "#src/types/index.js";
 
 class FakeInterviewLlm implements InterviewLlmPort {
 	structureCalls = 0;

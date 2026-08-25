@@ -6,7 +6,7 @@
 		"resolvePackageJsonExports": true,
 		"resolvePackageJsonImports": true,
 		"paths": {
-			"#/*": ["./src/*"]
+			"#src/*": ["./src/*"]
 		},
 		"esModuleInterop": true,
 		"isolatedModules": true,

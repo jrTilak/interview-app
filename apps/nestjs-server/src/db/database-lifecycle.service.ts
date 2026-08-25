@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import type { AppConfigService } from "#/types/index.js";
+import type { AppConfigService } from "#src/types/index.js";
 import type { AppDatabase } from "./database.provider.js";
 
 @Injectable()
