@@ -1,4 +1,7 @@
-import { EnvironmentSchema } from "./environment.schema.js";
+import {
+	EnvironmentSchema,
+	validateEnvironment,
+} from "./environment.schema.js";
 
 const validEnvironment = {
 	NODE_ENV: "test",
@@ -11,6 +14,27 @@ const validEnvironment = {
 };
 
 describe("EnvironmentSchema", () => {
+	it("returns the normalized environment through the startup validator", () => {
+		const result = validateEnvironment({
+			...validEnvironment,
+			PORT: "4321",
+			DEV_TOOLS_ENABLED: "true",
+		});
+
+		expect(result.PORT).toBe(4321);
+		expect(result.DEV_TOOLS_ENABLED).toBe(true);
+	});
+
+	it("throws a readable startup error for an invalid environment", () => {
+		expect(() =>
+			validateEnvironment({
+				...validEnvironment,
+				BETTER_AUTH_SECRET: "short",
+				DB_HOST: "   ",
+			}),
+		).toThrow(/BETTER_AUTH_SECRET|DB_HOST/);
+	});
+
 	it("applies bounded defaults and typed booleans", () => {
 		const result = EnvironmentSchema.parse(validEnvironment);
 

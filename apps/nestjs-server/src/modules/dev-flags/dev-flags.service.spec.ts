@@ -27,4 +27,18 @@ describe("DevFlagsService", () => {
 			false,
 		);
 	});
+
+	it("merges sequential updates without exposing the returned snapshot", () => {
+		const service = new DevFlagsService();
+
+		service.update({ streamCameraToServer: true });
+		const updated = service.update({ streamScreenToServer: true });
+		expect(updated).toMatchObject({
+			streamCameraToServer: true,
+			streamScreenToServer: true,
+		});
+
+		updated.streamCameraToServer = false;
+		expect(service.get().streamCameraToServer).toBe(true);
+	});
 });

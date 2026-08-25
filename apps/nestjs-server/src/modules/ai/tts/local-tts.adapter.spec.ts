@@ -234,6 +234,72 @@ describe("LocalTextToSpeechAdapter", () => {
 	});
 
 	it.each([
+		[
+			"invalid RIFF signature",
+			() => {
+				const bytes = wave();
+				bytes.write("NOPE", 0, "ascii");
+				return bytes;
+			},
+			"malformed RIFF/WAVE audio",
+		],
+		[
+			"inconsistent RIFF size",
+			() => {
+				const bytes = wave();
+				bytes.writeUInt32LE(0, 4);
+				return bytes;
+			},
+			"malformed RIFF size",
+		],
+		[
+			"trailing partial chunk header",
+			() => {
+				const bytes = Buffer.concat([wave(), Buffer.from([1, 2, 3])]);
+				bytes.writeUInt32LE(bytes.byteLength - 8, 4);
+				return bytes;
+			},
+			"truncated WAV chunk",
+		],
+		[
+			"duplicate format chunk",
+			() => {
+				const source = wave();
+				const bytes = Buffer.concat([source, source.subarray(12, 36)]);
+				bytes.writeUInt32LE(bytes.byteLength - 8, 4);
+				return bytes;
+			},
+			"malformed WAV format chunk",
+		],
+		[
+			"inconsistent byte rate",
+			() => {
+				const bytes = wave();
+				bytes.writeUInt32LE(1, 28);
+				return bytes;
+			},
+			"inconsistent WAV metadata",
+		],
+		[
+			"duplicate data chunk",
+			() => {
+				const source = wave();
+				const bytes = Buffer.concat([source, source.subarray(36)]);
+				bytes.writeUInt32LE(bytes.byteLength - 8, 4);
+				return bytes;
+			},
+			"multiple WAV data chunks",
+		],
+	] as const)("rejects WAV with %s", async (_label, createBytes, message) => {
+		jest
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(audioResponse(createBytes()));
+		const speech = adapter();
+
+		await expect(speech.synthesize({ text: "Hello" })).rejects.toThrow(message);
+	});
+
+	it.each([
 		["IEEE float encoding", { audioFormat: 3 }],
 		["stereo channels", { channels: 2 }],
 		["22050 Hz samples", { sampleRateHz: 22_050 }],

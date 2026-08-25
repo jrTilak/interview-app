@@ -201,6 +201,31 @@ describe("LocalLlmAdapter", () => {
 		expect(JSON.parse(sentTranscript)).toEqual(transcript.slice(-2));
 	});
 
+	it("keeps the newest suffix when one transcript entry exceeds the limit", async () => {
+		const fetchSpy = jest
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(jsonResponse({ text: "Next question.", actions: [] }));
+		const adapter = createAdapter();
+		const text = `discarded-prefix-${"x".repeat(25_000)}`;
+
+		await adapter.generateTurn(
+			turnInput({ transcript: [{ role: "candidate", text }] }),
+		);
+
+		const requestBody = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string);
+		const serialized = requestBody.transcript as string;
+		const [entry] = JSON.parse(serialized) as Array<{
+			role: string;
+			text: string;
+		}>;
+		expect(serialized).toHaveLength(20_000);
+		expect(entry?.role).toBe("candidate");
+		expect(entry?.text.length).toBeGreaterThan(19_000);
+		expect(entry?.text.length).toBeLessThan(text.length);
+		expect(text.endsWith(entry?.text ?? "missing")).toBe(true);
+		expect(entry?.text.startsWith("discarded-prefix-")).toBe(false);
+	});
+
 	it("rejects actions for task IDs outside the server-supplied context", async () => {
 		jest.spyOn(globalThis, "fetch").mockResolvedValue(
 			jsonResponse({
@@ -380,6 +405,59 @@ describe("LocalLlmAdapter", () => {
 				rawQuestions: "Ask about hooks.",
 			}),
 		).rejects.toThrow("invalid structured-question payload");
+	});
+
+	it.each([
+		["an empty task list", { tasks: [] }],
+		[
+			"more than 30 tasks",
+			{
+				tasks: Array.from({ length: 31 }, (_, index) => ({
+					title: `Topic ${index + 1}`,
+					prompt: "Explain this topic.",
+					objective: null,
+					followUpGuidance: null,
+				})),
+			},
+		],
+	] as const)("rejects structured responses with %s", async (_label, body) => {
+		jest.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(body));
+		const adapter = createAdapter();
+
+		await expect(
+			adapter.structureQuestions({
+				interviewTitle: "Frontend",
+				interviewDescription: null,
+				rawQuestions: "Ask about hooks.",
+			}),
+		).rejects.toThrow("invalid structured-question payload");
+	});
+
+	it.each([
+		[
+			"an invalid task UUID",
+			{
+				text: "Continue.",
+				actions: [{ type: "complete_questions", questionIds: ["not-a-uuid"] }],
+			},
+		],
+		[
+			"more than 30 actions",
+			{
+				text: "Continue.",
+				actions: Array.from({ length: 31 }, () => ({
+					type: "end_interview",
+					reason: "Complete.",
+				})),
+			},
+		],
+	] as const)("rejects interview turns with %s", async (_label, body) => {
+		jest.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(body));
+		const adapter = createAdapter();
+
+		await expect(adapter.generateTurn(turnInput())).rejects.toThrow(
+			"invalid interview-turn payload",
+		);
 	});
 
 	it("rejects invalid Content-Length headers", async () => {

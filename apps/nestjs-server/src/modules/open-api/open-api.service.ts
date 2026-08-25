@@ -29,7 +29,7 @@ export class OpenApiService {
 		if (!candidate.paths)
 			throw new Error("Better Auth OpenAPI paths are missing");
 		for (const path of Object.keys(candidate.paths)) {
-			if (!ALLOWED_AUTH_PATHS.some((allowed) => path.endsWith(allowed))) {
+			if (!ALLOWED_AUTH_PATHS.some((allowed) => path === allowed)) {
 				delete candidate.paths[path];
 			}
 		}
