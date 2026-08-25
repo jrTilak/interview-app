@@ -1,5 +1,6 @@
 import { jest } from "@jest/globals";
 import type { AppConfigService } from "#/types/index.js";
+import { AiHttpService } from "../ai-http.service.js";
 import type { GenerateInterviewTurnInput } from "./llm.port.js";
 import { LocalLlmAdapter } from "./local-llm.adapter.js";
 
@@ -15,6 +16,12 @@ function config(overrides: Record<string, unknown> = {}): AppConfigService {
 	return {
 		get: (key: string) => values[key],
 	} as unknown as AppConfigService;
+}
+
+function createAdapter(
+	overrides: Record<string, unknown> = {},
+): LocalLlmAdapter {
+	return new LocalLlmAdapter(config(overrides), new AiHttpService());
 }
 
 function jsonResponse(
@@ -69,17 +76,15 @@ describe("LocalLlmAdapter", () => {
 			jsonResponse({
 				tasks: [
 					{
-						id: null,
 						title: "  Hooks  ",
 						prompt: " Explain useEffect. ",
 						objective: null,
 						followUpGuidance: " Ask about cleanup. ",
-						completed: false,
 					},
 				],
 			}),
 		);
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		const result = await adapter.structureQuestions({
 			interviewTitle: "Frontend interview",
@@ -123,7 +128,7 @@ describe("LocalLlmAdapter", () => {
 				actions: [{ type: "complete_questions", questionIds: [questionId] }],
 			}),
 		);
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		const result = await adapter.generateTurn(input);
 
@@ -163,9 +168,9 @@ describe("LocalLlmAdapter", () => {
 				actions: [{ type: "complete_questions", questionIds: [questionId] }],
 			}),
 		);
-		const adapter = new LocalLlmAdapter(
-			config({ LOCAL_LLM_URL: "http://llm.internal:9000/base/" }),
-		);
+		const adapter = createAdapter({
+			LOCAL_LLM_URL: "http://llm.internal:9000/base/",
+		});
 
 		await adapter.generateTurn(turnInput({ transcript: [] }));
 
@@ -181,7 +186,7 @@ describe("LocalLlmAdapter", () => {
 		const fetchSpy = jest
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValue(jsonResponse({ text: "Next question.", actions: [] }));
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 		const transcript = [
 			{ role: "assistant" as const, text: `old-${"a".repeat(8_000)}` },
 			{ role: "candidate" as const, text: `middle-${"b".repeat(8_000)}` },
@@ -208,7 +213,7 @@ describe("LocalLlmAdapter", () => {
 				],
 			}),
 		);
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(adapter.generateTurn(turnInput())).rejects.toThrow(
 			"action for an unknown interview task",
@@ -222,7 +227,7 @@ describe("LocalLlmAdapter", () => {
 				actions: [{ type: "end_interview", reason: "All tasks are complete." }],
 			}),
 		);
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(
 			adapter.generateTurn(
@@ -245,7 +250,7 @@ describe("LocalLlmAdapter", () => {
 				statusText: "Service Unavailable",
 			}),
 		);
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(
 			adapter.structureQuestions({
@@ -263,7 +268,7 @@ describe("LocalLlmAdapter", () => {
 		jest
 			.spyOn(globalThis, "fetch")
 			.mockRejectedValue(new Error("connection refused"));
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(adapter.generateTurn(turnInput())).rejects.toThrow(
 			"Local LLM request failed: connection refused",
@@ -284,7 +289,7 @@ describe("LocalLlmAdapter", () => {
 			});
 		});
 		const controller = new AbortController();
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		const pending = adapter.generateTurn(
 			turnInput({ signal: controller.signal }),
@@ -305,7 +310,7 @@ describe("LocalLlmAdapter", () => {
 				});
 			});
 		});
-		const adapter = new LocalLlmAdapter(config({ LOCAL_LLM_TIMEOUT_MS: 5 }));
+		const adapter = createAdapter({ LOCAL_LLM_TIMEOUT_MS: 5 });
 
 		await expect(adapter.generateTurn(turnInput())).rejects.toThrow(
 			"Local LLM request timed out after 5 ms",
@@ -347,12 +352,12 @@ describe("LocalLlmAdapter", () => {
 		],
 	] as const)("rejects %s", async (_label, response, message) => {
 		jest.spyOn(globalThis, "fetch").mockResolvedValue(response);
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(adapter.generateTurn(turnInput())).rejects.toThrow(message);
 	});
 
-	it("rejects invalid structured tasks instead of partially accepting them", async () => {
+	it("rejects extra structured-task fields from outside the service contract", async () => {
 		jest.spyOn(globalThis, "fetch").mockResolvedValue(
 			jsonResponse({
 				tasks: [
@@ -362,13 +367,11 @@ describe("LocalLlmAdapter", () => {
 						prompt: "Explain hooks.",
 						objective: null,
 						followUpGuidance: null,
-						completed: false,
-						unexpected: true,
 					},
 				],
 			}),
 		);
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(
 			adapter.structureQuestions({
@@ -388,7 +391,7 @@ describe("LocalLlmAdapter", () => {
 					{ headers: { "Content-Length": "not-a-number" } },
 				),
 			);
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(adapter.generateTurn(turnInput())).rejects.toThrow(
 			"invalid Content-Length header",
@@ -411,7 +414,7 @@ describe("LocalLlmAdapter", () => {
 				headers: { "Content-Type": "application/json" },
 			}),
 		);
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(adapter.generateTurn(turnInput())).rejects.toThrow(
 			"exceeds the 524288-byte limit",
@@ -421,7 +424,7 @@ describe("LocalLlmAdapter", () => {
 
 	it("rejects an oversized request before contacting the service", async () => {
 		const fetchSpy = jest.spyOn(globalThis, "fetch");
-		const adapter = new LocalLlmAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(
 			adapter.structureQuestions({

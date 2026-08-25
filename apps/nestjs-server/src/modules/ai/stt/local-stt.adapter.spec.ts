@@ -1,4 +1,5 @@
 import { jest } from "@jest/globals";
+import { AiHttpService } from "#/modules/ai/ai-http.service.js";
 import type { AppConfigService } from "#/types/index.js";
 import { LocalSpeechToTextAdapter } from "./local-stt.adapter.js";
 
@@ -12,6 +13,12 @@ function config(overrides: Record<string, unknown> = {}): AppConfigService {
 	return {
 		get: (key: string) => values[key],
 	} as unknown as AppConfigService;
+}
+
+function createAdapter(
+	overrides: Record<string, unknown> = {},
+): LocalSpeechToTextAdapter {
+	return new LocalSpeechToTextAdapter(config(overrides), new AiHttpService());
 }
 
 function transcriptResponse(
@@ -31,7 +38,7 @@ describe("LocalSpeechToTextAdapter", () => {
 		const fetchSpy = jest
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValue(transcriptResponse({ text: "  Candidate answer  " }));
-		const adapter = new LocalSpeechToTextAdapter(config());
+		const adapter = createAdapter();
 
 		const text = await adapter.transcribe({
 			bytes: pcm,
@@ -66,9 +73,9 @@ describe("LocalSpeechToTextAdapter", () => {
 		const fetchSpy = jest
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValue(transcriptResponse());
-		const adapter = new LocalSpeechToTextAdapter(
-			config({ LOCAL_STT_URL: "http://stt.internal:9000/base/" }),
-		);
+		const adapter = createAdapter({
+			LOCAL_STT_URL: "http://stt.internal:9000/base/",
+		});
 
 		await adapter.transcribe({
 			bytes: Uint8Array.from([82, 73, 70, 70]),
@@ -84,11 +91,25 @@ describe("LocalSpeechToTextAdapter", () => {
 		expect(form.has("channels")).toBe(false);
 	});
 
+	it("returns an empty transcript when the provider reports only whitespace", async () => {
+		jest
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(transcriptResponse({ text: "   " }));
+		const adapter = createAdapter();
+
+		await expect(
+			adapter.transcribe({
+				bytes: Uint8Array.from([82, 73, 70, 70]),
+				mimeType: "audio/wav",
+			}),
+		).resolves.toBe("");
+	});
+
 	it.each([
 		[
 			"unsupported MIME type",
 			{ bytes: Uint8Array.from([0, 0]), mimeType: "audio/ogg" },
-			"Unsupported local transcription audio type",
+			"does not support transcription audio type",
 		],
 		[
 			"empty audio",
@@ -143,7 +164,7 @@ describe("LocalSpeechToTextAdapter", () => {
 		"rejects %s before making a request",
 		async (_label, input, message) => {
 			const fetchSpy = jest.spyOn(globalThis, "fetch");
-			const adapter = new LocalSpeechToTextAdapter(config());
+			const adapter = createAdapter();
 
 			await expect(adapter.transcribe(input)).rejects.toThrow(message);
 			expect(fetchSpy).not.toHaveBeenCalled();
@@ -152,9 +173,7 @@ describe("LocalSpeechToTextAdapter", () => {
 
 	it("enforces the configured request byte limit", async () => {
 		const fetchSpy = jest.spyOn(globalThis, "fetch");
-		const adapter = new LocalSpeechToTextAdapter(
-			config({ AUDIO_MAX_BYTES: 2 }),
-		);
+		const adapter = createAdapter({ AUDIO_MAX_BYTES: 2 });
 
 		await expect(
 			adapter.transcribe({
@@ -172,7 +191,7 @@ describe("LocalSpeechToTextAdapter", () => {
 				statusText: "Service Unavailable",
 			}),
 		);
-		const adapter = new LocalSpeechToTextAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(
 			adapter.transcribe({
@@ -198,7 +217,7 @@ describe("LocalSpeechToTextAdapter", () => {
 			});
 		});
 		const controller = new AbortController();
-		const adapter = new LocalSpeechToTextAdapter(config());
+		const adapter = createAdapter();
 
 		const pending = adapter.transcribe({
 			bytes: Uint8Array.from([0, 0]),
@@ -221,9 +240,7 @@ describe("LocalSpeechToTextAdapter", () => {
 				});
 			});
 		});
-		const adapter = new LocalSpeechToTextAdapter(
-			config({ LOCAL_STT_TIMEOUT_MS: 5 }),
-		);
+		const adapter = createAdapter({ LOCAL_STT_TIMEOUT_MS: 5 });
 
 		await expect(
 			adapter.transcribe({
@@ -253,9 +270,14 @@ describe("LocalSpeechToTextAdapter", () => {
 			transcriptResponse({ text: 42 }),
 			"invalid transcript payload",
 		],
+		[
+			"extra transcript field",
+			transcriptResponse({ text: "answer", debug: true }),
+			"invalid transcript payload",
+		],
 	] as const)("rejects %s", async (_label, response, message) => {
 		jest.spyOn(globalThis, "fetch").mockResolvedValue(response);
-		const adapter = new LocalSpeechToTextAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(
 			adapter.transcribe({
@@ -281,7 +303,7 @@ describe("LocalSpeechToTextAdapter", () => {
 				headers: { "Content-Type": "application/json" },
 			}),
 		);
-		const adapter = new LocalSpeechToTextAdapter(config());
+		const adapter = createAdapter();
 
 		await expect(
 			adapter.transcribe({

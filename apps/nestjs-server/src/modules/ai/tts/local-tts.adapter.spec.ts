@@ -1,4 +1,5 @@
 import { jest } from "@jest/globals";
+import { AiHttpService } from "#/modules/ai/ai-http.service.js";
 import type { AppConfigService } from "#/types/index.js";
 import { LocalTextToSpeechAdapter } from "./local-tts.adapter.js";
 
@@ -21,6 +22,12 @@ function config(overrides: Record<string, unknown> = {}): AppConfigService {
 	return {
 		get: (key: string) => values[key],
 	} as unknown as AppConfigService;
+}
+
+function adapter(
+	overrides: Record<string, unknown> = {},
+): LocalTextToSpeechAdapter {
+	return new LocalTextToSpeechAdapter(config(overrides), new AiHttpService());
 }
 
 function chunk(id: string, content: Uint8Array): Buffer {
@@ -79,10 +86,10 @@ describe("LocalTextToSpeechAdapter", () => {
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValueOnce(audioResponse(firstWave))
 			.mockResolvedValueOnce(audioResponse(secondWave));
-		const adapter = new LocalTextToSpeechAdapter(config());
+		const speech = adapter();
 
-		const first = await adapter.synthesize({ text: "Speak this exactly." });
-		await adapter.synthesize({ text: "Another turn", voice: "warm-female" });
+		const first = await speech.synthesize({ text: "Speak this exactly." });
+		await speech.synthesize({ text: "Another turn", voice: "warm-female" });
 
 		expect(first).toEqual({
 			bytes: firstWave,
@@ -112,14 +119,12 @@ describe("LocalTextToSpeechAdapter", () => {
 		const fetchSpy = jest
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValue(audioResponse());
-		const adapter = new LocalTextToSpeechAdapter(
-			config({
-				LOCAL_TTS_URL: "http://tts.internal:9000/base/",
-				LOCAL_TTS_VOICE: "configured-voice",
-			}),
-		);
+		const speech = adapter({
+			LOCAL_TTS_URL: "http://tts.internal:9000/base/",
+			LOCAL_TTS_VOICE: "configured-voice",
+		});
 
-		await adapter.synthesize({ text: "Hello" });
+		await speech.synthesize({ text: "Hello" });
 
 		expect(fetchSpy.mock.calls[0]?.[0].toString()).toBe(
 			"http://tts.internal:9000/synthesize",
@@ -136,18 +141,28 @@ describe("LocalTextToSpeechAdapter", () => {
 				statusText: "Service Unavailable",
 			}),
 		);
-		const adapter = new LocalTextToSpeechAdapter(config());
+		const speech = adapter();
 
-		const error = await adapter
+		const error = await speech
 			.synthesize({ text: "Hello" })
 			.catch((cause: unknown) => cause);
 
 		expect(error).toBeInstanceOf(Error);
-		expect((error as Error).message).toMatch(
-			/^Local TTS request failed with HTTP 503 Service Unavailable: service unavailable/,
+		expect((error as Error).message).toBe(
+			"Local TTS request failed with HTTP 503 Service Unavailable: response detail omitted because it was too large",
 		);
-		expect((error as Error).message.length).toBeLessThan(4_300);
 		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		["empty text", "   ", "text must not be empty"],
+		["oversized text", "x".repeat(4_001), "text exceeds 4000 characters"],
+	])("rejects %s before making a request", async (_label, text, message) => {
+		const fetchSpy = jest.spyOn(globalThis, "fetch");
+		const speech = adapter();
+
+		await expect(speech.synthesize({ text })).rejects.toThrow(message);
+		expect(fetchSpy).not.toHaveBeenCalled();
 	});
 
 	it("combines caller cancellation with the configured timeout signal", async () => {
@@ -163,9 +178,9 @@ describe("LocalTextToSpeechAdapter", () => {
 			});
 		});
 		const controller = new AbortController();
-		const adapter = new LocalTextToSpeechAdapter(config());
+		const speech = adapter();
 
-		const pending = adapter.synthesize({
+		const pending = speech.synthesize({
 			signal: controller.signal,
 			text: "Hello",
 		});
@@ -185,11 +200,9 @@ describe("LocalTextToSpeechAdapter", () => {
 				});
 			});
 		});
-		const adapter = new LocalTextToSpeechAdapter(
-			config({ LOCAL_TTS_TIMEOUT_MS: 5 }),
-		);
+		const speech = adapter({ LOCAL_TTS_TIMEOUT_MS: 5 });
 
-		await expect(adapter.synthesize({ text: "Hello" })).rejects.toThrow(
+		await expect(speech.synthesize({ text: "Hello" })).rejects.toThrow(
 			"Local TTS request timed out after 5 ms",
 		);
 	});
@@ -200,9 +213,9 @@ describe("LocalTextToSpeechAdapter", () => {
 				headers: { "Content-Type": "application/octet-stream" },
 			}),
 		);
-		const adapter = new LocalTextToSpeechAdapter(config());
+		const speech = adapter();
 
-		await expect(adapter.synthesize({ text: "Hello" })).rejects.toThrow(
+		await expect(speech.synthesize({ text: "Hello" })).rejects.toThrow(
 			"unsupported audio type: application/octet-stream",
 		);
 	});
@@ -213,9 +226,9 @@ describe("LocalTextToSpeechAdapter", () => {
 		["incomplete", Buffer.from("RIFF\u0004\u0000\u0000\u0000WAVE", "binary")],
 	])("rejects %s WAV output", async (_label, bytes) => {
 		jest.spyOn(globalThis, "fetch").mockResolvedValue(audioResponse(bytes));
-		const adapter = new LocalTextToSpeechAdapter(config());
+		const speech = adapter();
 
-		await expect(adapter.synthesize({ text: "Hello" })).rejects.toThrow(
+		await expect(speech.synthesize({ text: "Hello" })).rejects.toThrow(
 			/empty|malformed|incomplete/,
 		);
 	});
@@ -231,9 +244,9 @@ describe("LocalTextToSpeechAdapter", () => {
 			jest
 				.spyOn(globalThis, "fetch")
 				.mockResolvedValue(audioResponse(wave(options)));
-			const adapter = new LocalTextToSpeechAdapter(config());
+			const speech = adapter();
 
-			await expect(adapter.synthesize({ text: "Hello" })).rejects.toThrow(
+			await expect(speech.synthesize({ text: "Hello" })).rejects.toThrow(
 				/PCM encoding|mono 24000 Hz 16-bit PCM/,
 			);
 		},
@@ -247,12 +260,12 @@ describe("LocalTextToSpeechAdapter", () => {
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValueOnce(audioResponse(truncated))
 			.mockResolvedValueOnce(audioResponse(empty));
-		const adapter = new LocalTextToSpeechAdapter(config());
+		const speech = adapter();
 
-		await expect(adapter.synthesize({ text: "Hello" })).rejects.toThrow(
+		await expect(speech.synthesize({ text: "Hello" })).rejects.toThrow(
 			"truncated WAV chunk",
 		);
-		await expect(adapter.synthesize({ text: "Hello" })).rejects.toThrow(
+		await expect(speech.synthesize({ text: "Hello" })).rejects.toThrow(
 			"complete, non-empty audio frames",
 		);
 		expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -274,9 +287,9 @@ describe("LocalTextToSpeechAdapter", () => {
 			.mockResolvedValue(
 				new Response(stream, { headers: { "Content-Type": "audio/wav" } }),
 			);
-		const adapter = new LocalTextToSpeechAdapter(config());
+		const speech = adapter();
 
-		await expect(adapter.synthesize({ text: "Hello" })).rejects.toThrow(
+		await expect(speech.synthesize({ text: "Hello" })).rejects.toThrow(
 			"exceeds the 20971520-byte response limit",
 		);
 		expect(cancelled).toBe(true);
@@ -290,9 +303,9 @@ describe("LocalTextToSpeechAdapter", () => {
 		jest
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValue(audioResponse(wave(), { [name]: value }));
-		const adapter = new LocalTextToSpeechAdapter(config());
+		const speech = adapter();
 
-		await expect(adapter.synthesize({ text: "Hello" })).rejects.toThrow(
+		await expect(speech.synthesize({ text: "Hello" })).rejects.toThrow(
 			`${name} header conflicts with WAV metadata`,
 		);
 	});

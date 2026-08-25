@@ -1,5 +1,6 @@
 export const INTERVIEW_LLM = Symbol("INTERVIEW_LLM");
 
+/** Provider-neutral question fields that application services may persist. */
 export type StructuredInterviewQuestion = {
 	title: string;
 	prompt: string;
@@ -42,6 +43,7 @@ export type GenerateInterviewTurnInput = {
 	signal?: AbortSignal;
 };
 
+/** Model suggestions are advisory; application services own state transitions. */
 export type InterviewModelAction =
 	| { type: "complete_questions"; questionIds: string[] }
 	| { type: "end_interview"; reason: string };
@@ -51,6 +53,7 @@ export type GeneratedInterviewTurn = {
 	actions: InterviewModelAction[];
 };
 
+/** AI boundary whose adapters validate provider data before returning it. */
 export interface InterviewLlmPort {
 	structureQuestions(
 		input: StructureQuestionsInput,

@@ -26,10 +26,10 @@ describe("interview realtime protocol", () => {
 	it("normalizes parameterized supported audio MIME values", () => {
 		const parsed = MicrophoneStartEventSchema.parse({
 			...identity,
-			mimeType: "Audio/OGG; codecs=opus",
+			mimeType: "Audio/X-WAV; codecs=pcm",
 		});
 
-		expect(parsed.mimeType).toBe("audio/ogg");
+		expect(parsed.mimeType).toBe("audio/x-wav");
 		expect(parsed.channels).toBe(1);
 	});
 
@@ -49,12 +49,12 @@ describe("interview realtime protocol", () => {
 		).not.toThrow();
 	});
 
-	it("rejects unsupported browser WebM audio", () => {
-		expect(() =>
-			MicrophoneStartEventSchema.parse({
-				...identity,
-				mimeType: "audio/webm;codecs=opus",
-			}),
-		).toThrow();
-	});
+	it.each(["audio/ogg;codecs=opus", "audio/webm;codecs=opus"])(
+		"rejects unsupported browser audio %s",
+		(mimeType) => {
+			expect(() =>
+				MicrophoneStartEventSchema.parse({ ...identity, mimeType }),
+			).toThrow();
+		},
+	);
 });
