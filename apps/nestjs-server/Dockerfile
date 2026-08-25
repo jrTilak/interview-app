@@ -32,13 +32,13 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 FROM build-dependencies AS build
 COPY tsconfig.json ./tsconfig.json
 COPY apps/nestjs-server ./apps/nestjs-server
-RUN pnpm --filter @interview-app/nestjs-server build
+RUN pnpm --filter @interview-desk/nestjs-server build
 
 FROM pnpm-base AS production-dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/nestjs-server/package.json ./apps/nestjs-server/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-	pnpm install --frozen-lockfile --prod --filter @interview-app/nestjs-server
+	pnpm install --frozen-lockfile --prod --filter @interview-desk/nestjs-server
 
 FROM node:${NODE_VERSION}-alpine AS runtime
 ENV NODE_ENV=production

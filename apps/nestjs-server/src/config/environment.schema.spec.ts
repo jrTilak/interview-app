@@ -5,9 +5,9 @@ const validEnvironment = {
 	BETTER_AUTH_SECRET: "12345678901234567890123456789012",
 	BETTER_AUTH_URL: "http://localhost:3000",
 	DB_HOST: "localhost",
-	DB_NAME: "interview_app_test",
-	DB_USERNAME: "interview_app",
-	DB_PASSWORD: "interview_app",
+	DB_NAME: "interview_desk_test",
+	DB_USERNAME: "interview_desk",
+	DB_PASSWORD: "interview_desk",
 };
 
 describe("EnvironmentSchema", () => {

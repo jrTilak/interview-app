@@ -9,7 +9,7 @@ const BaseEnvironmentSchema = z.object({
 		.enum(["development", "test", "production"])
 		.default("development"),
 	PORT: stringAsInteger({ defaultValue: 3000, minimum: 1, maximum: 65_535 }),
-	APP_NAME: z.string().trim().min(1).default("Interview App"),
+	APP_NAME: z.string().trim().min(1).default("Interview Desk"),
 	APP_WEB_URL: z.url().default("http://localhost:5173"),
 	API_PREFIX: z
 		.string()

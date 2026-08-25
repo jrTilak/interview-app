@@ -1,4 +1,4 @@
-# Interview App
+# Interview Desk
 
 A desktop-first interview platform with local language, speech-to-text, and text-to-speech services. Recruiters create and manage structured interviews; candidates join a link, complete a realtime voice interview, and review their attempt history.
 

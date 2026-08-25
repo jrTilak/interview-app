@@ -46,9 +46,9 @@ An interview attempt is the only state that can defer a PWA update. The update p
 ## Verify
 
 ```bash
-pnpm --filter @interview-app/react-client typecheck
-pnpm --filter @interview-app/react-client test
-pnpm --filter @interview-app/react-client build
+pnpm --filter @interview-desk/react-client typecheck
+pnpm --filter @interview-desk/react-client test
+pnpm --filter @interview-desk/react-client build
 pnpm test:e2e:web
 ```
 
