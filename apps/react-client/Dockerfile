@@ -26,15 +26,17 @@ WORKDIR /workspace
 FROM pnpm-base AS build-dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/react-client/package.json ./apps/react-client/package.json
+COPY packages/validations/package.json ./packages/validations/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-	pnpm install --frozen-lockfile
+	pnpm install --frozen-lockfile --ignore-scripts --trust-lockfile
 
 FROM build-dependencies AS build
 ARG VITE_API_URL=""
 ENV VITE_API_URL=${VITE_API_URL}
 COPY tsconfig.json ./tsconfig.json
 COPY apps/react-client ./apps/react-client
-RUN pnpm --filter @interview-desk/react-client build
+COPY packages/validations ./packages/validations
+RUN pnpm --filter @interview-desk/react-client... build
 
 FROM nginx:1.28-alpine AS runtime
 COPY apps/react-client/nginx.conf /etc/nginx/conf.d/default.conf
