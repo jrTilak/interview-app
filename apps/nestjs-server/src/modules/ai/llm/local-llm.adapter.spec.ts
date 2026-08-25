@@ -1,6 +1,6 @@
 import { jest } from "@jest/globals";
 import type { AppConfigService } from "../../../types/index.js";
-import type { GenerateInterviewTurnInput } from "../ai.ports.js";
+import type { GenerateInterviewTurnInput } from "./llm.port.js";
 import { LocalLlmAdapter } from "./local-llm.adapter.js";
 
 const questionId = "7635f24a-adb3-457c-8e43-2d0a1a8fa0df";

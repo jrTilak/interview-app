@@ -8,7 +8,7 @@ import type {
 	InterviewLlmPort,
 	StructuredInterviewQuestion,
 	StructureQuestionsInput,
-} from "../ai.ports.js";
+} from "./llm.port.js";
 
 const LOCAL_LLM_RESPONSE_MIME_TYPE = "application/json";
 const MAX_LOCAL_LLM_REQUEST_BYTES = 512 * 1024;

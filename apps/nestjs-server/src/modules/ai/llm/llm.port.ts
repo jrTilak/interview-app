@@ -1,6 +1,4 @@
 export const INTERVIEW_LLM = Symbol("INTERVIEW_LLM");
-export const SPEECH_TO_TEXT = Symbol("SPEECH_TO_TEXT");
-export const TEXT_TO_SPEECH = Symbol("TEXT_TO_SPEECH");
 
 export type StructuredInterviewQuestion = {
 	title: string;
@@ -60,33 +58,4 @@ export interface InterviewLlmPort {
 	generateTurn(
 		input: GenerateInterviewTurnInput,
 	): Promise<GeneratedInterviewTurn>;
-}
-
-export type TranscribeAudioInput = {
-	bytes: Uint8Array;
-	mimeType: string;
-	sampleRateHz?: number;
-	channels?: number;
-	signal?: AbortSignal;
-};
-
-export interface SpeechToTextPort {
-	transcribe(input: TranscribeAudioInput): Promise<string>;
-}
-
-export type SynthesizeSpeechInput = {
-	text: string;
-	voice?: string;
-	signal?: AbortSignal;
-};
-
-export type SpeechChunk = {
-	bytes: Uint8Array;
-	mimeType: string;
-	sampleRateHz?: number;
-	channels?: number;
-};
-
-export interface TextToSpeechPort {
-	synthesize(input: SynthesizeSpeechInput): Promise<SpeechChunk>;
 }

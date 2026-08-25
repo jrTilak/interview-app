@@ -1,8 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { AppConfigService } from "../../../types/index.js";
-import type { SpeechToTextPort, TranscribeAudioInput } from "../ai.ports.js";
 import { normalizeAudioMimeType } from "../audio-formats.js";
+import type { SpeechToTextPort, TranscribeAudioInput } from "./stt.port.js";
 
 const LOCAL_STT_AUDIO_MIME_TYPES = new Set([
 	"audio/wav",

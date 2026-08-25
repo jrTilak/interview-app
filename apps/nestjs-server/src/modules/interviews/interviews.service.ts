@@ -21,7 +21,7 @@ import {
 	interviewQuestion,
 } from "../../db/schema/index.js";
 import type { AppConfigService } from "../../types/index.js";
-import { INTERVIEW_LLM, type InterviewLlmPort } from "../ai/ai.ports.js";
+import { INTERVIEW_LLM, type InterviewLlmPort } from "../ai/llm/llm.port.js";
 import type {
 	CreateInterviewDto,
 	UpdateInterviewDto,

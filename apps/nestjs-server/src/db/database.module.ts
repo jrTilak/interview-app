@@ -21,6 +21,6 @@ import { DatabaseLifecycleService } from "./database-lifecycle.service.js";
 				new DatabaseLifecycleService(database, config),
 		},
 	],
-	exports: [DATABASE],
+	exports: [DATABASE, DatabaseLifecycleService],
 })
 export class DatabaseModule {}

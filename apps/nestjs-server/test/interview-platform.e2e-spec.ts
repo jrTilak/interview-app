@@ -1,22 +1,28 @@
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { eq } from "drizzle-orm";
 import { io, type Socket } from "socket.io-client";
 import request from "supertest";
 import { AppModule } from "../src/app.module.js";
-import { configureApplication } from "../src/bootstrap/bootstrap.js";
 import { type AppDatabase, DATABASE } from "../src/db/database.provider.js";
 import { interviewAttempt } from "../src/db/schema/index.js";
 import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
+} from "../src/modules/ai/llm/llm.port.js";
+import {
 	SPEECH_TO_TEXT,
 	type SpeechToTextPort,
+} from "../src/modules/ai/stt/stt.port.js";
+import {
 	TEXT_TO_SPEECH,
 	type TextToSpeechPort,
-} from "../src/modules/ai/ai.ports.js";
+} from "../src/modules/ai/tts/tts.port.js";
 import { InterviewAttemptsService } from "../src/modules/interview-attempts/interview-attempts.service.js";
+import { OpenApiService } from "../src/modules/open-api/open-api.service.js";
+import type { AppConfigService } from "../src/types/index.js";
 
 class FakeInterviewLlm implements InterviewLlmPort {
 	structureCalls = 0;
@@ -196,7 +202,18 @@ describe("interview platform end to end", () => {
 			.useValue(fakeTextToSpeech)
 			.compile();
 		app = moduleRef.createNestApplication({ bodyParser: false });
-		await configureApplication(app);
+		const config = app.get<AppConfigService>(ConfigService);
+		app.setGlobalPrefix(config.get("API_PREFIX", { infer: true }));
+		app.enableCors({
+			credentials: true,
+			origin: config
+				.get("API_CORS_ORIGINS", { infer: true })
+				.split(",")
+				.map((origin) => origin.trim())
+				.filter(Boolean),
+		});
+		app.enableShutdownHooks();
+		await app.get(OpenApiService).setup(app);
 		await app.listen(0, "127.0.0.1");
 		const address = app.getHttpServer().address();
 		if (!address || typeof address === "string")

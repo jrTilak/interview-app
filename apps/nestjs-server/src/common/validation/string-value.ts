@@ -1,7 +1,7 @@
 import z from "zod";
 
-/** Creates a bounded integer schema for string-backed environment variables. */
-export function integerEnvironment(options: {
+/** Creates a reusable bounded integer schema for string-backed values. */
+export function stringAsInteger(options: {
 	defaultValue?: number;
 	maximum?: number;
 	minimum?: number;
@@ -15,7 +15,7 @@ export function integerEnvironment(options: {
 		: z.preprocess((value) => value ?? options.defaultValue, schema);
 }
 
-/** Converts a conventional `true` or `false` environment value to boolean. */
-export const booleanEnvironment = z
+/** Converts a conventional `true` or `false` string to a boolean. */
+export const stringAsBoolean = z
 	.enum(["true", "false"])
 	.transform((value) => value === "true");

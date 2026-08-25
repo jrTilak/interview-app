@@ -34,7 +34,7 @@ import {
 import type {
 	GenerateInterviewTurnInput,
 	InterviewTaskContext,
-} from "../ai/ai.ports.js";
+} from "../ai/llm/llm.port.js";
 import type {
 	AttemptSnapshot,
 	CandidateInterviewHistory,

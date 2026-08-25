@@ -1,12 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { AppConfigService } from "../../../types/index.js";
+import { normalizeAudioMimeType } from "../audio-formats.js";
 import type {
 	SpeechChunk,
 	SynthesizeSpeechInput,
 	TextToSpeechPort,
-} from "../ai.ports.js";
-import { normalizeAudioMimeType } from "../audio-formats.js";
+} from "./tts.port.js";
 
 const LOCAL_TTS_MIME_TYPE = "audio/wav";
 const LOCAL_TTS_SAMPLE_RATE_HZ = 24_000;

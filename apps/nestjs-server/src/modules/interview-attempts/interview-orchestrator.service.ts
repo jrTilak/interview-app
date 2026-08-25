@@ -4,11 +4,9 @@ import {
 	type GeneratedInterviewTurn,
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
-	SPEECH_TO_TEXT,
-	type SpeechToTextPort,
-	TEXT_TO_SPEECH,
-	type TextToSpeechPort,
-} from "../ai/ai.ports.js";
+} from "../ai/llm/llm.port.js";
+import { SPEECH_TO_TEXT, type SpeechToTextPort } from "../ai/stt/stt.port.js";
+import { TEXT_TO_SPEECH, type TextToSpeechPort } from "../ai/tts/tts.port.js";
 import { InterviewAttemptsService } from "./interview-attempts.service.js";
 import type {
 	BufferedCandidateAudio,
