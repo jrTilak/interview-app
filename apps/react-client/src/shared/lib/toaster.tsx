@@ -1,5 +1,4 @@
 import {
-	Box,
 	CloseButton,
 	type CreateToasterReturn,
 	createToaster,
@@ -21,13 +20,7 @@ export function AppToaster() {
 		<Portal>
 			<Toaster insetInline="5" toaster={toaster}>
 				{(toast) => (
-					<Toast.Root
-						bg="forest"
-						borderColor="accent"
-						borderLeftWidth="3px"
-						color="paper"
-						minW="sm"
-					>
+					<Toast.Root minW="sm">
 						<Toast.Indicator />
 						<Stack flex="1" gap="1" maxW="100%">
 							{toast.title && <Toast.Title>{toast.title}</Toast.Title>}
@@ -40,10 +33,9 @@ export function AppToaster() {
 						)}
 						{toast.meta?.closable && (
 							<Toast.CloseTrigger asChild>
-								<CloseButton color="paper" size="sm" />
+								<CloseButton size="sm" />
 							</Toast.CloseTrigger>
 						)}
-						<Box aria-hidden="true" />
 					</Toast.Root>
 				)}
 			</Toaster>

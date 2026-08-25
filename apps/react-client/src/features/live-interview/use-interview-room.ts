@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import type { GetAttemptOutput } from "@/shared/api/modules/attempts/lib";
 import { attemptQueryOptions } from "@/shared/api/modules/attempts/queries";
 import { QUERY_KEYS } from "@/shared/api/query-keys";
 import { APP_CONFIG, getRealtimeOrigin } from "@/shared/config/app.config";
@@ -48,7 +49,7 @@ export type UseInterviewRoomOptions = {
 	streamScreenToServer?: boolean;
 };
 
-/** Owns one reconnect-safe Socket.IO room and its transient browser media. */
+/** Owns one single-use Socket.IO room and its transient browser media. */
 export function useInterviewRoom(
 	attemptId: string,
 	{
@@ -131,15 +132,13 @@ export function useInterviewRoom(
 		let latencyIntervalId: number | undefined;
 		let cameraStreamer: DisposableMediaStreamer | undefined;
 		let screenStreamer: DisposableMediaStreamer | undefined;
+		let sessionClosed = false;
 		const store = useInterviewRoomStore.getState();
 		const socket: InterviewSocket = io(
 			`${getRealtimeOrigin()}${APP_CONFIG.roomNamespace}`,
 			{
 				autoConnect: false,
-				reconnection: true,
-				reconnectionAttempts: Number.POSITIVE_INFINITY,
-				reconnectionDelay: 700,
-				reconnectionDelayMax: 5_000,
+				reconnection: false,
 				transports: ["websocket", "polling"],
 				withCredentials: true,
 			},
@@ -282,10 +281,31 @@ export function useInterviewRoom(
 			room.setCaptureStatus("screen", "idle");
 		};
 
+		const closeDisconnectedSession = () => {
+			if (disposed || sessionClosed) return;
+			sessionClosed = true;
+			stopLatencySampling();
+			const room = useInterviewRoomStore.getState();
+			room.setJoinedAttemptId(null);
+			discardActiveMicrophone();
+			stopStreamers();
+			stopPlayback();
+			interviewMediaSession.stopAll();
+			room.setCaptureStatus("camera", "idle");
+			room.setCaptureStatus("screen", "idle");
+			room.setConnectionStatus("disconnected");
+		};
+
 		const updateSnapshot = (snapshot: AttemptSnapshot) => {
 			if (snapshot.id !== attemptId) return;
 			snapshotRef.current = snapshot;
-			cache.setQueryData(QUERY_KEYS.attempts.detail(attemptId), snapshot);
+			cache.setQueryData<GetAttemptOutput>(
+				QUERY_KEYS.attempts.detail(attemptId),
+				(current) => ({
+					data: snapshot,
+					message: current?.message ?? "Updated successfully",
+				}),
+			);
 			if (snapshot.state === "COMPLETED" || snapshot.state === "FAILED") {
 				stopTerminalMedia();
 			}
@@ -372,6 +392,17 @@ export function useInterviewRoom(
 				return;
 			}
 			const media = interviewMediaSession.getSnapshot();
+			const snapshot = snapshotRef.current;
+			if (
+				snapshot &&
+				snapshot.state !== "COMPLETED" &&
+				snapshot.state !== "FAILED" &&
+				(!media.cameraActive || !media.microphoneActive || !media.screenActive)
+			) {
+				closeDisconnectedSession();
+				socket.disconnect();
+				return;
+			}
 			try {
 				await emitWithAck<AttemptMedia>(socket, "media:status", {
 					attemptId,
@@ -678,23 +709,15 @@ export function useInterviewRoom(
 			}
 		});
 		socket.on("connect_error", (error) => {
-			stopLatencySampling();
 			reportError(error, "The realtime interview server is unavailable.");
-			useInterviewRoomStore.getState().setConnectionStatus("disconnected");
+			closeDisconnectedSession();
+			socket.disconnect();
 		});
 		socket.on("disconnect", (reason) => {
 			connectionVersion += 1;
-			stopLatencySampling();
-			const room = useInterviewRoomStore.getState();
-			room.setJoinedAttemptId(null);
-			discardActiveMicrophone();
-			stopPlayback();
 			if (!disposed && reason !== "io client disconnect") {
-				room.setConnectionStatus("reconnecting");
+				closeDisconnectedSession();
 			}
-		});
-		socket.io.on("reconnect_attempt", () => {
-			useInterviewRoomStore.getState().setConnectionStatus("reconnecting");
 		});
 		socket.on("connect", () => {
 			const connectedVersion = ++connectionVersion;
@@ -717,6 +740,7 @@ export function useInterviewRoom(
 					useInterviewRoomStore.getState().setJoinedAttemptId(attemptId);
 					updateSnapshot(snapshot);
 					await syncMediaStatus();
+					if (sessionClosed || !socket.connected) return;
 					if (integrityRef.current.paused) {
 						await integrityControlRef.current(true);
 					}
@@ -743,6 +767,8 @@ export function useInterviewRoom(
 					if (snapshot.state === "LISTENING") await maybeStartMicrophone();
 				} catch (error) {
 					reportError(error, "The interview room could not be joined.");
+					closeDisconnectedSession();
+					socket.disconnect();
 				}
 			})();
 		});

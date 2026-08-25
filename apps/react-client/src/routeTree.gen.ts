@@ -19,11 +19,11 @@ import { Route as AuthenticatedJoinRouteImport } from './routes/_authenticated/j
 import { Route as AuthenticatedInterviewsShareCodeRouteImport } from './routes/_authenticated/interviews/$shareCode'
 import { Route as AuthenticatedInterviewsNewRouteImport } from './routes/_authenticated/interviews/new'
 import { Route as AuthenticatedRecruiterInterviewsRouteImport } from './routes/_authenticated/recruiter/interviews'
-import { Route as AuthenticatedRecruiterParticipantsRouteImport } from './routes/_authenticated/recruiter/participants'
 import { Route as AuthenticatedInterviewsShareCodeIndexRouteImport } from './routes/_authenticated/interviews/$shareCode/index'
 import { Route as AuthenticatedInterviewsOwnedInterviewIdRouteImport } from './routes/_authenticated/interviews/owned.$interviewId'
 import { Route as AuthenticatedInterviewsShareCodeAttemptsAttemptIdRouteImport } from './routes/_authenticated/interviews/$shareCode/attempts/$attemptId'
 import { Route as AuthenticatedInterviewsOwnedInterviewIdEditRouteImport } from './routes/_authenticated/interviews/owned.$interviewId_.edit'
+import { Route as AuthenticatedInterviewsOwnedInterviewIdParticipantsRouteImport } from './routes/_authenticated/interviews/owned.$interviewId_.participants'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -78,12 +78,6 @@ const AuthenticatedRecruiterInterviewsRoute =
     path: '/recruiter/interviews',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedRecruiterParticipantsRoute =
-  AuthenticatedRecruiterParticipantsRouteImport.update({
-    id: '/recruiter/participants',
-    path: '/recruiter/participants',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedInterviewsShareCodeIndexRoute =
   AuthenticatedInterviewsShareCodeIndexRouteImport.update({
     id: '/',
@@ -108,6 +102,12 @@ const AuthenticatedInterviewsOwnedInterviewIdEditRoute =
     path: '/interviews/owned/$interviewId/edit',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedInterviewsOwnedInterviewIdParticipantsRoute =
+  AuthenticatedInterviewsOwnedInterviewIdParticipantsRouteImport.update({
+    id: '/interviews/owned/$interviewId_/participants',
+    path: '/interviews/owned/$interviewId/participants',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -119,11 +119,11 @@ export interface FileRoutesByFullPath {
   '/interviews/$shareCode': typeof AuthenticatedInterviewsShareCodeRouteWithChildren
   '/interviews/new': typeof AuthenticatedInterviewsNewRoute
   '/recruiter/interviews': typeof AuthenticatedRecruiterInterviewsRoute
-  '/recruiter/participants': typeof AuthenticatedRecruiterParticipantsRoute
   '/interviews/owned/$interviewId': typeof AuthenticatedInterviewsOwnedInterviewIdRoute
   '/interviews/$shareCode/': typeof AuthenticatedInterviewsShareCodeIndexRoute
   '/interviews/$shareCode/attempts/$attemptId': typeof AuthenticatedInterviewsShareCodeAttemptsAttemptIdRoute
   '/interviews/owned/$interviewId/edit': typeof AuthenticatedInterviewsOwnedInterviewIdEditRoute
+  '/interviews/owned/$interviewId/participants': typeof AuthenticatedInterviewsOwnedInterviewIdParticipantsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -134,11 +134,11 @@ export interface FileRoutesByTo {
   '/join': typeof AuthenticatedJoinRoute
   '/interviews/new': typeof AuthenticatedInterviewsNewRoute
   '/recruiter/interviews': typeof AuthenticatedRecruiterInterviewsRoute
-  '/recruiter/participants': typeof AuthenticatedRecruiterParticipantsRoute
   '/interviews/owned/$interviewId': typeof AuthenticatedInterviewsOwnedInterviewIdRoute
   '/interviews/$shareCode': typeof AuthenticatedInterviewsShareCodeIndexRoute
   '/interviews/$shareCode/attempts/$attemptId': typeof AuthenticatedInterviewsShareCodeAttemptsAttemptIdRoute
   '/interviews/owned/$interviewId/edit': typeof AuthenticatedInterviewsOwnedInterviewIdEditRoute
+  '/interviews/owned/$interviewId/participants': typeof AuthenticatedInterviewsOwnedInterviewIdParticipantsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -152,11 +152,11 @@ export interface FileRoutesById {
   '/_authenticated/interviews/$shareCode': typeof AuthenticatedInterviewsShareCodeRouteWithChildren
   '/_authenticated/interviews/new': typeof AuthenticatedInterviewsNewRoute
   '/_authenticated/recruiter/interviews': typeof AuthenticatedRecruiterInterviewsRoute
-  '/_authenticated/recruiter/participants': typeof AuthenticatedRecruiterParticipantsRoute
   '/_authenticated/interviews/owned/$interviewId': typeof AuthenticatedInterviewsOwnedInterviewIdRoute
   '/_authenticated/interviews/$shareCode/': typeof AuthenticatedInterviewsShareCodeIndexRoute
   '/_authenticated/interviews/$shareCode/attempts/$attemptId': typeof AuthenticatedInterviewsShareCodeAttemptsAttemptIdRoute
   '/_authenticated/interviews/owned/$interviewId_/edit': typeof AuthenticatedInterviewsOwnedInterviewIdEditRoute
+  '/_authenticated/interviews/owned/$interviewId_/participants': typeof AuthenticatedInterviewsOwnedInterviewIdParticipantsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -170,11 +170,11 @@ export interface FileRouteTypes {
     | '/interviews/$shareCode'
     | '/interviews/new'
     | '/recruiter/interviews'
-    | '/recruiter/participants'
     | '/interviews/owned/$interviewId'
     | '/interviews/$shareCode/'
     | '/interviews/$shareCode/attempts/$attemptId'
     | '/interviews/owned/$interviewId/edit'
+    | '/interviews/owned/$interviewId/participants'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -185,11 +185,11 @@ export interface FileRouteTypes {
     | '/join'
     | '/interviews/new'
     | '/recruiter/interviews'
-    | '/recruiter/participants'
     | '/interviews/owned/$interviewId'
     | '/interviews/$shareCode'
     | '/interviews/$shareCode/attempts/$attemptId'
     | '/interviews/owned/$interviewId/edit'
+    | '/interviews/owned/$interviewId/participants'
   id:
     | '__root__'
     | '/'
@@ -202,11 +202,11 @@ export interface FileRouteTypes {
     | '/_authenticated/interviews/$shareCode'
     | '/_authenticated/interviews/new'
     | '/_authenticated/recruiter/interviews'
-    | '/_authenticated/recruiter/participants'
     | '/_authenticated/interviews/owned/$interviewId'
     | '/_authenticated/interviews/$shareCode/'
     | '/_authenticated/interviews/$shareCode/attempts/$attemptId'
     | '/_authenticated/interviews/owned/$interviewId_/edit'
+    | '/_authenticated/interviews/owned/$interviewId_/participants'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -288,13 +288,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRecruiterInterviewsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/recruiter/participants': {
-      id: '/_authenticated/recruiter/participants'
-      path: '/recruiter/participants'
-      fullPath: '/recruiter/participants'
-      preLoaderRoute: typeof AuthenticatedRecruiterParticipantsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/interviews/$shareCode/': {
       id: '/_authenticated/interviews/$shareCode/'
       path: '/'
@@ -321,6 +314,13 @@ declare module '@tanstack/react-router' {
       path: '/interviews/owned/$interviewId/edit'
       fullPath: '/interviews/owned/$interviewId/edit'
       preLoaderRoute: typeof AuthenticatedInterviewsOwnedInterviewIdEditRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/interviews/owned/$interviewId_/participants': {
+      id: '/_authenticated/interviews/owned/$interviewId_/participants'
+      path: '/interviews/owned/$interviewId/participants'
+      fullPath: '/interviews/owned/$interviewId/participants'
+      preLoaderRoute: typeof AuthenticatedInterviewsOwnedInterviewIdParticipantsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
   }
@@ -351,9 +351,9 @@ interface AuthenticatedRouteChildren {
   AuthenticatedInterviewsShareCodeRoute: typeof AuthenticatedInterviewsShareCodeRouteWithChildren
   AuthenticatedInterviewsNewRoute: typeof AuthenticatedInterviewsNewRoute
   AuthenticatedRecruiterInterviewsRoute: typeof AuthenticatedRecruiterInterviewsRoute
-  AuthenticatedRecruiterParticipantsRoute: typeof AuthenticatedRecruiterParticipantsRoute
   AuthenticatedInterviewsOwnedInterviewIdRoute: typeof AuthenticatedInterviewsOwnedInterviewIdRoute
   AuthenticatedInterviewsOwnedInterviewIdEditRoute: typeof AuthenticatedInterviewsOwnedInterviewIdEditRoute
+  AuthenticatedInterviewsOwnedInterviewIdParticipantsRoute: typeof AuthenticatedInterviewsOwnedInterviewIdParticipantsRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -365,12 +365,12 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedInterviewsShareCodeRouteWithChildren,
   AuthenticatedInterviewsNewRoute: AuthenticatedInterviewsNewRoute,
   AuthenticatedRecruiterInterviewsRoute: AuthenticatedRecruiterInterviewsRoute,
-  AuthenticatedRecruiterParticipantsRoute:
-    AuthenticatedRecruiterParticipantsRoute,
   AuthenticatedInterviewsOwnedInterviewIdRoute:
     AuthenticatedInterviewsOwnedInterviewIdRoute,
   AuthenticatedInterviewsOwnedInterviewIdEditRoute:
     AuthenticatedInterviewsOwnedInterviewIdEditRoute,
+  AuthenticatedInterviewsOwnedInterviewIdParticipantsRoute:
+    AuthenticatedInterviewsOwnedInterviewIdParticipantsRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

@@ -1,4 +1,5 @@
 import {
+	Alert,
 	Box,
 	Button,
 	Link as ChakraLink,
@@ -6,6 +7,8 @@ import {
 	Grid,
 	Heading,
 	Stack,
+	Stat,
+	Status,
 	Text,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
@@ -20,11 +23,9 @@ import {
 	type Mic,
 	MonitorUp,
 	Repeat2,
-	ShieldCheck,
 	UserRoundCheck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Brand } from "@/components/atoms/brand";
 import { ErrorState } from "@/components/atoms/error-state";
 import { LoadingState } from "@/components/atoms/loading-state";
 import { MediaPreview } from "@/components/molecules/media-preview";
@@ -32,6 +33,7 @@ import { useJoinInterview } from "@/shared/api/modules/attempts/hooks";
 import { DEFAULT_DEV_FLAGS } from "@/shared/api/modules/dev-flags/lib";
 import { devFlagsQueryOptions } from "@/shared/api/modules/dev-flags/queries";
 import { sharedInterviewQueryOptions } from "@/shared/api/modules/interviews/queries";
+import { prepareInterviewAttemptHandoff } from "@/shared/browser/interview-attempt-admission";
 import {
 	exitInterviewFullscreen,
 	requestInterviewFullscreen,
@@ -57,6 +59,8 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 	const handingOff = useRef(false);
 	const [acquiringCamera, setAcquiringCamera] = useState(false);
 	const [acquiringScreen, setAcquiringScreen] = useState(false);
+	const [attemptError, setAttemptError] = useState<string | null>(null);
+	const [screenError, setScreenError] = useState<string | null>(null);
 	const faceDetection = useFaceDetection(
 		media.cameraStream,
 		flags.faceDetectionEnabled,
@@ -102,9 +106,15 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 			await interviewMediaSession.acquireScreen({
 				requireMonitor: flags.requireWholeScreen,
 			});
+			setScreenError(null);
 		} catch (error) {
+			const description = parseError(
+				error,
+				"Choose Entire Screen to continue.",
+			);
+			setScreenError(description);
 			toaster.error({
-				description: parseError(error, "Choose Entire Screen to continue."),
+				description,
 				title: "Screen share not selected",
 			});
 		} finally {
@@ -114,13 +124,31 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 
 	const beginInterview = async () => {
 		handingOff.current = false;
+		setAttemptError(null);
+		if (!interviewMediaSession.getSnapshot().screenActive) {
+			setScreenError(
+				"Share your Entire Screen before beginning the interview.",
+			);
+			return;
+		}
 		try {
 			// Both protected browser capabilities must start inside this click gesture.
 			await Promise.all([
 				interviewAudioPlayer.resume(),
 				requestInterviewFullscreen(),
 			]);
-			const attempt = await join.mutateAsync(shareCode);
+			const { data: attempt } = await join.mutateAsync(shareCode);
+			if (
+				attempt.startedAt !== null ||
+				!prepareInterviewAttemptHandoff(attempt.id)
+			) {
+				interviewMediaSession.stopAll();
+				await exitInterviewFullscreen().catch(() => undefined);
+				setAttemptError(
+					"This interview attempt was already opened and cannot be resumed.",
+				);
+				return;
+			}
 			handingOff.current = true;
 			await router.navigate({
 				params: { attemptId: attempt.id, shareCode },
@@ -151,23 +179,6 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 
 	return (
 		<Box bg="paper" minH="100dvh">
-			<Flex
-				align="center"
-				borderBottomColor="line"
-				borderBottomWidth="1px"
-				h="18"
-				justify="space-between"
-				px="10"
-			>
-				<Brand />
-				<Flex align="center" gap="2">
-					<ShieldCheck aria-hidden="true" color="#247552" size={16} />
-					<Text color="muted" fontFamily="mono" fontSize="xs">
-						Authenticated candidate lobby
-					</Text>
-				</Flex>
-			</Flex>
-
 			<Box maxW="1440px" mx="auto" px="10" py="9">
 				<ChakraLink
 					asChild
@@ -208,13 +219,7 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 							>
 								INTERVIEW BRIEF
 							</Text>
-							<Heading
-								fontFamily="display"
-								fontSize="5xl"
-								letterSpacing="-0.04em"
-								lineHeight="1"
-								mt="3"
-							>
+							<Heading fontSize="5xl" lineHeight="1" mt="3">
 								{preview.data.title}
 							</Heading>
 							<Text
@@ -256,9 +261,7 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 							</Flex>
 
 							<Box mt="10">
-								<Heading fontFamily="display" fontSize="2xl">
-									Before you begin
-								</Heading>
+								<Heading fontSize="2xl">Before you begin</Heading>
 								<Stack gap="0" mt="5">
 									<DeviceRow
 										active={media.cameraActive && media.microphoneActive}
@@ -292,28 +295,65 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 								</Stack>
 							</Box>
 
+							{screenError && (
+								<Alert.Root
+									mt="6"
+									role="alert"
+									status="error"
+									variant="surface"
+								>
+									<Alert.Indicator />
+									<Alert.Content>
+										<Alert.Title>Entire Screen required</Alert.Title>
+										<Alert.Description>{screenError}</Alert.Description>
+									</Alert.Content>
+								</Alert.Root>
+							)}
+
+							{attemptError && (
+								<Alert.Root
+									mt="6"
+									role="alert"
+									status="error"
+									variant="surface"
+								>
+									<Alert.Indicator />
+									<Alert.Content>
+										<Alert.Title>Attempt already used</Alert.Title>
+										<Alert.Description>{attemptError}</Alert.Description>
+									</Alert.Content>
+								</Alert.Root>
+							)}
+
 							{(!secure || !mediaSupported) && (
-								<Box bg="danger" color="white" mt="6" p="4" role="alert">
-									This browser cannot provide secure desktop media capture. Use
-									a recent desktop Chrome or Edge browser over HTTPS or
-									localhost.
-								</Box>
+								<Alert.Root mt="6" role="alert" status="error" variant="solid">
+									<Alert.Indicator />
+									<Alert.Content>
+										<Alert.Title>Secure media capture unavailable</Alert.Title>
+										<Alert.Description>
+											This browser cannot provide secure desktop media capture.
+											Use a recent desktop Chrome or Edge browser over HTTPS or
+											localhost.
+										</Alert.Description>
+									</Alert.Content>
+								</Alert.Root>
 							)}
 
 							<Button
-								bg="forest"
-								color="paper"
 								disabled={
-									!ready || !secure || !mediaSupported || join.isPending
+									!ready ||
+									!secure ||
+									!mediaSupported ||
+									join.isPending ||
+									Boolean(attemptError)
 								}
-								h="13"
 								loading={join.isPending}
-								loadingText="Opening secure room…"
+								loadingText="Beginning interview…"
 								mt="8"
 								onClick={() => void beginInterview()}
-								px="7"
+								size="lg"
 							>
-								Begin or resume interview
+								Begin interview
 								<ArrowRight aria-hidden="true" size={17} />
 							</Button>
 							<Text
@@ -340,22 +380,6 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 									stream={media.screenStream}
 								/>
 							</Grid>
-							<Box
-								bg="surface"
-								borderColor="line"
-								borderWidth="1px"
-								mt="5"
-								p="5"
-							>
-								<Flex align="center" gap="3">
-									<ShieldCheck aria-hidden="true" color="#247552" size={19} />
-									<Text fontWeight="700">Media handling in this phase</Text>
-								</Flex>
-								<Text color="muted" fontSize="sm" lineHeight="1.65" mt="3">
-									Video stays in the browser unless its development streaming
-									flag is on. Microphone audio is discarded after transcription.
-								</Text>
-							</Box>
 						</Box>
 					</Grid>
 				)}
@@ -374,17 +398,15 @@ function BriefStat({
 	value: string;
 }) {
 	return (
-		<Flex align="center" gap="3">
-			<Icon aria-hidden="true" color="#2447F2" size={18} />
-			<Box>
-				<Text color="muted" fontFamily="mono" fontSize="2xs">
-					{label.toUpperCase()}
-				</Text>
-				<Text fontWeight="700" mt="1">
-					{value}
-				</Text>
-			</Box>
-		</Flex>
+		<Stat.Root>
+			<Stat.Label>
+				<Box color="cobalt">
+					<Icon aria-hidden="true" size={18} />
+				</Box>
+				{label}
+			</Stat.Label>
+			<Stat.ValueText fontSize="md">{value}</Stat.ValueText>
+		</Stat.Root>
 	);
 }
 
@@ -411,25 +433,31 @@ function DeviceRow({
 			py="4"
 		>
 			<Flex align="center" gap="3">
-				<Icon
-					aria-hidden="true"
-					color={active ? "#247552" : "#68736D"}
-					size={18}
-				/>
+				<Box color={active ? "success" : "muted"}>
+					<Icon aria-hidden="true" size={18} />
+				</Box>
 				<Text fontWeight="600">{label}</Text>
 			</Flex>
 			{active ? (
-				<Flex align="center" color="success" fontSize="sm" gap="2">
+				<Status.Root colorPalette="green">
+					<Status.Indicator />
 					<Check aria-hidden="true" size={15} /> Ready
-				</Flex>
+				</Status.Root>
 			) : onClick ? (
-				<Button loading={pending} onClick={onClick} size="sm" variant="outline">
+				<Button
+					aria-label={`Connect ${label.toLowerCase()}`}
+					loading={pending}
+					onClick={onClick}
+					size="sm"
+					variant="outline"
+				>
 					{pending ? "Waiting…" : "Connect"}
 				</Button>
 			) : (
-				<Text color="danger" fontSize="sm">
+				<Status.Root colorPalette="red">
+					<Status.Indicator />
 					Needs attention
-				</Text>
+				</Status.Root>
 			)}
 		</Flex>
 	);

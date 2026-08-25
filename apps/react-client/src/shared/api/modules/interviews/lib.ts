@@ -1,86 +1,43 @@
-import { apiClient } from "@/shared/api/client";
-import { getInterviews } from "@/shared/api/generated/application/interviews/interviews";
-import type {
-	CreateInterviewDto,
-	InterviewDetailsResponseDto,
-	InterviewSummaryResponseDto,
-	SharedInterviewPreviewResponseDto,
-} from "@/shared/api/generated/application/models";
-import { getSharedInterviews } from "@/shared/api/generated/application/shared-interviews/shared-interviews";
-import { requireResponseData } from "@/shared/api/response";
+import {
+	interviewsControllerCreate as createInterview,
+	interviewsControllerRemove as deleteInterview,
+	interviewsControllerFindById as getInterview,
+	interviewsControllerPreview as getSharedInterview,
+	interviewsControllerFindAll as listInterviews,
+	interviewsControllerUpdate as updateInterview,
+} from "@/shared/api/generated/application/interviews/interviews";
 
-const interviewsApi = getInterviews();
-const sharedInterviewsApi = getSharedInterviews();
+export type CreateInterviewInput = Parameters<typeof createInterview>[0];
+export type CreateInterviewOutput = Awaited<ReturnType<typeof createInterview>>;
+export type CreateInterviewDto = CreateInterviewInput;
+export { createInterview };
 
-export type {
-	CreateInterviewDto,
-	InterviewDetailsResponseDto,
-	InterviewSummaryResponseDto,
-	SharedInterviewPreviewResponseDto,
-};
+export type ListInterviewsOutput = Awaited<ReturnType<typeof listInterviews>>;
+export type InterviewListItem = ListInterviewsOutput["data"][number];
+export type InterviewSummaryResponseDto = InterviewListItem;
+export { listInterviews };
 
-export type UpdateInterviewDto = {
-	title?: string;
-	description?: string | null;
-	durationMinutes?: number;
-	allowMultipleAttempts?: boolean;
-};
+export type GetInterviewInput = Parameters<typeof getInterview>[0];
+export type GetInterviewOutput = Awaited<ReturnType<typeof getInterview>>;
+export type Interview = GetInterviewOutput["data"];
+export type InterviewDetailsResponseDto = Interview;
+export { getInterview };
 
-/** Lists interviews owned by the active creator. */
-export async function listInterviews(): Promise<InterviewSummaryResponseDto[]> {
-	return requireResponseData(await interviewsApi.interviewsControllerFindAll());
-}
+export type UpdateInterviewId = Parameters<typeof updateInterview>[0];
+export type UpdateInterviewInput = Parameters<typeof updateInterview>[1];
+export type UpdateInterviewOutput = Awaited<ReturnType<typeof updateInterview>>;
+export type UpdateInterviewDto = UpdateInterviewInput;
+export { updateInterview };
 
-/** Retrieves creator-only interview details. */
-export async function getInterview(
-	id: string,
-): Promise<InterviewDetailsResponseDto> {
-	return requireResponseData(
-		await interviewsApi.interviewsControllerFindById(id),
-	);
-}
+export type DeleteInterviewInput = Parameters<typeof deleteInterview>[0];
+export type DeleteInterviewOutput = Awaited<ReturnType<typeof deleteInterview>>;
+export type DeletedInterview = DeleteInterviewOutput["data"];
+export { deleteInterview };
 
-/** Creates an interview while preserving the caller's idempotency key. */
-export async function createInterview(
-	input: CreateInterviewDto,
-): Promise<InterviewDetailsResponseDto> {
-	return requireResponseData(
-		await interviewsApi.interviewsControllerCreate(input),
-	);
-}
-
-/** Updates mutable recruiter-controlled interview metadata. */
-export async function updateInterview({
-	id,
-	data,
-}: {
-	id: string;
-	data: UpdateInterviewDto;
-}): Promise<InterviewDetailsResponseDto> {
-	return requireResponseData(
-		await apiClient<{ data?: InterviewDetailsResponseDto }>({
-			data,
-			method: "PATCH",
-			url: `/api/interviews/${id}`,
-		}),
-	);
-}
-
-/** Deletes one unused creator-owned interview. */
-export async function deleteInterview(id: string): Promise<{ id: string }> {
-	return requireResponseData(
-		await apiClient<{ data?: { id: string } }>({
-			method: "DELETE",
-			url: `/api/interviews/${id}`,
-		}),
-	);
-}
-
-/** Retrieves the candidate-safe metadata behind a share code. */
-export async function getSharedInterview(
-	shareCode: string,
-): Promise<SharedInterviewPreviewResponseDto> {
-	return requireResponseData(
-		await sharedInterviewsApi.sharedInterviewsControllerPreview(shareCode),
-	);
-}
+export type GetSharedInterviewInput = Parameters<typeof getSharedInterview>[0];
+export type GetSharedInterviewOutput = Awaited<
+	ReturnType<typeof getSharedInterview>
+>;
+export type SharedInterviewPreview = GetSharedInterviewOutput["data"];
+export type SharedInterviewPreviewResponseDto = SharedInterviewPreview;
+export { getSharedInterview };

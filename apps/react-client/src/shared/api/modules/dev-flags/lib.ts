@@ -1,17 +1,15 @@
-import { apiClient } from "@/shared/api/client";
-import { requireResponseData } from "@/shared/api/response";
+import {
+	devFlagsControllerRead as getDevFlags,
+	devFlagsControllerUpdate as updateDevFlags,
+} from "@/shared/api/generated/application/development-flags/development-flags";
 
-export type DevFlags = {
-	faceDetectionEnabled: boolean;
-	requireSingleFaceToStart: boolean;
-	pauseOnNoFace: boolean;
-	pauseOnMultipleFaces: boolean;
-	terminateOnNoFace: boolean;
-	terminateOnMultipleFaces: boolean;
-	streamCameraToServer: boolean;
-	streamScreenToServer: boolean;
-	requireWholeScreen: boolean;
-};
+export type UpdateDevFlagsInput = Parameters<typeof updateDevFlags>[0];
+export type UpdateDevFlagsOutput = Awaited<ReturnType<typeof updateDevFlags>>;
+export { updateDevFlags };
+
+export type GetDevFlagsOutput = Awaited<ReturnType<typeof getDevFlags>>;
+export type DevFlags = GetDevFlagsOutput["data"];
+export { getDevFlags };
 
 export const DEFAULT_DEV_FLAGS: DevFlags = {
 	faceDetectionEnabled: true,
@@ -24,23 +22,3 @@ export const DEFAULT_DEV_FLAGS: DevFlags = {
 	streamScreenToServer: false,
 	requireWholeScreen: true,
 };
-
-type DevFlagsEnvelope = { data?: DevFlags };
-
-export async function getDevFlags(): Promise<DevFlags> {
-	return requireResponseData(
-		await apiClient<DevFlagsEnvelope>({ method: "GET", url: "/api/__flags__" }),
-	);
-}
-
-export async function updateDevFlags(
-	changes: Partial<DevFlags>,
-): Promise<DevFlags> {
-	return requireResponseData(
-		await apiClient<DevFlagsEnvelope>({
-			data: changes,
-			method: "PATCH",
-			url: "/api/__flags__",
-		}),
-	);
-}

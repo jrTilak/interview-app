@@ -1,11 +1,13 @@
+name: interview-desk
+
 services:
   postgres:
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-interview_app}
-      POSTGRES_USER: ${POSTGRES_USER:-interview_app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-interview_app}
+      POSTGRES_DB: ${POSTGRES_DB:-interview_desk}
+      POSTGRES_USER: ${POSTGRES_USER:-interview_desk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-interview_desk}
     ports:
       - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-15432}:5432"
     volumes:
@@ -39,8 +41,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      APP_NAME: ${APP_NAME:-Interview App}
-      APP_WEB_URL: ${APP_WEB_URL:-http://localhost:${FRONTEND_PORT:-18080}}
+      APP_NAME: ${APP_NAME:-Interview Desk}
       API_PREFIX: api
       API_CORS_ORIGINS: ${API_CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-18080},http://127.0.0.1:${FRONTEND_PORT:-18080}}
       API_DOCS_FILE_PATH: docs/api-info.md
@@ -50,9 +51,9 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${FRONTEND_PORT:-18080}}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${POSTGRES_DB:-interview_app}
-      DB_USERNAME: ${POSTGRES_USER:-interview_app}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-interview_app}
+      DB_NAME: ${POSTGRES_DB:-interview_desk}
+      DB_USERNAME: ${POSTGRES_USER:-interview_desk}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-interview_desk}
       DB_CONNECT_TIMEOUT_MS: 10000
       DB_AUTO_MIGRATE: "true"
       PGSSLMODE: disable

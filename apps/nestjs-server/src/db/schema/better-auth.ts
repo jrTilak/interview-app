@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { baseTable } from "./base-table.js";
 
+/** Application identity managed by Better Auth and referenced by domain data. */
 export const user = pgTable("user", {
 	...baseTable,
 	name: text("name").notNull(),
@@ -17,6 +18,7 @@ export const user = pgTable("user", {
 	image: text("image"),
 });
 
+/** Active login sessions managed and validated by Better Auth. */
 export const session = pgTable(
 	"session",
 	{
@@ -32,6 +34,7 @@ export const session = pgTable(
 	(table) => [index("session_user_id_idx").on(table.userId)],
 );
 
+/** Password credentials or external provider accounts linked to one user. */
 export const account = pgTable(
 	"account",
 	{
@@ -59,6 +62,7 @@ export const account = pgTable(
 	],
 );
 
+/** Short-lived Better Auth challenges such as email verification tokens. */
 export const verification = pgTable(
 	"verification",
 	{

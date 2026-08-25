@@ -4,7 +4,7 @@ import {
 	getSchemaPath,
 	ApiResponse as SwaggerApiResponse,
 } from "@nestjs/swagger";
-import { ApiSuccessResponseDto } from "../dto/api-response.dto.js";
+import { ApiSuccessResponseDto } from "#src/common/dto/api-response.dto.js";
 
 type ApiSuccessOptions = {
 	description: string;
@@ -33,7 +33,13 @@ export function ApiSuccess(options: ApiSuccessOptions) {
 				allOf: [
 					{ $ref: getSchemaPath(ApiSuccessResponseDto) },
 					...(dataSchema
-						? [{ type: "object", properties: { data: dataSchema } }]
+						? [
+								{
+									type: "object",
+									required: ["data"],
+									properties: { data: dataSchema },
+								},
+							]
 						: []),
 				],
 			},

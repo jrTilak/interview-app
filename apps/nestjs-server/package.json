@@ -1,9 +1,15 @@
 {
-	"name": "@interview-app/nestjs-server",
+	"name": "@interview-desk/nestjs-server",
 	"version": "0.1.0",
-	"description": "NestJS API and realtime interview orchestration server.",
+	"description": "Interview Desk API and realtime interview orchestration server.",
 	"private": true,
 	"type": "module",
+	"imports": {
+		"#src/*": {
+			"types": "./src/*",
+			"default": "./dist/*"
+		}
+	},
 	"scripts": {
 		"build": "nest build",
 		"dev": "pnpm run start:dev",
@@ -22,6 +28,7 @@
 	},
 	"dependencies": {
 		"@better-auth/drizzle-adapter": "1.6.25",
+		"@interview-desk/validations": "workspace:*",
 		"@nestjs/common": "^11.1.6",
 		"@nestjs/config": "^4.0.4",
 		"@nestjs/core": "^11.1.6",
@@ -82,6 +89,7 @@
 			]
 		},
 		"moduleNameMapper": {
+			"^#src/(.*)\\.js$": "<rootDir>/$1",
 			"^(\\.{1,2}/.*)\\.js$": "$1"
 		},
 		"collectCoverageFrom": [

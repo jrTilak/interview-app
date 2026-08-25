@@ -261,81 +261,76 @@ export type SignInEmail500 = {
   message?: string;
 };
 
-type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-
-  export const getBetterAuth = () => {
 /**
  * Get the current session
  */
-const getSession = (
+export const getSession = (
 
- options?: SecondParameter<typeof authApiClient<GetSession200>>,) => {
+ ) => {
       return authApiClient<GetSession200>(
       {url: `/get-session`, method: 'GET'
     },
-      options);
+      );
     }
 
 /**
  * Get the current session
  */
-const getSessionPost = (
+export const getSessionPost = (
     getSessionPostBody?: BodyType<GetSessionPostBody>,
- options?: SecondParameter<typeof authApiClient<GetSessionPost200>>,) => {
+ ) => {
       return authApiClient<GetSessionPost200>(
       {url: `/get-session`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: getSessionPostBody
     },
-      options);
+      );
     }
 
 /**
  * Sign out the current user
  */
-const signOut = (
+export const signOut = (
     signOutBody?: BodyType<SignOutBody>,
- options?: SecondParameter<typeof authApiClient<SignOut200>>,) => {
+ ) => {
       return authApiClient<SignOut200>(
       {url: `/sign-out`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: signOutBody
     },
-      options);
+      );
     }
 
 /**
  * Sign up a user using email and password
  */
-const signUpWithEmailAndPassword = (
+export const signUpWithEmailAndPassword = (
     signUpWithEmailAndPasswordBody?: BodyType<SignUpWithEmailAndPasswordBody>,
- options?: SecondParameter<typeof authApiClient<SignUpWithEmailAndPassword200>>,) => {
+ ) => {
       return authApiClient<SignUpWithEmailAndPassword200>(
       {url: `/sign-up/email`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: signUpWithEmailAndPasswordBody
     },
-      options);
+      );
     }
 
 /**
  * Sign in with email and password
  */
-const signInEmail = (
+export const signInEmail = (
     signInEmailBody: BodyType<SignInEmailBody>,
- options?: SecondParameter<typeof authApiClient<SignInEmail200>>,) => {
+ ) => {
       return authApiClient<SignInEmail200>(
       {url: `/sign-in/email`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: signInEmailBody
     },
-      options);
+      );
     }
 
-return {getSession,getSessionPost,signOut,signUpWithEmailAndPassword,signInEmail}};
-export type GetSessionResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getBetterAuth>['getSession']>>>
-export type GetSessionPostResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getBetterAuth>['getSessionPost']>>>
-export type SignOutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getBetterAuth>['signOut']>>>
-export type SignUpWithEmailAndPasswordResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getBetterAuth>['signUpWithEmailAndPassword']>>>
-export type SignInEmailResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getBetterAuth>['signInEmail']>>>
+export type GetSessionResult = NonNullable<Awaited<ReturnType<typeof getSession>>>
+export type GetSessionPostResult = NonNullable<Awaited<ReturnType<typeof getSessionPost>>>
+export type SignOutResult = NonNullable<Awaited<ReturnType<typeof signOut>>>
+export type SignUpWithEmailAndPasswordResult = NonNullable<Awaited<ReturnType<typeof signUpWithEmailAndPassword>>>
+export type SignInEmailResult = NonNullable<Awaited<ReturnType<typeof signInEmail>>>

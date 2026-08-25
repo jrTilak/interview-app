@@ -1,4 +1,4 @@
-import { Box, chakra, Flex, Text } from "@chakra-ui/react";
+import { Badge, Box, chakra, Flex, Text } from "@chakra-ui/react";
 import { VideoOff } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { FaceDetectionSnapshot } from "@/shared/media/face-detection";
@@ -10,6 +10,8 @@ type MediaPreviewProps = {
 };
 
 const Video = chakra("video");
+const DetectionOverlay = chakra("svg");
+const FaceBox = chakra("rect");
 
 /** Attaches a local MediaStream to a muted, non-recording preview element. */
 export function MediaPreview({
@@ -29,13 +31,7 @@ export function MediaPreview({
 	}, [stream]);
 
 	return (
-		<Box
-			bg="forest"
-			borderRadius="lg"
-			minH="40"
-			overflow="hidden"
-			position="relative"
-		>
+		<Box bg="forest" minH="40" overflow="hidden" position="relative">
 			{stream ? (
 				<Video
 					autoPlay
@@ -51,7 +47,7 @@ export function MediaPreview({
 			) : (
 				<Flex
 					align="center"
-					color="rgba(244,242,236,0.55)"
+					color="paper/55"
 					direction="column"
 					gap="3"
 					inset="0"
@@ -66,24 +62,21 @@ export function MediaPreview({
 				faceDetection &&
 				faceDetection.width > 0 &&
 				faceDetection.height > 0 && (
-					<svg
+					<DetectionOverlay
 						aria-hidden="true"
+						inset="0"
+						pointerEvents="none"
+						position="absolute"
 						preserveAspectRatio="xMidYMid slice"
-						style={{
-							inset: 0,
-							pointerEvents: "none",
-							position: "absolute",
-						}}
 						viewBox={`0 0 ${faceDetection.width} ${faceDetection.height}`}
 					>
 						{faceDetection.boxes.map((box) => (
-							<rect
+							<FaceBox
 								fill="none"
 								height={box.height}
 								key={`${box.x}-${box.y}-${box.width}-${box.height}`}
-								rx="14"
 								stroke={
-									faceDetection.status === "single" ? "#8BE28B" : "#FF776F"
+									faceDetection.status === "single" ? "success" : "danger"
 								}
 								strokeWidth="7"
 								width={box.width}
@@ -91,26 +84,21 @@ export function MediaPreview({
 								y={box.y}
 							/>
 						))}
-					</svg>
+					</DetectionOverlay>
 				)}
 			{faceDetection && faceDetection.status !== "disabled" && (
-				<Text
-					bg={
+				<Badge
+					colorPalette={
 						faceDetection.status === "single"
-							? "success"
+							? "green"
 							: faceDetection.status === "initializing"
-								? "rgba(17,24,21,0.82)"
-								: "danger"
+								? "gray"
+								: "red"
 					}
-					color="white"
-					fontSize="2xs"
-					fontWeight="700"
-					letterSpacing="0.05em"
-					px="2.5"
-					py="1.5"
 					position="absolute"
 					right="2"
 					top="2"
+					variant="solid"
 				>
 					{faceDetection.status === "single"
 						? "1 FACE"
@@ -121,10 +109,10 @@ export function MediaPreview({
 								: faceDetection.status === "error"
 									? "DETECTOR ERROR"
 									: "CHECKING"}
-				</Text>
+				</Badge>
 			)}
 			<Text
-				bg="rgba(17,24,21,0.85)"
+				bg="forest/85"
 				bottom="0"
 				color="paper"
 				fontFamily="mono"

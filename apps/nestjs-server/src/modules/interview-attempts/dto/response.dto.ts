@@ -1,90 +1,79 @@
+import {
+	AttemptEndReasonSchema,
+	AttemptStateSchema,
+	DateTimeSchema,
+	DescriptionSchema,
+	EmailSchema,
+	InterviewTurnRoleSchema,
+	NameSchema,
+	TitleSchema,
+	UuidSchema,
+} from "@interview-desk/validations";
 import { createZodDto } from "nestjs-zod";
 import z from "zod";
 
-const DateTimeSchema = z.iso.datetime({ offset: true });
 const NullableDateTimeSchema = DateTimeSchema.nullable();
 
-export const AttemptStateSchema = z.enum([
-	"READY",
-	"ASSISTANT_SPEAKING",
-	"LISTENING",
-	"PROCESSING",
-	"ENDING",
-	"COMPLETED",
-	"FAILED",
-]);
+export { AttemptStateSchema };
 
-export const AttemptTurnResponseSchema = z
-	.object({
-		id: z.uuid(),
-		sequence: z.number().int().positive(),
-		role: z.enum(["assistant", "candidate"]),
-		text: z.string(),
-		createdAt: z.iso.datetime({ offset: true }),
-	})
-	.strict();
+export const AttemptTurnResponseSchema = z.object({
+	id: UuidSchema,
+	sequence: z.number(),
+	role: InterviewTurnRoleSchema,
+	text: z.string(),
+	startedAt: NullableDateTimeSchema,
+	endedAt: NullableDateTimeSchema,
+	createdAt: DateTimeSchema,
+});
 
-export const AttemptSnapshotResponseSchema = z
-	.object({
-		id: z.uuid(),
-		state: AttemptStateSchema,
-		startedAt: NullableDateTimeSchema,
-		deadlineAt: NullableDateTimeSchema,
-		endedAt: NullableDateTimeSchema,
-		endReason: z.enum(["AI_COMPLETED", "TIME_LIMIT"]).nullable(),
-		media: z
-			.object({
-				cameraActive: z.boolean(),
-				screenActive: z.boolean(),
-				microphoneActive: z.boolean(),
-			})
-			.strict(),
-		turns: z.array(AttemptTurnResponseSchema),
-	})
-	.strict();
+export const AttemptSnapshotResponseSchema = z.object({
+	id: UuidSchema,
+	state: AttemptStateSchema,
+	startedAt: NullableDateTimeSchema,
+	deadlineAt: NullableDateTimeSchema,
+	endedAt: NullableDateTimeSchema,
+	endReason: AttemptEndReasonSchema.nullable(),
+	media: z.object({
+		cameraActive: z.boolean(),
+		screenActive: z.boolean(),
+		microphoneActive: z.boolean(),
+	}),
+	turns: z.array(AttemptTurnResponseSchema),
+});
 
-const AttemptHistoryFieldsSchema = z
-	.object({
-		id: z.uuid(),
-		state: AttemptStateSchema,
-		endReason: z.enum(["AI_COMPLETED", "TIME_LIMIT"]).nullable(),
-		createdAt: DateTimeSchema,
-		startedAt: NullableDateTimeSchema,
-		deadlineAt: NullableDateTimeSchema,
-		endedAt: NullableDateTimeSchema,
-		completedQuestionCount: z.number().int().nonnegative(),
-		totalQuestionCount: z.number().int().nonnegative(),
-	})
-	.strict();
+const AttemptHistoryFieldsSchema = z.object({
+	id: UuidSchema,
+	state: AttemptStateSchema,
+	endReason: AttemptEndReasonSchema.nullable(),
+	createdAt: DateTimeSchema,
+	startedAt: NullableDateTimeSchema,
+	deadlineAt: NullableDateTimeSchema,
+	endedAt: NullableDateTimeSchema,
+	completedQuestionCount: z.number(),
+	totalQuestionCount: z.number(),
+});
 
 export const CreatorAttemptHistoryResponseSchema =
 	AttemptHistoryFieldsSchema.extend({
-		candidate: z
-			.object({
-				id: z.uuid(),
-				name: z.string(),
-				email: z.email(),
-			})
-			.strict(),
+		candidate: z.object({
+			id: UuidSchema,
+			name: NameSchema,
+			email: EmailSchema,
+		}),
 	});
 
 export const CandidateAttemptHistoryResponseSchema = AttemptHistoryFieldsSchema;
 
-export const CandidateInterviewHistoryResponseSchema = z
-	.object({
-		interview: z
-			.object({
-				id: z.uuid(),
-				title: z.string(),
-				description: z.string().nullable(),
-				shareCode: z.string(),
-				durationMinutes: z.number().int().positive(),
-				allowMultipleAttempts: z.boolean(),
-			})
-			.strict(),
-		attempts: z.array(CandidateAttemptHistoryResponseSchema),
-	})
-	.strict();
+export const CandidateInterviewHistoryResponseSchema = z.object({
+	interview: z.object({
+		id: UuidSchema,
+		title: TitleSchema,
+		description: DescriptionSchema.nullable(),
+		durationMinutes: z.number(),
+		allowMultipleAttempts: z.boolean(),
+	}),
+	attempts: z.array(CandidateAttemptHistoryResponseSchema),
+});
 
 export class AttemptTurnResponseDto extends createZodDto(
 	AttemptTurnResponseSchema,

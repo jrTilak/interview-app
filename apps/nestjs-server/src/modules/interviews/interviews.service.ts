@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import {
 	ConflictException,
 	Inject,
@@ -7,21 +6,19 @@ import {
 	NotFoundException,
 	ServiceUnavailableException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import type { User } from "better-auth/types";
 import { and, asc, count, desc, eq } from "drizzle-orm";
-import z from "zod";
-import {
-	type AppDatabase,
-	InjectDatabase,
-} from "../../db/database.provider.js";
+import { type AppDatabase, InjectDatabase } from "#src/db/database.provider.js";
 import {
 	interview,
 	interviewAttempt,
 	interviewQuestion,
-} from "../../db/schema/index.js";
-import type { AppConfigService } from "../../types/index.js";
-import { INTERVIEW_LLM, type InterviewLlmPort } from "../ai/ai.ports.js";
+} from "#src/db/schema/index.js";
+import {
+	INTERVIEW_LLM,
+	type InterviewLlmPort,
+	type StructuredInterviewQuestion,
+} from "#src/modules/ai/llm/llm.port.js";
 import type {
 	CreateInterviewDto,
 	UpdateInterviewDto,
@@ -31,22 +28,6 @@ import type {
 	InterviewSummaryResponseDto,
 	SharedInterviewPreviewResponseDto,
 } from "./dto/response.dto.js";
-import { INTERVIEW_LIMITS } from "./interview.constants.js";
-import { InterviewCreationLimiterService } from "./interview-creation-limiter.service.js";
-
-const StructuredQuestionSchema = z
-	.object({
-		title: z.string().trim().min(1).max(160),
-		prompt: z.string().trim().min(1).max(4_000),
-		objective: z.string().trim().min(1).max(2_000).nullable(),
-		followUpGuidance: z.string().trim().min(1).max(2_000).nullable(),
-	})
-	.strict();
-
-const StructuredQuestionsSchema = z
-	.array(StructuredQuestionSchema)
-	.min(INTERVIEW_LIMITS.structuredQuestions.minimum)
-	.max(INTERVIEW_LIMITS.structuredQuestions.maximum);
 
 @Injectable()
 export class InterviewsService {
@@ -57,18 +38,7 @@ export class InterviewsService {
 		private readonly _database: AppDatabase,
 		@Inject(INTERVIEW_LLM)
 		private readonly _llm: InterviewLlmPort,
-		@Inject(ConfigService)
-		private readonly _config: AppConfigService,
-		private readonly _creationLimiter: InterviewCreationLimiterService,
 	) {}
-
-	/** Builds the browser-facing share URL without exposing server routing details. */
-	private _shareUrl(shareCode: string): string {
-		const webUrl = this._config
-			.get("APP_WEB_URL", { infer: true })
-			.replace(/\/$/, "");
-		return `${webUrl}/interviews/${shareCode}`;
-	}
 
 	/** Loads one creator-owned interview and its ordered topic plan. */
 	private async _findOwnedDetails(
@@ -83,7 +53,7 @@ export class InterviewsService {
 				rawQuestions: interview.rawQuestions,
 				durationMinutes: interview.durationMinutes,
 				allowMultipleAttempts: interview.allowMultipleAttempts,
-				shareCode: interview.shareCode,
+				isPublic: interview.isPublic,
 				createdAt: interview.createdAt,
 			})
 			.from(interview)
@@ -107,41 +77,23 @@ export class InterviewsService {
 		return {
 			...row,
 			questionCount: questions.length,
-			shareUrl: this._shareUrl(row.shareCode),
 			createdAt: row.createdAt.toISOString(),
 			questions,
 		};
 	}
 
-	/** Performs one interview creation inside the per-user single-flight boundary. */
-	private async _create(
+	/** Creates a private interview after the provider structures its topic notes. */
+	async create(
 		data: CreateInterviewDto,
 		user: User,
 	): Promise<InterviewDetailsResponseDto> {
-		const [existing] = await this._database
-			.select({ id: interview.id })
-			.from(interview)
-			.where(
-				and(
-					eq(interview.createdById, user.id),
-					eq(interview.clientRequestId, data.clientRequestId),
-				),
-			)
-			.limit(1);
-		if (existing) {
-			const details = await this._findOwnedDetails(existing.id, user.id);
-			if (details) return details;
-		}
-
-		let structuredQuestions: z.infer<typeof StructuredQuestionsSchema>;
+		let structuredQuestions: StructuredInterviewQuestion[];
 		try {
-			structuredQuestions = StructuredQuestionsSchema.parse(
-				await this._llm.structureQuestions({
-					interviewTitle: data.title,
-					interviewDescription: data.description ?? null,
-					rawQuestions: data.rawQuestions,
-				}),
-			);
+			structuredQuestions = await this._llm.structureQuestions({
+				interviewTitle: data.title,
+				interviewDescription: data.description ?? null,
+				rawQuestions: data.rawQuestions,
+			});
 		} catch (error) {
 			this._logger.error("Interview topic structuring failed", error);
 			throw new ServiceUnavailableException(
@@ -149,25 +101,21 @@ export class InterviewsService {
 			);
 		}
 
-		const shareCode = randomBytes(24).toString("base64url");
-		const createdId = await this._database.transaction(async (transaction) => {
+		const id = await this._database.transaction(async (transaction) => {
 			const [created] = await transaction
 				.insert(interview)
 				.values({
 					createdById: user.id,
-					clientRequestId: data.clientRequestId,
 					title: data.title,
 					description: data.description ?? null,
 					rawQuestions: data.rawQuestions,
 					durationMinutes: data.durationMinutes,
 					allowMultipleAttempts: data.allowMultipleAttempts,
-					shareCode,
-				})
-				.onConflictDoNothing({
-					target: [interview.createdById, interview.clientRequestId],
 				})
 				.returning({ id: interview.id });
-			if (!created) return null;
+			if (!created) {
+				throw new ServiceUnavailableException("Interview could not be created");
+			}
 
 			await transaction.insert(interviewQuestion).values(
 				structuredQuestions.map((question, index) => ({
@@ -179,37 +127,10 @@ export class InterviewsService {
 			return created.id;
 		});
 
-		const id =
-			createdId ??
-			(
-				await this._database
-					.select({ id: interview.id })
-					.from(interview)
-					.where(
-						and(
-							eq(interview.createdById, user.id),
-							eq(interview.clientRequestId, data.clientRequestId),
-						),
-					)
-					.limit(1)
-			)[0]?.id;
-		if (!id)
-			throw new ServiceUnavailableException("Interview could not be created");
-
 		const details = await this._findOwnedDetails(id, user.id);
 		if (!details)
 			throw new ServiceUnavailableException("Interview could not be loaded");
 		return details;
-	}
-
-	/** Creates an interview after the provider structures its raw topic notes. */
-	create(
-		data: CreateInterviewDto,
-		user: User,
-	): Promise<InterviewDetailsResponseDto> {
-		return this._creationLimiter.run(user.id, data.clientRequestId, () =>
-			this._create(data, user),
-		);
 	}
 
 	/** Returns all interviews created by the authenticated user. */
@@ -221,7 +142,7 @@ export class InterviewsService {
 				description: interview.description,
 				durationMinutes: interview.durationMinutes,
 				allowMultipleAttempts: interview.allowMultipleAttempts,
-				shareCode: interview.shareCode,
+				isPublic: interview.isPublic,
 				createdAt: interview.createdAt,
 				questionCount: count(interviewQuestion.id),
 			})
@@ -237,7 +158,6 @@ export class InterviewsService {
 		return rows.map((row) => ({
 			...row,
 			questionCount: Number(row.questionCount),
-			shareUrl: this._shareUrl(row.shareCode),
 			createdAt: row.createdAt.toISOString(),
 		}));
 	}
@@ -304,9 +224,9 @@ export class InterviewsService {
 		return { id };
 	}
 
-	/** Returns safe share-link metadata without exposing hidden questions. */
+	/** Returns safe metadata only when the UUID identifies a public interview. */
 	async findSharedPreview(
-		shareCode: string,
+		id: string,
 	): Promise<SharedInterviewPreviewResponseDto> {
 		const [row] = await this._database
 			.select({
@@ -321,7 +241,7 @@ export class InterviewsService {
 				interviewQuestion,
 				eq(interviewQuestion.interviewId, interview.id),
 			)
-			.where(eq(interview.shareCode, shareCode))
+			.where(and(eq(interview.id, id), eq(interview.isPublic, true)))
 			.groupBy(interview.id)
 			.limit(1);
 		if (!row) throw new NotFoundException("Shared interview does not exist");

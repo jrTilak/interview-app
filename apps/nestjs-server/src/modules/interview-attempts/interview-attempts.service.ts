@@ -1,148 +1,37 @@
-import { createHash } from "node:crypto";
 import {
 	ConflictException,
 	Injectable,
 	NotFoundException,
 } from "@nestjs/common";
 import type { User } from "better-auth/types";
-import {
-	and,
-	asc,
-	count,
-	desc,
-	eq,
-	gt,
-	inArray,
-	isNotNull,
-	lte,
-	max,
-	notInArray,
-	sql,
-} from "drizzle-orm";
-import {
-	type AppDatabase,
-	InjectDatabase,
-} from "../../db/database.provider.js";
+import { and, count, desc, eq, notInArray, sql } from "drizzle-orm";
+import { type AppDatabase, InjectDatabase } from "#src/db/database.provider.js";
 import {
 	attemptQuestionProgress,
 	interview,
 	interviewAttempt,
 	interviewQuestion,
-	interviewTurn,
 	user,
-} from "../../db/schema/index.js";
-import type {
-	GenerateInterviewTurnInput,
-	InterviewTaskContext,
-} from "../ai/ai.ports.js";
+} from "#src/db/schema/index.js";
 import type {
 	AttemptSnapshot,
 	CandidateInterviewHistory,
 	CreatorAttemptHistory,
 } from "./dto/response.dto.js";
+import { InterviewAttemptStateService } from "./interview-attempt-state.service.js";
 
-type AttemptRow = typeof interviewAttempt.$inferSelect;
-
-const PROCESSING_RECOVERY_MS = 3 * 60_000;
-const TIME_LIMIT_CLOSING_TEXT =
-	"Thank you for your time. The interview has now reached its time limit.";
-
-export type StartAttemptResult = {
-	snapshot: AttemptSnapshot;
-	shouldRunAssistant: boolean;
-};
-
-export type SavedAssistantTurn = {
-	id: string;
-	text: string;
-	shouldEnd: boolean;
-	endReason: "AI_COMPLETED" | "TIME_LIMIT" | null;
-};
-
-export type CandidateTurnClaim = {
-	claimed: boolean;
-	duplicate: boolean;
-};
-
+/** Creates attempts and serves their creator/candidate history views. */
 @Injectable()
 export class InterviewAttemptsService {
 	constructor(
 		@InjectDatabase()
 		private readonly _database: AppDatabase,
+		private readonly _state: InterviewAttemptStateService,
 	) {}
 
-	/** Converts one persisted attempt row and its public turns to a snapshot. */
-	private async _toSnapshot(row: AttemptRow): Promise<AttemptSnapshot> {
-		const turns = await this._database
-			.select({
-				id: interviewTurn.id,
-				sequence: interviewTurn.sequence,
-				role: interviewTurn.role,
-				text: interviewTurn.text,
-				createdAt: interviewTurn.createdAt,
-			})
-			.from(interviewTurn)
-			.where(eq(interviewTurn.attemptId, row.id))
-			.orderBy(asc(interviewTurn.sequence));
-
-		return {
-			id: row.id,
-			state: row.state,
-			startedAt: row.startedAt?.toISOString() ?? null,
-			deadlineAt: row.deadlineAt?.toISOString() ?? null,
-			endedAt: row.endedAt?.toISOString() ?? null,
-			endReason: row.endReason,
-			media: {
-				cameraActive: row.cameraActive,
-				screenActive: row.screenActive,
-				microphoneActive: row.microphoneActive,
-			},
-			turns: turns.map((turn) => ({
-				...turn,
-				role: turn.role === "ASSISTANT" ? "assistant" : "candidate",
-				createdAt: turn.createdAt.toISOString(),
-			})),
-		};
-	}
-
-	/** Loads one candidate-owned attempt while hiding foreign IDs as missing. */
-	private async _findOwnedRow(
-		attemptId: string,
-		candidateId: string,
-	): Promise<AttemptRow> {
-		const [row] = await this._database
-			.select()
-			.from(interviewAttempt)
-			.where(
-				and(
-					eq(interviewAttempt.id, attemptId),
-					eq(interviewAttempt.candidateId, candidateId),
-				),
-			)
-			.limit(1);
-		if (!row) {
-			throw new NotFoundException(
-				"Interview attempt does not exist or belongs to another candidate",
-			);
-		}
-		return row;
-	}
-
-	/** Finds the next monotonic transcript sequence inside a locked transaction. */
-	private async _nextSequence(
-		transaction: Parameters<Parameters<AppDatabase["transaction"]>[0]>[0],
-		attemptId: string,
-	): Promise<number> {
-		const [result] = await transaction
-			.select({ sequence: max(interviewTurn.sequence) })
-			.from(interviewTurn)
-			.where(eq(interviewTurn.attemptId, attemptId));
-		return Number(result?.sequence ?? 0) + 1;
-	}
-
-	/** Resumes active work or creates a permitted new attempt for a share link. */
+	/** Resumes active work or creates a permitted attempt for a public interview. */
 	async createOrResume(
-		shareCode: string,
+		interviewId: string,
 		candidate: User,
 	): Promise<AttemptSnapshot> {
 		const attemptId = await this._database.transaction(async (transaction) => {
@@ -152,7 +41,7 @@ export class InterviewAttemptsService {
 					allowMultipleAttempts: interview.allowMultipleAttempts,
 				})
 				.from(interview)
-				.where(eq(interview.shareCode, shareCode))
+				.where(and(eq(interview.id, interviewId), eq(interview.isPublic, true)))
 				.limit(1)
 				.for("update");
 			if (!definition)
@@ -213,7 +102,7 @@ export class InterviewAttemptsService {
 			return created.id;
 		});
 
-		return this.findSnapshot(attemptId, candidate);
+		return this._state.findSnapshot(attemptId, candidate);
 	}
 
 	/** Lists safe participant attempt metadata for one creator-owned interview. */
@@ -289,7 +178,6 @@ export class InterviewAttemptsService {
 				interviewId: interview.id,
 				interviewTitle: interview.title,
 				interviewDescription: interview.description,
-				shareCode: interview.shareCode,
 				durationMinutes: interview.durationMinutes,
 				allowMultipleAttempts: interview.allowMultipleAttempts,
 				attemptId: interviewAttempt.id,
@@ -321,7 +209,6 @@ export class InterviewAttemptsService {
 						id: row.interviewId,
 						title: row.interviewTitle,
 						description: row.interviewDescription,
-						shareCode: row.shareCode,
 						durationMinutes: row.durationMinutes,
 						allowMultipleAttempts: row.allowMultipleAttempts,
 					},
@@ -344,525 +231,11 @@ export class InterviewAttemptsService {
 		return [...histories.values()];
 	}
 
-	/** Returns a reconnect-safe candidate snapshot with text transcript only. */
+	/** Delegates candidate snapshot reads to the lifecycle service. */
 	async findSnapshot(
 		attemptId: string,
 		candidate: User,
 	): Promise<AttemptSnapshot> {
-		return this._toSnapshot(await this._findOwnedRow(attemptId, candidate.id));
-	}
-
-	/** Starts, resumes, or safely recovers one candidate attempt. */
-	async start(attemptId: string, candidate: User): Promise<StartAttemptResult> {
-		await this._database.transaction(async (transaction) => {
-			const [row] = await transaction
-				.select({
-					state: interviewAttempt.state,
-					durationMinutes: interview.durationMinutes,
-					updatedAt: interviewAttempt.updatedAt,
-				})
-				.from(interviewAttempt)
-				.innerJoin(interview, eq(interview.id, interviewAttempt.interviewId))
-				.where(
-					and(
-						eq(interviewAttempt.id, attemptId),
-						eq(interviewAttempt.candidateId, candidate.id),
-					),
-				)
-				.for("update");
-			if (!row) {
-				throw new NotFoundException(
-					"Interview attempt does not exist or belongs to another candidate",
-				);
-			}
-			if (row.state === "COMPLETED" || row.state === "FAILED") {
-				throw new ConflictException("Interview attempt cannot be started");
-			}
-
-			if (row.state === "READY") {
-				const startedAt = new Date();
-				const deadlineAt = new Date(
-					startedAt.getTime() + row.durationMinutes * 60_000,
-				);
-				await transaction
-					.update(interviewAttempt)
-					.set({
-						state: "ASSISTANT_SPEAKING",
-						startedAt,
-						deadlineAt,
-						version: sql`${interviewAttempt.version} + 1`,
-					})
-					.where(eq(interviewAttempt.id, attemptId));
-			}
-			const processingIsStale =
-				row.state === "PROCESSING" &&
-				row.updatedAt.getTime() <= Date.now() - PROCESSING_RECOVERY_MS;
-			if (processingIsStale) {
-				await transaction
-					.update(interviewAttempt)
-					.set({
-						state: "ASSISTANT_SPEAKING",
-						version: sql`${interviewAttempt.version} + 1`,
-					})
-					.where(eq(interviewAttempt.id, attemptId));
-			}
-		});
-
-		const snapshot = await this.findSnapshot(attemptId, candidate);
-		return {
-			snapshot,
-			shouldRunAssistant:
-				snapshot.state === "ASSISTANT_SPEAKING" || snapshot.state === "ENDING",
-		};
-	}
-
-	/** Ensures microphone input is accepted only during the candidate turn. */
-	async assertListening(attemptId: string, candidate: User): Promise<void> {
-		const row = await this._findOwnedRow(attemptId, candidate.id);
-		if (row.state !== "LISTENING") {
-			throw new ConflictException("The interview is not listening for audio");
-		}
-	}
-
-	/** Atomically claims a candidate audio turn and detects a replayed turn ID. */
-	async claimCandidateTurn(
-		attemptId: string,
-		clientTurnId: string,
-		candidate: User,
-	): Promise<CandidateTurnClaim> {
-		const [duplicate] = await this._database
-			.select({ id: interviewTurn.id })
-			.from(interviewTurn)
-			.where(
-				and(
-					eq(interviewTurn.attemptId, attemptId),
-					eq(interviewTurn.clientTurnId, clientTurnId),
-				),
-			)
-			.limit(1);
-		if (duplicate) return { claimed: false, duplicate: true };
-
-		const [claimed] = await this._database
-			.update(interviewAttempt)
-			.set({
-				state: "PROCESSING",
-				microphoneActive: false,
-				version: sql`${interviewAttempt.version} + 1`,
-			})
-			.where(
-				and(
-					eq(interviewAttempt.id, attemptId),
-					eq(interviewAttempt.candidateId, candidate.id),
-					eq(interviewAttempt.state, "LISTENING"),
-					isNotNull(interviewAttempt.deadlineAt),
-					gt(interviewAttempt.deadlineAt, new Date()),
-				),
-			)
-			.returning({ id: interviewAttempt.id });
-		if (!claimed) {
-			await this._findOwnedRow(attemptId, candidate.id);
-			throw new ConflictException(
-				"Candidate turn is unavailable or already being processed",
-			);
-		}
-		return { claimed: true, duplicate: false };
-	}
-
-	/** Restores the candidate turn when no intelligible transcript was produced. */
-	async restoreListening(
-		attemptId: string,
-		candidate: User,
-	): Promise<AttemptSnapshot> {
-		await this._database
-			.update(interviewAttempt)
-			.set({
-				state: "LISTENING",
-				version: sql`${interviewAttempt.version} + 1`,
-			})
-			.where(
-				and(
-					eq(interviewAttempt.id, attemptId),
-					eq(interviewAttempt.candidateId, candidate.id),
-					eq(interviewAttempt.state, "PROCESSING"),
-				),
-			);
-		return this.findSnapshot(attemptId, candidate);
-	}
-
-	/** Persists one idempotent candidate transcript and prepares the assistant. */
-	async saveCandidateTranscript(
-		attemptId: string,
-		clientTurnId: string,
-		text: string,
-		candidate: User,
-	): Promise<{ id: string; text: string }> {
-		return this._database.transaction(async (transaction) => {
-			const [row] = await transaction
-				.select({ state: interviewAttempt.state })
-				.from(interviewAttempt)
-				.where(
-					and(
-						eq(interviewAttempt.id, attemptId),
-						eq(interviewAttempt.candidateId, candidate.id),
-					),
-				)
-				.for("update");
-			if (!row) throw new NotFoundException("Interview attempt does not exist");
-
-			const [existing] = await transaction
-				.select({ id: interviewTurn.id, text: interviewTurn.text })
-				.from(interviewTurn)
-				.where(
-					and(
-						eq(interviewTurn.attemptId, attemptId),
-						eq(interviewTurn.clientTurnId, clientTurnId),
-					),
-				)
-				.limit(1);
-			if (existing) return existing;
-			if (row.state !== "PROCESSING") {
-				throw new ConflictException("Candidate transcript is not expected now");
-			}
-
-			const [saved] = await transaction
-				.insert(interviewTurn)
-				.values({
-					attemptId,
-					sequence: await this._nextSequence(transaction, attemptId),
-					role: "CANDIDATE",
-					text,
-					clientTurnId,
-				})
-				.returning({ id: interviewTurn.id, text: interviewTurn.text });
-			if (!saved)
-				throw new ConflictException("Candidate transcript was not saved");
-			await transaction
-				.update(interviewAttempt)
-				.set({
-					state: "ASSISTANT_SPEAKING",
-					version: sql`${interviewAttempt.version} + 1`,
-				})
-				.where(eq(interviewAttempt.id, attemptId));
-			return saved;
-		});
-	}
-
-	/** Loads only server-owned context needed for the next model turn. */
-	async loadModelContext(
-		attemptId: string,
-		candidate: User,
-	): Promise<GenerateInterviewTurnInput> {
-		const [row] = await this._database
-			.select({
-				state: interviewAttempt.state,
-				deadlineAt: interviewAttempt.deadlineAt,
-				interviewTitle: interview.title,
-				interviewDescription: interview.description,
-				candidateName: user.name,
-			})
-			.from(interviewAttempt)
-			.innerJoin(interview, eq(interview.id, interviewAttempt.interviewId))
-			.innerJoin(user, eq(user.id, interviewAttempt.candidateId))
-			.where(
-				and(
-					eq(interviewAttempt.id, attemptId),
-					eq(interviewAttempt.candidateId, candidate.id),
-					inArray(interviewAttempt.state, ["ASSISTANT_SPEAKING", "PROCESSING"]),
-				),
-			)
-			.limit(1);
-		if (!row)
-			throw new ConflictException("Assistant turn cannot be generated now");
-
-		const taskRows = await this._database
-			.select({
-				id: interviewQuestion.id,
-				position: interviewQuestion.position,
-				title: interviewQuestion.title,
-				prompt: interviewQuestion.prompt,
-				objective: interviewQuestion.objective,
-				followUpGuidance: interviewQuestion.followUpGuidance,
-				progress: attemptQuestionProgress.state,
-				turnCount: attemptQuestionProgress.turnCount,
-			})
-			.from(attemptQuestionProgress)
-			.innerJoin(
-				interviewQuestion,
-				eq(interviewQuestion.id, attemptQuestionProgress.questionId),
-			)
-			.where(eq(attemptQuestionProgress.attemptId, attemptId))
-			.orderBy(asc(interviewQuestion.position));
-		const transcriptRows = await this._database
-			.select({ role: interviewTurn.role, text: interviewTurn.text })
-			.from(interviewTurn)
-			.where(eq(interviewTurn.attemptId, attemptId))
-			.orderBy(asc(interviewTurn.sequence));
-		const remainingSeconds = row.deadlineAt
-			? Math.max(0, Math.ceil((row.deadlineAt.getTime() - Date.now()) / 1_000))
-			: 0;
-
-		return {
-			interview: {
-				title: row.interviewTitle,
-				description: row.interviewDescription,
-			},
-			candidate: {
-				name: row.candidateName,
-				// The LLM receives only this opaque, attempt-scoped key. It cannot
-				// recover or expose the candidate/attempt UUIDs used to derive it.
-				variationKey: createHash("sha256")
-					.update(`${attemptId}:${candidate.id}`)
-					.digest("hex")
-					.slice(0, 32),
-			},
-			tasks: taskRows.map(
-				(task): InterviewTaskContext => ({
-					id: task.id,
-					position: task.position,
-					title: task.title,
-					prompt: task.prompt,
-					objective: task.objective,
-					followUpGuidance: task.followUpGuidance,
-					completed: task.progress === "COMPLETED",
-					turnCount: task.turnCount,
-				}),
-			),
-			transcript: transcriptRows.map((turn) => ({
-				role: turn.role === "ASSISTANT" ? "assistant" : "candidate",
-				text: turn.text,
-			})),
-			remainingSeconds,
-			mustEnd: remainingSeconds === 0,
-		};
-	}
-
-	/** Persists one assistant utterance, progress tools, and its next durable state. */
-	async saveAssistantTurn(
-		attemptId: string,
-		candidate: User,
-		input: {
-			text: string;
-			completedQuestionIds: string[];
-			engagedQuestionId: string | null;
-			endRequested: boolean;
-			forceEnd: boolean;
-		},
-	): Promise<SavedAssistantTurn> {
-		return this._database.transaction(async (transaction) => {
-			const [row] = await transaction
-				.select({
-					state: interviewAttempt.state,
-					deadlineAt: interviewAttempt.deadlineAt,
-				})
-				.from(interviewAttempt)
-				.where(
-					and(
-						eq(interviewAttempt.id, attemptId),
-						eq(interviewAttempt.candidateId, candidate.id),
-					),
-				)
-				.for("update");
-			if (!row) throw new NotFoundException("Interview attempt does not exist");
-			if (row.state !== "ASSISTANT_SPEAKING" && row.state !== "PROCESSING") {
-				throw new ConflictException("Assistant transcript is not expected now");
-			}
-			const deadlineReached =
-				row.deadlineAt !== null && row.deadlineAt.getTime() <= Date.now();
-
-			// A generation may finish after its deadline. In that race, discard the
-			// model move and do not mutate topic progress; the persisted/spoken turn
-			// is the server-owned time-limit close below.
-			const completedQuestionIds = deadlineReached
-				? []
-				: [...new Set(input.completedQuestionIds)];
-			if (completedQuestionIds.length > 0) {
-				const completed = await transaction
-					.update(attemptQuestionProgress)
-					.set({ state: "COMPLETED", completedAt: new Date() })
-					.where(
-						and(
-							eq(attemptQuestionProgress.attemptId, attemptId),
-							eq(attemptQuestionProgress.state, "PENDING"),
-							inArray(attemptQuestionProgress.questionId, completedQuestionIds),
-						),
-					)
-					.returning({ questionId: attemptQuestionProgress.questionId });
-				if (completed.length !== completedQuestionIds.length) {
-					throw new ConflictException(
-						"Interview topic progress changed before it could be completed",
-					);
-				}
-			}
-
-			if (!deadlineReached && input.engagedQuestionId) {
-				const [engaged] = await transaction
-					.update(attemptQuestionProgress)
-					.set({
-						turnCount: sql`${attemptQuestionProgress.turnCount} + 1`,
-					})
-					.where(
-						and(
-							eq(attemptQuestionProgress.attemptId, attemptId),
-							eq(attemptQuestionProgress.questionId, input.engagedQuestionId),
-							eq(attemptQuestionProgress.state, "PENDING"),
-						),
-					)
-					.returning({ questionId: attemptQuestionProgress.questionId });
-				if (!engaged) {
-					throw new ConflictException(
-						"Interview topic progress changed before the turn was saved",
-					);
-				}
-			}
-
-			let pendingCount = 0;
-			if (!deadlineReached) {
-				const [pending] = await transaction
-					.select({ count: count() })
-					.from(attemptQuestionProgress)
-					.where(
-						and(
-							eq(attemptQuestionProgress.attemptId, attemptId),
-							eq(attemptQuestionProgress.state, "PENDING"),
-						),
-					);
-				pendingCount = Number(pending?.count ?? 0);
-			}
-			const shouldEnd =
-				input.forceEnd ||
-				deadlineReached ||
-				(input.endRequested && pendingCount === 0);
-			const endReason = shouldEnd
-				? input.forceEnd || deadlineReached
-					? "TIME_LIMIT"
-					: "AI_COMPLETED"
-				: null;
-			const [saved] = await transaction
-				.insert(interviewTurn)
-				.values({
-					attemptId,
-					sequence: await this._nextSequence(transaction, attemptId),
-					role: "ASSISTANT",
-					text: deadlineReached ? TIME_LIMIT_CLOSING_TEXT : input.text,
-				})
-				.returning({ id: interviewTurn.id, text: interviewTurn.text });
-			if (!saved)
-				throw new ConflictException("Assistant transcript was not saved");
-
-			await transaction
-				.update(interviewAttempt)
-				.set({
-					state: shouldEnd ? "ENDING" : "ASSISTANT_SPEAKING",
-					endReason,
-					version: sql`${interviewAttempt.version} + 1`,
-				})
-				.where(eq(interviewAttempt.id, attemptId));
-			return { ...saved, shouldEnd, endReason };
-		});
-	}
-
-	/** Advances from assistant audio to listening or final completion. */
-	async finishAssistantSpeech(
-		attemptId: string,
-		candidate: User,
-	): Promise<AttemptSnapshot> {
-		await this._database
-			.update(interviewAttempt)
-			.set({
-				state: sql`case when ${interviewAttempt.state} = 'ENDING' then 'COMPLETED'::interview_attempt_state else 'LISTENING'::interview_attempt_state end`,
-				endedAt: sql`case when ${interviewAttempt.state} = 'ENDING' then now() else ${interviewAttempt.endedAt} end`,
-				cameraActive: sql`case when ${interviewAttempt.state} = 'ENDING' then false else ${interviewAttempt.cameraActive} end`,
-				screenActive: sql`case when ${interviewAttempt.state} = 'ENDING' then false else ${interviewAttempt.screenActive} end`,
-				microphoneActive: sql`case when ${interviewAttempt.state} = 'ENDING' then false else ${interviewAttempt.microphoneActive} end`,
-				version: sql`${interviewAttempt.version} + 1`,
-			})
-			.where(
-				and(
-					eq(interviewAttempt.id, attemptId),
-					eq(interviewAttempt.candidateId, candidate.id),
-					inArray(interviewAttempt.state, ["ASSISTANT_SPEAKING", "ENDING"]),
-				),
-			);
-		return this.findSnapshot(attemptId, candidate);
-	}
-
-	/** Claims any expired nonterminal work state for a final model turn. */
-	async claimDeadline(attemptId: string, candidate: User): Promise<boolean> {
-		const [claimed] = await this._database
-			.update(interviewAttempt)
-			.set({
-				state: "PROCESSING",
-				version: sql`${interviewAttempt.version} + 1`,
-			})
-			.where(
-				and(
-					eq(interviewAttempt.id, attemptId),
-					eq(interviewAttempt.candidateId, candidate.id),
-					inArray(interviewAttempt.state, [
-						"ASSISTANT_SPEAKING",
-						"LISTENING",
-						"PROCESSING",
-					]),
-					isNotNull(interviewAttempt.deadlineAt),
-					lte(interviewAttempt.deadlineAt, new Date()),
-				),
-			)
-			.returning({ id: interviewAttempt.id });
-		return claimed !== undefined;
-	}
-
-	/** Persists media status flags but never persists media bytes. */
-	async updateMedia(
-		attemptId: string,
-		candidate: User,
-		media: {
-			cameraActive: boolean;
-			screenActive: boolean;
-			microphoneActive: boolean;
-		},
-	): Promise<AttemptSnapshot> {
-		const [updated] = await this._database
-			.update(interviewAttempt)
-			.set({ ...media, version: sql`${interviewAttempt.version} + 1` })
-			.where(
-				and(
-					eq(interviewAttempt.id, attemptId),
-					eq(interviewAttempt.candidateId, candidate.id),
-					notInArray(interviewAttempt.state, ["COMPLETED", "FAILED"]),
-				),
-			)
-			.returning({ id: interviewAttempt.id });
-		if (!updated) {
-			await this._findOwnedRow(attemptId, candidate.id);
-			throw new ConflictException("Finished interview media cannot be changed");
-		}
-		return this.findSnapshot(attemptId, candidate);
-	}
-
-	/** Ends an attempt after a client-side integrity rule reports a violation. */
-	async failForIntegrity(
-		attemptId: string,
-		candidate: User,
-	): Promise<AttemptSnapshot> {
-		const [updated] = await this._database
-			.update(interviewAttempt)
-			.set({
-				state: "FAILED",
-				endedAt: new Date(),
-				cameraActive: false,
-				screenActive: false,
-				microphoneActive: false,
-				version: sql`${interviewAttempt.version} + 1`,
-			})
-			.where(
-				and(
-					eq(interviewAttempt.id, attemptId),
-					eq(interviewAttempt.candidateId, candidate.id),
-					notInArray(interviewAttempt.state, ["COMPLETED", "FAILED"]),
-				),
-			)
-			.returning({ id: interviewAttempt.id });
-		if (!updated) await this._findOwnedRow(attemptId, candidate.id);
-		return this.findSnapshot(attemptId, candidate);
+		return this._state.findSnapshot(attemptId, candidate);
 	}
 }

@@ -3,13 +3,6 @@ import { defineConfig } from "drizzle-kit";
 
 config({ path: process.env.ENV_FILE_PATH || ".env" });
 
-/** Returns one required environment variable for the Drizzle CLI. */
-function requiredEnvironment(name: string): string {
-	const value = process.env[name];
-	if (!value) throw new Error(`Missing required environment variable: ${name}`);
-	return value;
-}
-
 export default defineConfig({
 	dialect: "postgresql",
 	schema: "./src/db/schema/index.ts",
@@ -23,3 +16,10 @@ export default defineConfig({
 		ssl: process.env.PGSSLMODE === "disable" ? false : undefined,
 	},
 });
+
+/** Returns one required environment variable for the Drizzle CLI. */
+function requiredEnvironment(name: string): string {
+	const value = process.env[name];
+	if (!value) throw new Error(`Missing required environment variable: ${name}`);
+	return value;
+}

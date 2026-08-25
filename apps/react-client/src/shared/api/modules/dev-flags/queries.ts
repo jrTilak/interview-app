@@ -8,6 +8,7 @@ export function devFlagsQueryOptions() {
 		queryFn: getDevFlags,
 		queryKey: QUERY_KEYS.devFlags.current(),
 		refetchInterval: 5_000,
+		select: (response) => response.data,
 		staleTime: 2_000,
 	});
 }

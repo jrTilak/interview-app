@@ -1,5 +1,8 @@
 import {
+	AttemptStartEventSchema,
 	ConnectionPingEventSchema,
+	DisposableMediaChunkEventSchema,
+	IntegrityStatusEventSchema,
 	MicrophoneStartEventSchema,
 } from "./interview-realtime.protocol.js";
 
@@ -10,26 +13,32 @@ const identity = {
 const probeId = "536d1912-17b0-43f5-a08f-dc2dce239341";
 
 describe("interview realtime protocol", () => {
-	it("accepts only a strict UUID connection probe", () => {
+	it("validates a connection probe and strips unrelated fields", () => {
 		expect(ConnectionPingEventSchema.parse({ probeId })).toEqual({ probeId });
 		expect(() =>
 			ConnectionPingEventSchema.parse({ probeId: "not-a-uuid" }),
 		).toThrow();
-		expect(() =>
+		expect(
 			ConnectionPingEventSchema.parse({
 				probeId,
 				attemptId: identity.attemptId,
 			}),
-		).toThrow();
+		).toEqual({ probeId });
+	});
+
+	it("starts an attempt without an unused command identifier", () => {
+		expect(AttemptStartEventSchema.parse(identity)).toEqual({
+			attemptId: identity.attemptId,
+		});
 	});
 
 	it("normalizes parameterized supported audio MIME values", () => {
 		const parsed = MicrophoneStartEventSchema.parse({
 			...identity,
-			mimeType: "Audio/OGG; codecs=opus",
+			mimeType: "Audio/X-WAV; codecs=pcm",
 		});
 
-		expect(parsed.mimeType).toBe("audio/ogg");
+		expect(parsed.mimeType).toBe("audio/x-wav");
 		expect(parsed.channels).toBe(1);
 	});
 
@@ -49,12 +58,58 @@ describe("interview realtime protocol", () => {
 		).not.toThrow();
 	});
 
-	it("rejects unsupported browser WebM audio", () => {
+	it("leaves provider-specific PCM limits to the speech adapter", () => {
 		expect(() =>
 			MicrophoneStartEventSchema.parse({
 				...identity,
-				mimeType: "audio/webm;codecs=opus",
+				mimeType: "audio/l16",
+				sampleRateHz: 192_000,
+				channels: 4,
+			}),
+		).not.toThrow();
+		expect(() =>
+			MicrophoneStartEventSchema.parse({
+				...identity,
+				mimeType: "audio/l16",
+				sampleRateHz: 0,
 			}),
 		).toThrow();
+	});
+
+	it.each(["audio/ogg;codecs=opus", "audio/webm;codecs=opus"])(
+		"rejects unsupported browser audio %s",
+		(mimeType) => {
+			expect(() =>
+				MicrophoneStartEventSchema.parse({ ...identity, mimeType }),
+			).toThrow();
+		},
+	);
+
+	it("accepts nonnegative face counts without an arbitrary ceiling", () => {
+		expect(
+			IntegrityStatusEventSchema.parse({
+				attemptId: identity.attemptId,
+				detectedFaceCount: 20,
+			}),
+		).toEqual({ attemptId: identity.attemptId, detectedFaceCount: 20 });
+		expect(() =>
+			IntegrityStatusEventSchema.parse({
+				attemptId: identity.attemptId,
+				detectedFaceCount: -1,
+			}),
+		).toThrow();
+	});
+
+	it("keeps only the disposable media fields consumed by the server", () => {
+		const data = new Uint8Array([1, 2, 3]);
+
+		expect(
+			DisposableMediaChunkEventSchema.parse({
+				attemptId: identity.attemptId,
+				sequence: 3,
+				mimeType: "video/webm",
+				data,
+			}),
+		).toEqual({ attemptId: identity.attemptId, data });
 	});
 });

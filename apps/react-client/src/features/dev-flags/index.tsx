@@ -1,12 +1,12 @@
 import {
+	Alert,
 	Box,
 	Button,
-	Flex,
+	Card,
 	Grid,
-	Heading,
+	Separator,
 	Stack,
 	Switch,
-	Text,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { RotateCcw } from "lucide-react";
@@ -111,7 +111,7 @@ export function DevFlagsScreen() {
 	};
 
 	return (
-		<CreatorAppShell>
+		<CreatorAppShell title="Feature flags">
 			<PageHeader
 				action={
 					<Button
@@ -123,20 +123,16 @@ export function DevFlagsScreen() {
 					</Button>
 				}
 				description="Global, in-memory controls for development and demos."
-				eyebrow="Developer tools"
-				title="Feature flags"
 			/>
-			<Flex
-				bg="softWarning"
-				borderRadius="lg"
-				color="warningText"
-				fontSize="sm"
-				mt="6"
-				p="4"
-			>
-				Changes affect every client connected to this server and reset when the
-				server restarts.
-			</Flex>
+			<Alert.Root mt="6" status="warning">
+				<Alert.Indicator />
+				<Alert.Content>
+					<Alert.Description>
+						Changes affect every client connected to this server and reset when
+						the server restarts.
+					</Alert.Description>
+				</Alert.Content>
+			</Alert.Root>
 
 			<Box mt="7">
 				{flags.isPending && <LoadingState label="Loading feature flags" />}
@@ -153,49 +149,40 @@ export function DevFlagsScreen() {
 				{flags.data && (
 					<Grid gap="6" templateColumns="repeat(2, minmax(0, 1fr))">
 						{groups.map((group) => (
-							<Box
-								bg="surface"
-								borderColor="line"
-								borderRadius="xl"
-								borderWidth="1px"
-								key={group.title}
-								p="6"
-							>
-								<Heading fontFamily="display" fontSize="xl">
-									{group.title}
-								</Heading>
-								<Stack gap="0" mt="4">
-									{group.flags.map((flag) => (
-										<Switch.Root
-											alignItems="center"
-											borderTopColor="line"
-											borderTopWidth="1px"
-											checked={flags.data[flag.key]}
-											disabled={update.isPending}
-											display="flex"
-											justifyContent="space-between"
-											key={flag.key}
-											onCheckedChange={({ checked }) =>
-												void change(flag.key, checked)
-											}
-											py="4"
-										>
-											<Switch.HiddenInput />
-											<Box pr="5">
-												<Switch.Label fontSize="sm" fontWeight="700">
-													{flag.label}
-												</Switch.Label>
-												<Text color="muted" fontSize="xs" mt="1">
-													{flag.note}
-												</Text>
-											</Box>
-											<Switch.Control>
-												<Switch.Thumb />
-											</Switch.Control>
-										</Switch.Root>
-									))}
-								</Stack>
-							</Box>
+							<Card.Root key={group.title}>
+								<Card.Header>
+									<Card.Title>{group.title}</Card.Title>
+								</Card.Header>
+								<Card.Body>
+									<Stack gap="0" separator={<Separator />}>
+										{group.flags.map((flag) => (
+											<Switch.Root
+												alignItems="center"
+												checked={flags.data[flag.key]}
+												disabled={update.isPending}
+												display="flex"
+												justifyContent="space-between"
+												key={flag.key}
+												onCheckedChange={({ checked }) =>
+													void change(flag.key, checked)
+												}
+												py="4"
+											>
+												<Switch.HiddenInput />
+												<Box pr="5">
+													<Switch.Label>{flag.label}</Switch.Label>
+													<Card.Description mt="1">
+														{flag.note}
+													</Card.Description>
+												</Box>
+												<Switch.Control>
+													<Switch.Thumb />
+												</Switch.Control>
+											</Switch.Root>
+										))}
+									</Stack>
+								</Card.Body>
+							</Card.Root>
 						))}
 					</Grid>
 				)}

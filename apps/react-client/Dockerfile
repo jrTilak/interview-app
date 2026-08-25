@@ -34,7 +34,7 @@ ARG VITE_API_URL=""
 ENV VITE_API_URL=${VITE_API_URL}
 COPY tsconfig.json ./tsconfig.json
 COPY apps/react-client ./apps/react-client
-RUN pnpm --filter @interview-app/react-client build
+RUN pnpm --filter @interview-desk/react-client build
 
 FROM nginx:1.28-alpine AS runtime
 COPY apps/react-client/nginx.conf /etc/nginx/conf.d/default.conf

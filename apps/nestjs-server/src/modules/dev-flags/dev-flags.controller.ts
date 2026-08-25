@@ -10,10 +10,10 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuthGuard } from "@thallesp/nestjs-better-auth";
-import { ApiSessionAuth } from "../../common/decorators/api-session-auth.decorator.js";
-import { ApiSuccess } from "../../common/decorators/api-success.decorator.js";
-import { ApiResponse } from "../../common/dto/api-response.dto.js";
-import type { AppConfigService } from "../../types/index.js";
+import { ApiSessionAuth } from "#src/common/decorators/api-session-auth.decorator.js";
+import { ApiSuccess } from "#src/common/decorators/api-success.decorator.js";
+import { ApiResponse } from "#src/common/dto/api-response.dto.js";
+import type { AppConfigService } from "#src/types/index.js";
 import { DevFlagsResponseDto, UpdateDevFlagsDto } from "./dev-flags.dto.js";
 import { DevFlagsService } from "./dev-flags.service.js";
 

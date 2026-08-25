@@ -8,9 +8,9 @@ export default async function globalSetup(): Promise<void> {
 	const pool = new Pool({
 		host: "127.0.0.1",
 		port: 55432,
-		database: "interview_app_test",
-		user: "interview_app",
-		password: "interview_app",
+		database: "interview_desk_test",
+		user: "interview_desk",
+		password: "interview_desk",
 	});
 	try {
 		await pool.query("drop schema if exists public cascade");

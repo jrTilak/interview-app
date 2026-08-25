@@ -13,6 +13,12 @@ import {
 import { baseTable } from "./base-table.js";
 import { user } from "./better-auth.js";
 
+/**
+ * Creator-owned interview definition.
+ *
+ * Interviews are private until `isPublic` is enabled. The interview UUID is
+ * also its share identifier, so no separate share-code state is required.
+ */
 export const interview = pgTable(
 	"interview",
 	{
@@ -20,7 +26,6 @@ export const interview = pgTable(
 		createdById: uuid("created_by_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		clientRequestId: uuid("client_request_id").notNull(),
 		title: varchar("title", { length: 160 }).notNull(),
 		description: text("description"),
 		rawQuestions: text("raw_questions").notNull(),
@@ -28,14 +33,10 @@ export const interview = pgTable(
 		allowMultipleAttempts: boolean("allow_multiple_attempts")
 			.notNull()
 			.default(false),
-		shareCode: varchar("share_code", { length: 32 }).notNull(),
+		// The interview UUID is the share identifier; public access is gated here.
+		isPublic: boolean("is_public").notNull().default(false),
 	},
 	(table) => [
-		uniqueIndex("interview_owner_request_unique").on(
-			table.createdById,
-			table.clientRequestId,
-		),
-		uniqueIndex("interview_share_code_unique").on(table.shareCode),
 		index("interview_owner_created_idx").on(table.createdById, table.createdAt),
 		check(
 			"interview_duration_minutes_check",
@@ -44,6 +45,7 @@ export const interview = pgTable(
 	],
 );
 
+/** Ordered, structured question plan generated from an interview's raw input. */
 export const interviewQuestion = pgTable(
 	"interview_question",
 	{

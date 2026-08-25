@@ -1,14 +1,12 @@
 import { Module } from "@nestjs/common";
-import { AiModule } from "../ai/ai.module.js";
-import { InterviewCreationLimiterService } from "./interview-creation-limiter.service.js";
+import { AiModule } from "#src/modules/ai/ai.module.js";
 import { InterviewsController } from "./interviews.controller.js";
 import { InterviewsService } from "./interviews.service.js";
-import { SharedInterviewsController } from "./shared-interviews.controller.js";
 
 @Module({
 	imports: [AiModule],
-	controllers: [InterviewsController, SharedInterviewsController],
-	providers: [InterviewCreationLimiterService, InterviewsService],
+	controllers: [InterviewsController],
+	providers: [InterviewsService],
 	exports: [InterviewsService],
 })
 export class InterviewsModule {}

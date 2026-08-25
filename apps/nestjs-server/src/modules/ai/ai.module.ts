@@ -1,11 +1,15 @@
 import { Module } from "@nestjs/common";
-import { INTERVIEW_LLM, SPEECH_TO_TEXT, TEXT_TO_SPEECH } from "./ai.ports.js";
-import { LocalLlmAdapter } from "./local/local-llm.adapter.js";
-import { LocalSpeechToTextAdapter } from "./local/local-stt.adapter.js";
-import { LocalTextToSpeechAdapter } from "./local/local-tts.adapter.js";
+import { AiHttpService } from "./ai-http.service.js";
+import { INTERVIEW_LLM } from "./llm/llm.port.js";
+import { LocalLlmAdapter } from "./llm/local-llm.adapter.js";
+import { LocalSpeechToTextAdapter } from "./stt/local-stt.adapter.js";
+import { SPEECH_TO_TEXT } from "./stt/stt.port.js";
+import { LocalTextToSpeechAdapter } from "./tts/local-tts.adapter.js";
+import { TEXT_TO_SPEECH } from "./tts/tts.port.js";
 
 @Module({
 	providers: [
+		AiHttpService,
 		LocalLlmAdapter,
 		LocalSpeechToTextAdapter,
 		LocalTextToSpeechAdapter,

@@ -1,4 +1,4 @@
-import { Box, Flex, Table, Text } from "@chakra-ui/react";
+import { EmptyState, Status, Table, Text } from "@chakra-ui/react";
 import { formatDateTime } from "@/shared/lib/format";
 
 export type AttemptHistoryRow = {
@@ -21,17 +21,17 @@ export type AttemptHistoryRow = {
 	totalQuestionCount: number;
 };
 
-const attemptStatePresentation: Record<
+export const attemptStatePresentation: Record<
 	AttemptHistoryRow["state"],
-	{ color: string; label: string }
+	{ colorPalette: "brand" | "gray" | "green" | "red"; label: string }
 > = {
-	ASSISTANT_SPEAKING: { color: "cobalt", label: "In progress" },
-	COMPLETED: { color: "success", label: "Completed" },
-	ENDING: { color: "cobalt", label: "Finishing" },
-	FAILED: { color: "danger", label: "Failed" },
-	LISTENING: { color: "cobalt", label: "In progress" },
-	PROCESSING: { color: "cobalt", label: "In progress" },
-	READY: { color: "muted", label: "Ready" },
+	ASSISTANT_SPEAKING: { colorPalette: "brand", label: "In progress" },
+	COMPLETED: { colorPalette: "green", label: "Completed" },
+	ENDING: { colorPalette: "brand", label: "Finishing" },
+	FAILED: { colorPalette: "red", label: "Failed" },
+	LISTENING: { colorPalette: "brand", label: "In progress" },
+	PROCESSING: { colorPalette: "brand", label: "In progress" },
+	READY: { colorPalette: "gray", label: "Ready" },
 };
 
 const endReasonLabel: Record<
@@ -52,9 +52,11 @@ export function AttemptHistoryTable({
 }) {
 	if (rows.length === 0) {
 		return (
-			<Box borderColor="line" borderTopWidth="1px" color="muted" py="8">
-				{emptyMessage}
-			</Box>
+			<EmptyState.Root size="sm">
+				<EmptyState.Content>
+					<EmptyState.Description>{emptyMessage}</EmptyState.Description>
+				</EmptyState.Content>
+			</EmptyState.Root>
 		);
 	}
 
@@ -63,11 +65,11 @@ export function AttemptHistoryTable({
 			<Table.Root aria-label="Interview attempts" size="sm">
 				<Table.Header>
 					<Table.Row>
-						<ColumnHeader>Attempt</ColumnHeader>
-						<ColumnHeader>Status</ColumnHeader>
-						<ColumnHeader>Topics</ColumnHeader>
-						<ColumnHeader>Started</ColumnHeader>
-						<ColumnHeader>Finished</ColumnHeader>
+						<Table.ColumnHeader>Attempt</Table.ColumnHeader>
+						<Table.ColumnHeader>Status</Table.ColumnHeader>
+						<Table.ColumnHeader>Topics</Table.ColumnHeader>
+						<Table.ColumnHeader>Started</Table.ColumnHeader>
+						<Table.ColumnHeader>Finished</Table.ColumnHeader>
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
@@ -87,10 +89,10 @@ export function AttemptHistoryTable({
 									</Text>
 								</Table.Cell>
 								<Table.Cell minW="118px">
-									<Flex align="center" gap="2">
-										<Box bg={status.color} h="2" w="2" />
+									<Status.Root colorPalette={status.colorPalette}>
+										<Status.Indicator />
 										<Text fontWeight="600">{status.label}</Text>
-									</Flex>
+									</Status.Root>
 								</Table.Cell>
 								<Table.Cell fontFamily="mono" minW="92px">
 									{row.completedQuestionCount} / {row.totalQuestionCount}
@@ -116,19 +118,5 @@ export function AttemptHistoryTable({
 				</Table.Body>
 			</Table.Root>
 		</Table.ScrollArea>
-	);
-}
-
-function ColumnHeader({ children }: { children: React.ReactNode }) {
-	return (
-		<Table.ColumnHeader
-			color="muted"
-			fontFamily="mono"
-			fontSize="2xs"
-			py="3"
-			textTransform="uppercase"
-		>
-			{children}
-		</Table.ColumnHeader>
 	);
 }

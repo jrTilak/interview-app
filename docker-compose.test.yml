@@ -1,14 +1,16 @@
+name: interview-desk-test
+
 services:
   postgres-test:
     image: postgres:18-alpine
     environment:
-      POSTGRES_DB: interview_app_test
-      POSTGRES_USER: interview_app
-      POSTGRES_PASSWORD: interview_app
+      POSTGRES_DB: interview_desk_test
+      POSTGRES_USER: interview_desk
+      POSTGRES_PASSWORD: interview_desk
     ports:
       - "55432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U interview_app -d interview_app_test"]
+      test: ["CMD-SHELL", "pg_isready -U interview_desk -d interview_desk_test"]
       interval: 1s
       timeout: 3s
       retries: 30

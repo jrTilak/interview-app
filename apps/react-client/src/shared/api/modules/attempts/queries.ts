@@ -13,6 +13,7 @@ export function attemptQueryOptions(id: string) {
 		queryFn: () => getAttempt(id),
 		queryKey: QUERY_KEYS.attempts.detail(id),
 		refetchOnMount: "always",
+		select: (response) => response.data,
 		staleTime: 0,
 	});
 }
@@ -22,6 +23,7 @@ export function attemptHistoryQueryOptions() {
 		meta: { persist: false },
 		queryFn: listAttemptHistory,
 		queryKey: QUERY_KEYS.attempts.history(),
+		select: (response) => response.data,
 	});
 }
 
@@ -31,5 +33,6 @@ export function interviewParticipantAttemptsQueryOptions(interviewId: string) {
 		meta: { persist: false },
 		queryFn: () => listInterviewParticipantAttempts(interviewId),
 		queryKey: QUERY_KEYS.interviews.participantAttempts(interviewId),
+		select: (response) => response.data,
 	});
 }

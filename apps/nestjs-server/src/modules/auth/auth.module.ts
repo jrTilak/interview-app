@@ -1,8 +1,8 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { AuthModule as BetterAuthModule } from "@thallesp/nestjs-better-auth";
-import { type AppDatabase, DATABASE } from "../../db/database.provider.js";
-import type { AppConfigService } from "../../types/index.js";
+import { type AppDatabase, DATABASE } from "#src/db/database.provider.js";
+import type { AppConfigService } from "#src/types/index.js";
 import { createApplicationAuth } from "./auth.factory.js";
 
 /** Builds Better Auth using Nest-injected configuration and database services. */

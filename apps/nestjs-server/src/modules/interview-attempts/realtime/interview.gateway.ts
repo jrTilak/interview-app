@@ -24,11 +24,11 @@ import { AuthService, type UserSession } from "@thallesp/nestjs-better-auth";
 import { fromNodeHeaders } from "better-auth/node";
 import type { Server, Socket } from "socket.io";
 import type z from "zod";
-import type { AppConfigService } from "../../../types/index.js";
-import { DevFlagsService } from "../../dev-flags/dev-flags.service.js";
-import type { AttemptSnapshot } from "../dto/response.dto.js";
-import { InterviewAttemptsService } from "../interview-attempts.service.js";
-import { InterviewOrchestratorService } from "../interview-orchestrator.service.js";
+import { DevFlagsService } from "#src/modules/dev-flags/dev-flags.service.js";
+import type { AttemptSnapshot } from "#src/modules/interview-attempts/dto/response.dto.js";
+import { InterviewAttemptStateService } from "#src/modules/interview-attempts/interview-attempt-state.service.js";
+import { InterviewOrchestratorService } from "#src/modules/interview-attempts/interview-orchestrator.service.js";
+import type { AppConfigService } from "#src/types/index.js";
 import { AudioTurnBufferService } from "./audio-turn-buffer.service.js";
 import {
 	AttemptJoinEventSchema,
@@ -89,7 +89,7 @@ export class InterviewGateway
 	server!: Server;
 
 	constructor(
-		private readonly _attempts: InterviewAttemptsService,
+		private readonly _state: InterviewAttemptStateService,
 		private readonly _orchestrator: InterviewOrchestratorService,
 		private readonly _audioBuffers: AudioTurnBufferService,
 		private readonly _authService: AuthService,
@@ -98,7 +98,7 @@ export class InterviewGateway
 		private readonly _config: AppConfigService,
 	) {}
 
-	/** Parses a strict event schema and lets Zod errors become safe ack errors. */
+	/** Parses known event fields and lets Zod errors become safe ack errors. */
 	private _parse<T>(schema: z.ZodType<T>, payload: unknown): T {
 		return schema.parse(payload);
 	}
@@ -434,10 +434,7 @@ export class InterviewGateway
 		return this._acknowledge(client, async () => {
 			const session = this._session(client);
 			const { attemptId } = this._parse(AttemptJoinEventSchema, payload);
-			const snapshot = await this._attempts.findSnapshot(
-				attemptId,
-				session.user,
-			);
+			const snapshot = await this._state.findSnapshot(attemptId, session.user);
 			await client.join(`attempt:${attemptId}`);
 			client.data.attemptId = attemptId;
 			this._attemptSnapshots.set(attemptId, snapshot);
@@ -457,7 +454,7 @@ export class InterviewGateway
 			const session = this._session(client);
 			const { attemptId } = this._parse(AttemptStartEventSchema, payload);
 			this._assertJoined(client, attemptId);
-			const result = await this._attempts.start(attemptId, session.user);
+			const result = await this._state.start(attemptId, session.user);
 			this._scheduleDeadline(
 				attemptId,
 				result.snapshot.deadlineAt,
@@ -467,11 +464,14 @@ export class InterviewGateway
 			this.server
 				.to(`attempt:${attemptId}`)
 				.emit("attempt:state", result.snapshot);
-			void this._orchestrator.start(
-				attemptId,
-				session.user,
-				this._roomEmitter(attemptId),
-			);
+			if (result.shouldRunAssistant) {
+				void this._orchestrator.runAssistant(
+					attemptId,
+					session.user,
+					result.snapshot,
+					this._roomEmitter(attemptId),
+				);
+			}
 			return { accepted: true };
 		});
 	}
@@ -486,7 +486,7 @@ export class InterviewGateway
 			const session = this._session(client);
 			const event = this._parse(MicrophoneStartEventSchema, payload);
 			this._assertJoined(client, event.attemptId);
-			await this._attempts.assertListening(event.attemptId, session.user);
+			await this._state.assertListening(event.attemptId, session.user);
 			const owner = this._microphoneOwners.get(event.attemptId);
 			if (owner && owner !== client.id) {
 				throw new ConflictException(
@@ -586,7 +586,7 @@ export class InterviewGateway
 
 			this._audioBuffers.clear(client.id);
 			this._releaseMicrophone(client);
-			const snapshot = await this._attempts.failForIntegrity(
+			const snapshot = await this._state.failForIntegrity(
 				event.attemptId,
 				session.user,
 			);
@@ -618,7 +618,7 @@ export class InterviewGateway
 			const session = this._session(client);
 			const event = this._parse(MediaStatusEventSchema, payload);
 			this._assertJoined(client, event.attemptId);
-			const snapshot = await this._attempts.updateMedia(
+			const snapshot = await this._state.updateMedia(
 				event.attemptId,
 				session.user,
 				event,

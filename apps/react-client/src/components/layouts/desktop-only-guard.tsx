@@ -63,13 +63,20 @@ export function DesktopOnlyGuard({ children }: { children: ReactNode }) {
 		<Flex
 			bg="paper"
 			direction="column"
-			justify="space-between"
 			minH="100dvh"
 			p={{ base: "6", md: "10" }}
 		>
 			<Brand />
-			<Box borderTopColor="line" borderTopWidth="1px" maxW="2xl" pt="8">
-				<MonitorX aria-hidden="true" color="#2447F2" size={36} />
+			<Box
+				borderTopColor="line"
+				borderTopWidth="1px"
+				maxW="2xl"
+				my="auto"
+				pt="8"
+			>
+				<Box color="cobalt" w="fit-content">
+					<MonitorX aria-hidden="true" size={36} />
+				</Box>
 				<Text
 					color="cobalt"
 					fontFamily="mono"
@@ -82,7 +89,6 @@ export function DesktopOnlyGuard({ children }: { children: ReactNode }) {
 					Desktop workspace only
 				</Text>
 				<Heading
-					fontFamily="display"
 					fontSize={{ base: "4xl", md: "6xl" }}
 					letterSpacing="-0.045em"
 					lineHeight="0.96"
@@ -96,9 +102,6 @@ export function DesktopOnlyGuard({ children }: { children: ReactNode }) {
 						: "Widen this desktop window to at least 1100 pixels. Your session has not started and no media was requested."}
 				</Text>
 			</Box>
-			<Text color="muted" fontFamily="mono" fontSize="xs">
-				Minimum workspace · 1100 px
-			</Text>
 		</Flex>
 	);
 }

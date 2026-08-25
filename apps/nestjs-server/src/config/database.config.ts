@@ -1,7 +1,7 @@
 import type { FactoryProvider } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { PoolConfig } from "pg";
-import type { AppConfigService } from "../types/index.js";
+import type { AppConfigService } from "#src/types/index.js";
 
 export const DATABASE_CONFIG = Symbol("DATABASE_CONFIG");
 export type DatabaseConfig = PoolConfig;

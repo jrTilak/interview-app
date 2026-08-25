@@ -5,13 +5,10 @@ import {
 	Session,
 	type UserSession,
 } from "@thallesp/nestjs-better-auth";
-import { ApiSessionAuth } from "../../common/decorators/api-session-auth.decorator.js";
-import { ApiSuccess } from "../../common/decorators/api-success.decorator.js";
-import { ApiResponse } from "../../common/dto/api-response.dto.js";
-import {
-	InterviewIdParamsDto,
-	ShareCodeParamsDto,
-} from "../interviews/dto/request.dto.js";
+import { ApiSessionAuth } from "#src/common/decorators/api-session-auth.decorator.js";
+import { ApiSuccess } from "#src/common/decorators/api-success.decorator.js";
+import { ApiResponse } from "#src/common/dto/api-response.dto.js";
+import { InterviewIdParamsDto } from "#src/modules/interviews/dto/request.dto.js";
 import { AttemptIdParamsDto } from "./dto/request.dto.js";
 import {
 	AttemptSnapshotResponseDto,
@@ -27,8 +24,8 @@ import { InterviewAttemptsService } from "./interview-attempts.service.js";
 export class InterviewAttemptsController {
 	constructor(private readonly _attemptsService: InterviewAttemptsService) {}
 
-	/** Creates a permitted attempt or resumes the candidate's active one. */
-	@Post("shared-interviews/:shareCode/attempts")
+	/** Creates a permitted attempt or resumes it by public interview UUID. */
+	@Post("shared-interviews/:id/attempts")
 	@ApiOperation({ summary: "Join a shared interview" })
 	@ApiSuccess({
 		status: 201,
@@ -36,11 +33,11 @@ export class InterviewAttemptsController {
 		type: AttemptSnapshotResponseDto,
 	})
 	async createOrResume(
-		@Param() { shareCode }: ShareCodeParamsDto,
+		@Param() { id }: InterviewIdParamsDto,
 		@Session() session: UserSession,
 	): Promise<ApiResponse<AttemptSnapshotResponseDto>> {
 		return new ApiResponse({
-			data: await this._attemptsService.createOrResume(shareCode, session.user),
+			data: await this._attemptsService.createOrResume(id, session.user),
 		});
 	}
 

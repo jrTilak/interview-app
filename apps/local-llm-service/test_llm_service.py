@@ -329,7 +329,7 @@ class LlmPromptLatencyTests(unittest.TestCase):
         self.assertGreater(len(candidate_styles), 1)
         self.assertGreater(len(fallback_questions), 1)
 
-    def test_structure_prompt_uses_a_small_shape_example_not_a_full_schema(
+    def test_structure_prompt_is_compact_and_leaves_topic_count_to_the_model(
         self,
     ) -> None:
         prompt = structure_prompt(
@@ -337,12 +337,40 @@ class LlmPromptLatencyTests(unittest.TestCase):
             description="A practical interview",
             notes="Ask about API design and testing.",
         )
+        normalized_prompt = " ".join(prompt.split())
 
-        self.assertLessEqual(len(prompt), 1_300)
-        self.assertIn("OUTPUT_SHAPE_EXAMPLE", prompt)
-        self.assertIn("topic seed", prompt)
-        self.assertIn("Resource modeling, validation, and trade-offs", prompt)
+        self.assertLessEqual(len(prompt), 2_000)
+        self.assertIn("There is no fixed topic count", normalized_prompt)
+        self.assertIn("Creator notes define the scope", normalized_prompt)
+        self.assertIn("without adding adjacent skills", normalized_prompt)
+        self.assertIn("Split distinct concepts", normalized_prompt)
+        self.assertIn(
+            '"Python, SQL, Docker" means those three topics', normalized_prompt
+        )
+        self.assertIn('notes are vague, such as "general role fit"', normalized_prompt)
+        self.assertIn("infer several relevant topics", normalized_prompt)
+        self.assertIn(
+            "Use one topic only for a genuinely narrow brief",
+            normalized_prompt,
+        )
+        self.assertIn("never a spoken question", normalized_prompt)
+        self.assertIn(
+            "2-4 concrete subareas or trade-offs", normalized_prompt
+        )
+        self.assertIn("Never reuse a sentence across fields", normalized_prompt)
+        self.assertIn("FIELD_EXAMPLE", normalized_prompt)
+        self.assertIn("meaning only; never copy its subject", normalized_prompt)
+        self.assertIn(
+            "Schema boundaries, relationships, migrations, and consistency trade-offs",
+            normalized_prompt,
+        )
+        self.assertIn(
+            "tasks containing exactly title, prompt, objective, and",
+            normalized_prompt,
+        )
+        self.assertNotIn("Resource modeling, validation, and trade-offs", prompt)
         self.assertNotIn("How would you design this API?", prompt)
+        self.assertNotIn("Prefer one boundary per explicit note", prompt)
         self.assertNotIn("$defs", prompt)
         self.assertNotIn("maxLength", prompt)
 
@@ -513,6 +541,14 @@ class LlmOutputContractTests(unittest.TestCase):
             self.assertNotIn(f'"{keyword}"', serialized_format)
         self.assertIn('"additionalProperties": false', serialized_format)
         self.assertIn('"required"', serialized_format)
+        task_properties = provider_body["format"]["$defs"][
+            "StructuredInterviewTask"
+        ]["properties"]
+        self.assertIn("2-4 concrete subareas", task_properties["prompt"]["description"])
+        self.assertIn(
+            "not a repeat of prompt",
+            task_properties["objective"]["description"],
+        )
         self.assertEqual(
             provider_body["options"]["temperature"], main.STRUCTURE_TEMPERATURE
         )

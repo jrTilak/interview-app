@@ -28,10 +28,21 @@ class StructureRequest(StrictModel):
 class StructuredInterviewTask(StrictModel):
     """A creator-facing task without attempt-only state."""
 
-    title: ShortText
-    prompt: PromptText
-    objective: ContextText | None
-    followUpGuidance: ContextText | None
+    title: ShortText = Field(
+        description="Specific interview topic, not a broad role title or question."
+    )
+    prompt: PromptText = Field(
+        description=(
+            "Private declarative scope seed listing 2-4 concrete subareas or "
+            "trade-offs; distinct from the objective and never a spoken question."
+        )
+    )
+    objective: ContextText | None = Field(
+        description="Distinct purpose for exploring the topic, not a repeat of prompt."
+    )
+    followUpGuidance: ContextText | None = Field(
+        description="Distinct deeper direction, not fixed question wording."
+    )
 
 
 class StructureResponse(StrictModel):

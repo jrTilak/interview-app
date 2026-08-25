@@ -5,7 +5,6 @@ export type RoomConnectionStatus =
 	| "idle"
 	| "connecting"
 	| "connected"
-	| "reconnecting"
 	| "disconnected";
 
 export type RoomPlaybackStatus = "idle" | "buffering" | "playing";

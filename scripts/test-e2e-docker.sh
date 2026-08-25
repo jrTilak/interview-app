@@ -10,4 +10,4 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 docker compose -f "$compose_file" up --detach --wait
-pnpm --filter @interview-app/nestjs-server test:e2e
+pnpm --filter @interview-desk/nestjs-server test:e2e

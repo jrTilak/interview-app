@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import type { Observable } from "rxjs";
 import { map } from "rxjs/operators";
-import type { ApiResponseShape } from "../dto/api-response.dto.js";
+import type { ApiResponseShape } from "#src/common/dto/api-response.dto.js";
 
 /** Returns the conventional success message for one HTTP method. */
 function defaultMessage(method: string): string {

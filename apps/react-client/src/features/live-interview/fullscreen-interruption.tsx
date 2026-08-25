@@ -1,4 +1,13 @@
-import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import {
+	Alert,
+	Box,
+	Button,
+	Flex,
+	Heading,
+	Icon,
+	Stack,
+	Text,
+} from "@chakra-ui/react";
 import { Expand, ShieldAlert } from "lucide-react";
 import { Brand } from "@/components/atoms/brand";
 
@@ -34,7 +43,6 @@ export function FullscreenInterruption({
 			justify="space-between"
 			minH="100dvh"
 			p="10"
-			role="alert"
 		>
 			<Flex align="center" justify="space-between">
 				<Brand inverted />
@@ -43,13 +51,10 @@ export function FullscreenInterruption({
 				</Text>
 			</Flex>
 
-			<Box
-				borderTopColor="rgba(244,242,236,0.28)"
-				borderTopWidth="1px"
-				maxW="3xl"
-				pt="9"
-			>
-				<ShieldAlert aria-hidden="true" color="#D6FF4B" size={38} />
+			<Box borderTopColor="paper/25" borderTopWidth="1px" maxW="3xl" pt="9">
+				<Icon color="accent" size="2xl">
+					<ShieldAlert aria-hidden="true" />
+				</Icon>
 				<Text
 					color="accent"
 					fontFamily="mono"
@@ -60,13 +65,7 @@ export function FullscreenInterruption({
 				>
 					{label}
 				</Text>
-				<Heading
-					fontFamily="display"
-					fontSize="6xl"
-					letterSpacing="-0.045em"
-					lineHeight="0.98"
-					mt="4"
-				>
+				<Heading fontSize="6xl" lineHeight="0.98" mt="4">
 					{audioOnly
 						? "Enable interview audio."
 						: interrupted
@@ -74,7 +73,7 @@ export function FullscreenInterruption({
 							: "Enter the focused interview view."}
 				</Heading>
 				<Text
-					color="rgba(244,242,236,0.72)"
+					color="paper/72"
 					fontSize="lg"
 					lineHeight="1.65"
 					maxW="2xl"
@@ -86,17 +85,11 @@ export function FullscreenInterruption({
 				</Text>
 
 				{interrupted && !audioOnly && (
-					<Flex
-						borderColor="rgba(244,242,236,0.25)"
-						borderYWidth="1px"
-						gap="8"
-						mt="7"
-						py="4"
-					>
+					<Flex borderColor="paper/25" borderYWidth="1px" gap="8" mt="7" py="4">
 						<Text fontFamily="mono" fontSize="sm">
 							Fullscreen exits · {violations}
 						</Text>
-						<Text color="rgba(244,242,236,0.65)" fontSize="sm">
+						<Text color="paper/65" fontSize="sm">
 							Interview content remains concealed until restored.
 						</Text>
 					</Flex>
@@ -104,14 +97,12 @@ export function FullscreenInterruption({
 
 				<Stack align="flex-start" gap="3" mt="8">
 					<Button
-						bg="accent"
-						color="forest"
+						colorPalette="highlight"
 						disabled={!supported || pending}
-						h="12"
 						loading={pending}
 						loadingText="Opening fullscreen…"
 						onClick={onEnter}
-						px="6"
+						size="lg"
 					>
 						<Expand aria-hidden="true" size={17} />
 						{audioOnly
@@ -120,21 +111,21 @@ export function FullscreenInterruption({
 								? "Return to fullscreen"
 								: "Enter fullscreen"}
 					</Button>
-					{!supported && (
-						<Text color="#FFB7B2" fontSize="sm">
-							Fullscreen is unavailable. Use a recent desktop Chrome or Edge
-							browser.
-						</Text>
-					)}
-					{error && (
-						<Text color="#FFB7B2" fontSize="sm">
-							{error}
-						</Text>
+					{(!supported || error) && (
+						<Alert.Root role="alert" status="error" variant="solid">
+							<Alert.Indicator />
+							<Alert.Content>
+								<Alert.Description>
+									{error ??
+										"Fullscreen is unavailable. Use a recent desktop Chrome or Edge browser."}
+								</Alert.Description>
+							</Alert.Content>
+						</Alert.Root>
 					)}
 				</Stack>
 			</Box>
 
-			<Text color="rgba(244,242,236,0.55)" fontFamily="mono" fontSize="xs">
+			<Text color="paper/55" fontFamily="mono" fontSize="xs">
 				Browser safety controls remain available · fullscreen cannot be made
 				inescapable
 			</Text>

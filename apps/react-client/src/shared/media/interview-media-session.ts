@@ -66,6 +66,11 @@ export class InterviewMediaSession {
 			throw new Error("Screen sharing is unavailable in this browser.");
 		}
 		this._stopStream(this._snapshot.screenStream);
+		this._setSnapshot({
+			...this._snapshot,
+			screenActive: false,
+			screenStream: null,
+		});
 		const stream = await navigator.mediaDevices.getDisplayMedia({
 			audio: false,
 			monitorTypeSurfaces: "include",

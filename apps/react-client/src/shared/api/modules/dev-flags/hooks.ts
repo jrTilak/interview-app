@@ -6,8 +6,8 @@ export function useUpdateDevFlags() {
 	const cache = useQueryClient();
 	return useMutation({
 		mutationFn: updateDevFlags,
-		onSuccess(flags) {
-			cache.setQueryData(QUERY_KEYS.devFlags.current(), flags);
+		onSuccess(response) {
+			cache.setQueryData(QUERY_KEYS.devFlags.current(), response);
 		},
 	});
 }

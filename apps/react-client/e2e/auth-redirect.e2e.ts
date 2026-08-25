@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const shareCode = "uF7qP8Q3bFvLXrAQdS5kMK0pNPkVsU8_";
+const interviewId = "ad83ff52-d2e8-49f1-a580-8086390dc90a";
 
 test("preserves the unauthenticated shared-interview deep link", async ({
 	page,
@@ -9,7 +9,7 @@ test("preserves the unauthenticated shared-interview deep link", async ({
 	await page.route("**/api/auth/get-session", async (route) => {
 		await route.fulfill({ json: null, status: 200 });
 	});
-	await page.route("**/api/shared-interviews/**", async (route) => {
+	await page.route("**/api/interviews/public/**", async (route) => {
 		previewRequests += 1;
 		await route.fulfill({
 			json: { message: "Retrieved successfully", data: null },
@@ -17,17 +17,17 @@ test("preserves the unauthenticated shared-interview deep link", async ({
 		});
 	});
 
-	await page.goto(`/interviews/${shareCode}`);
+	await page.goto(`/interviews/${interviewId}`);
 
 	await expect(
 		page.getByRole("heading", { name: "Welcome back." }),
 	).toBeVisible();
 	await expect.poll(() => new URL(page.url()).pathname).toBe("/login");
 	expect(new URL(page.url()).searchParams.get("redirect")).toBe(
-		`/interviews/${shareCode}`,
+		`/interviews/${interviewId}`,
 	);
 	expect(previewRequests).toBe(0);
 	await expect(
 		page.getByRole("link", { name: "Create an account" }),
-	).toHaveAttribute("href", `/signup?redirect=%2Finterviews%2F${shareCode}`);
+	).toHaveAttribute("href", `/signup?redirect=%2Finterviews%2F${interviewId}`);
 });

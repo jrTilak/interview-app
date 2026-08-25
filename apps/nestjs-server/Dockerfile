@@ -26,19 +26,22 @@ WORKDIR /workspace
 FROM pnpm-base AS build-dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/nestjs-server/package.json ./apps/nestjs-server/package.json
+COPY packages/validations/package.json ./packages/validations/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-	pnpm install --frozen-lockfile
+	pnpm install --frozen-lockfile --ignore-scripts --trust-lockfile
 
 FROM build-dependencies AS build
 COPY tsconfig.json ./tsconfig.json
 COPY apps/nestjs-server ./apps/nestjs-server
-RUN pnpm --filter @interview-app/nestjs-server build
+COPY packages/validations ./packages/validations
+RUN pnpm --filter @interview-desk/nestjs-server... build
 
 FROM pnpm-base AS production-dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/nestjs-server/package.json ./apps/nestjs-server/package.json
+COPY packages/validations/package.json ./packages/validations/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-	pnpm install --frozen-lockfile --prod --filter @interview-app/nestjs-server
+	pnpm install --frozen-lockfile --ignore-scripts --trust-lockfile --prod --filter @interview-desk/nestjs-server...
 
 FROM node:${NODE_VERSION}-alpine AS runtime
 ENV NODE_ENV=production
@@ -46,9 +49,12 @@ WORKDIR /workspace
 
 COPY --from=production-dependencies /workspace/node_modules ./node_modules
 COPY --from=production-dependencies /workspace/apps/nestjs-server/node_modules ./apps/nestjs-server/node_modules
+COPY --from=production-dependencies /workspace/packages/validations/node_modules ./packages/validations/node_modules
 COPY apps/nestjs-server/package.json ./apps/nestjs-server/package.json
 COPY apps/nestjs-server/docs ./apps/nestjs-server/docs
 COPY --from=build /workspace/apps/nestjs-server/dist ./apps/nestjs-server/dist
+COPY packages/validations/package.json ./packages/validations/package.json
+COPY --from=build /workspace/packages/validations/dist ./packages/validations/dist
 
 WORKDIR /workspace/apps/nestjs-server
 USER node

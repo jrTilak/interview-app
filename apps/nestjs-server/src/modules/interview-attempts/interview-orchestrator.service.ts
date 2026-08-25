@@ -4,12 +4,19 @@ import {
 	type GeneratedInterviewTurn,
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
+} from "#src/modules/ai/llm/llm.port.js";
+import {
 	SPEECH_TO_TEXT,
 	type SpeechToTextPort,
+} from "#src/modules/ai/stt/stt.port.js";
+import {
 	TEXT_TO_SPEECH,
 	type TextToSpeechPort,
-} from "../ai/ai.ports.js";
-import { InterviewAttemptsService } from "./interview-attempts.service.js";
+} from "#src/modules/ai/tts/tts.port.js";
+import type { AttemptSnapshot } from "./dto/response.dto.js";
+import { TIME_LIMIT_CLOSING_TEXT } from "./interview-attempt.constants.js";
+import { InterviewAttemptStateService } from "./interview-attempt-state.service.js";
+import { InterviewConversationService } from "./interview-conversation.service.js";
 import type {
 	BufferedCandidateAudio,
 	InterviewEventEmitter,
@@ -19,12 +26,10 @@ import type {
 export class InterviewOrchestratorService {
 	private readonly _logger = new Logger(InterviewOrchestratorService.name);
 	private readonly _runningAttempts = new Set<string>();
-	private static readonly _MAX_INTERVIEWER_TEXT_LENGTH = 4_000;
-	private static readonly _MAX_TRANSCRIPT_LENGTH = 10_000;
-	private static readonly _MAX_TTS_BYTES = 20 * 1024 * 1024;
 
 	constructor(
-		private readonly _attempts: InterviewAttemptsService,
+		private readonly _state: InterviewAttemptStateService,
+		private readonly _conversation: InterviewConversationService,
 		@Inject(INTERVIEW_LLM)
 		private readonly _llm: InterviewLlmPort,
 		@Inject(SPEECH_TO_TEXT)
@@ -76,15 +81,7 @@ export class InterviewOrchestratorService {
 			isFinal: true,
 		});
 		try {
-			const audio = await this._textToSpeech.synthesize({
-				text: turn.text,
-			});
-			if (
-				audio.bytes.byteLength === 0 ||
-				audio.bytes.byteLength > InterviewOrchestratorService._MAX_TTS_BYTES
-			) {
-				throw new Error("Text-to-speech output violated the server size limit");
-			}
+			const audio = await this._textToSpeech.synthesize({ text: turn.text });
 
 			emit("assistant:audio:chunk", {
 				turnId: turn.id,
@@ -105,7 +102,8 @@ export class InterviewOrchestratorService {
 		}
 
 		emit("assistant:turn:end", { turnId: turn.id });
-		const snapshot = await this._attempts.finishAssistantSpeech(
+		await this._conversation.finishAssistantTurn(attemptId, turn.id);
+		const snapshot = await this._state.finishAssistantSpeech(
 			attemptId,
 			candidate,
 		);
@@ -118,13 +116,16 @@ export class InterviewOrchestratorService {
 		}
 	}
 
-	/** Generates, validates, persists, and speaks one model-controlled turn. */
+	/** Generates, persists, and speaks one model-controlled turn. */
 	private async _generateAndSpeak(
 		attemptId: string,
 		candidate: User,
 		emit: InterviewEventEmitter,
 	): Promise<void> {
-		const context = await this._attempts.loadModelContext(attemptId, candidate);
+		const context = await this._conversation.loadModelContext(
+			attemptId,
+			candidate,
+		);
 		const pendingTasks = context.tasks.filter((task) => !task.completed);
 		const activeTask = pendingTasks[0];
 		const nextTask = pendingTasks[1];
@@ -144,7 +145,7 @@ export class InterviewOrchestratorService {
 			if (activeTask && !context.mustEnd) throw error;
 			generated = {
 				text: context.mustEnd
-					? "Thank you for your time. The interview has now reached its time limit."
+					? TIME_LIMIT_CLOSING_TEXT
 					: "Thank you for your time. That concludes the interview.",
 				actions: [
 					{
@@ -176,13 +177,6 @@ export class InterviewOrchestratorService {
 			: completeCurrentTask
 				? (nextTask?.id ?? null)
 				: (activeTask?.id ?? null);
-		const text = generated.text.trim();
-		if (
-			text.length === 0 ||
-			text.length > InterviewOrchestratorService._MAX_INTERVIEWER_TEXT_LENGTH
-		) {
-			throw new Error("Interview model returned invalid spoken text");
-		}
 		// Provider action IDs and end requests never decide state. The server
 		// permits completion only after one answer, forces it after one optional
 		// follow-up, and closes only at the deadline or final completed topic.
@@ -190,34 +184,34 @@ export class InterviewOrchestratorService {
 			context.mustEnd ||
 			activeTask === undefined ||
 			(completeCurrentTask && nextTask === undefined);
-		const saved = await this._attempts.saveAssistantTurn(attemptId, candidate, {
-			text,
-			completedQuestionIds,
-			engagedQuestionId,
-			endRequested,
-			forceEnd: context.mustEnd,
-		});
+		const saved = await this._conversation.saveAssistantTurn(
+			attemptId,
+			candidate,
+			{
+				text: generated.text,
+				completedQuestionIds,
+				engagedQuestionId,
+				endRequested,
+				forceEnd: context.mustEnd,
+			},
+		);
 		await this._speak(attemptId, candidate, saved, emit);
 	}
 
-	/** Starts or resumes the assistant side of an attempt exactly once per process. */
-	async start(
+	/** Runs the prepared assistant side of an attempt exactly once per process. */
+	async runAssistant(
 		attemptId: string,
 		candidate: User,
+		snapshot: AttemptSnapshot,
 		emit: InterviewEventEmitter,
 	): Promise<void> {
 		if (this._runningAttempts.has(attemptId)) return;
 		this._runningAttempts.add(attemptId);
 		try {
-			const result = await this._attempts.start(attemptId, candidate);
-			emit("attempt:state", result.snapshot);
-			if (!result.shouldRunAssistant) return;
-
-			const lastTurn = result.snapshot.turns.at(-1);
+			const lastTurn = snapshot.turns.at(-1);
 			if (
 				lastTurn?.role === "assistant" &&
-				(result.snapshot.state === "ASSISTANT_SPEAKING" ||
-					result.snapshot.state === "ENDING")
+				(snapshot.state === "ASSISTANT_SPEAKING" || snapshot.state === "ENDING")
 			) {
 				await this._speak(attemptId, candidate, lastTurn, emit);
 				return;
@@ -253,7 +247,7 @@ export class InterviewOrchestratorService {
 			return;
 		}
 
-		const claim = await this._attempts.claimCandidateTurn(
+		const claim = await this._state.claimCandidateTurn(
 			audio.attemptId,
 			audio.turnId,
 			candidate,
@@ -263,19 +257,21 @@ export class InterviewOrchestratorService {
 		try {
 			emit(
 				"attempt:state",
-				await this._attempts.findSnapshot(audio.attemptId, candidate),
+				await this._state.findSnapshot(audio.attemptId, candidate),
 			);
 			let transcript: string;
 			try {
-				transcript = await this._speechToText.transcribe({
-					bytes: audio.bytes,
-					mimeType: audio.mimeType,
-					sampleRateHz: audio.sampleRateHz,
-					channels: audio.channels,
-				});
+				transcript = (
+					await this._speechToText.transcribe({
+						bytes: audio.bytes,
+						mimeType: audio.mimeType,
+						sampleRateHz: audio.sampleRateHz,
+						channels: audio.channels,
+					})
+				).trim();
 			} catch (error) {
 				this._logger.warn("Speech-to-text failed for a candidate turn", error);
-				const snapshot = await this._attempts.restoreListening(
+				const snapshot = await this._state.restoreListening(
 					audio.attemptId,
 					candidate,
 				);
@@ -288,8 +284,8 @@ export class InterviewOrchestratorService {
 				);
 				return;
 			}
-			if (!transcript.trim()) {
-				const snapshot = await this._attempts.restoreListening(
+			if (!transcript) {
+				const snapshot = await this._state.restoreListening(
 					audio.attemptId,
 					candidate,
 				);
@@ -302,29 +298,12 @@ export class InterviewOrchestratorService {
 				);
 				return;
 			}
-			if (
-				transcript.trim().length >
-				InterviewOrchestratorService._MAX_TRANSCRIPT_LENGTH
-			) {
-				const snapshot = await this._attempts.restoreListening(
-					audio.attemptId,
-					candidate,
-				);
-				emit("attempt:state", snapshot);
-				this._emitFailure(
-					emit,
-					"TRANSCRIPT_TOO_LONG",
-					"The candidate response was too long. Please answer more briefly.",
-					false,
-				);
-				return;
-			}
-
-			const saved = await this._attempts.saveCandidateTranscript(
+			const saved = await this._conversation.saveCandidateTranscript(
 				audio.attemptId,
 				audio.turnId,
-				transcript.trim(),
+				transcript,
 				candidate,
+				{ startedAt: audio.startedAt, endedAt: audio.endedAt },
 			);
 			emit("candidate:transcript", {
 				turnId: saved.id,
@@ -353,12 +332,12 @@ export class InterviewOrchestratorService {
 		emit: InterviewEventEmitter,
 	): Promise<void> {
 		if (this._runningAttempts.has(attemptId)) return;
-		if (!(await this._attempts.claimDeadline(attemptId, candidate))) return;
+		if (!(await this._state.claimDeadline(attemptId, candidate))) return;
 		this._runningAttempts.add(attemptId);
 		try {
 			emit(
 				"attempt:state",
-				await this._attempts.findSnapshot(attemptId, candidate),
+				await this._state.findSnapshot(attemptId, candidate),
 			);
 			await this._generateAndSpeak(attemptId, candidate, emit);
 		} finally {

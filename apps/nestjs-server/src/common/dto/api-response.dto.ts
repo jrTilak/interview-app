@@ -11,9 +11,6 @@ export class ApiErrorResponseDto {
 export class ApiSuccessResponseDto {
 	@ApiProperty({ example: "Retrieved successfully" })
 	message!: string;
-
-	@ApiPropertyOptional()
-	data?: unknown;
 }
 
 export type ApiResponseShape<T = undefined> = {

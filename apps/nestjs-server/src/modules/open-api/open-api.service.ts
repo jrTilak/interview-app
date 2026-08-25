@@ -9,11 +9,11 @@ import {
 import { apiReference } from "@scalar/nestjs-api-reference";
 import { AuthService } from "@thallesp/nestjs-better-auth";
 import { cleanupOpenApiDoc } from "nestjs-zod";
-import type { AppConfigService } from "../../types/index.js";
 import {
 	ALLOWED_AUTH_PATHS,
 	type ApplicationAuth,
-} from "../auth/auth.factory.js";
+} from "#src/modules/auth/auth.factory.js";
+import type { AppConfigService } from "#src/types/index.js";
 
 @Injectable()
 export class OpenApiService {
@@ -29,7 +29,7 @@ export class OpenApiService {
 		if (!candidate.paths)
 			throw new Error("Better Auth OpenAPI paths are missing");
 		for (const path of Object.keys(candidate.paths)) {
-			if (!ALLOWED_AUTH_PATHS.some((allowed) => path.endsWith(allowed))) {
+			if (!ALLOWED_AUTH_PATHS.some((allowed) => path === allowed)) {
 				delete candidate.paths[path];
 			}
 		}
