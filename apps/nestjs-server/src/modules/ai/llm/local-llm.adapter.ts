@@ -1,3 +1,4 @@
+import { TRANSCRIPT_LENGTH } from "@interview-desk/validations";
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import z from "zod";
@@ -17,7 +18,7 @@ export class LocalLlmAdapter implements InterviewLlmPort {
 	private static readonly _RESPONSE_MIME_TYPE = "application/json";
 	private static readonly _MAX_REQUEST_BYTES = 512 * 1024;
 	private static readonly _MAX_RESPONSE_BYTES = 512 * 1024;
-	private static readonly _MAX_TRANSCRIPT_CHARACTERS = 20_000;
+	private static readonly _MAX_TRANSCRIPT_CHARACTERS = TRANSCRIPT_LENGTH.max;
 
 	private static readonly _STRUCTURE_RESPONSE_SCHEMA = z
 		.object({

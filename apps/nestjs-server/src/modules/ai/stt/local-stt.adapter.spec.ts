@@ -1,3 +1,4 @@
+import { TRANSCRIPT_LENGTH } from "@interview-desk/validations";
 import { jest } from "@jest/globals";
 import { AiHttpService } from "#/modules/ai/ai-http.service.js";
 import type { AppConfigService } from "#/types/index.js";
@@ -273,6 +274,11 @@ describe("LocalSpeechToTextAdapter", () => {
 		[
 			"extra transcript field",
 			transcriptResponse({ text: "answer", debug: true }),
+			"invalid transcript payload",
+		],
+		[
+			"oversized transcript",
+			transcriptResponse({ text: "x".repeat(TRANSCRIPT_LENGTH.max + 1) }),
 			"invalid transcript payload",
 		],
 	] as const)("rejects %s", async (_label, response, message) => {

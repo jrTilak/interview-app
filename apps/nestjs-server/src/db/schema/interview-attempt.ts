@@ -1,3 +1,8 @@
+import {
+	ATTEMPT_END_REASONS,
+	ATTEMPT_STATES,
+	INTERVIEW_TURN_ROLES,
+} from "@interview-desk/validations";
 import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
@@ -16,31 +21,26 @@ import { baseTable } from "./base-table.js";
 import { user } from "./better-auth.js";
 import { interview, interviewQuestion } from "./interview.js";
 
-export const attemptState = pgEnum("interview_attempt_state", [
-	"READY",
-	"ASSISTANT_SPEAKING",
-	"LISTENING",
-	"PROCESSING",
-	"ENDING",
-	"COMPLETED",
-	"FAILED",
-]);
+export const attemptState = pgEnum("interview_attempt_state", ATTEMPT_STATES);
 
-export const attemptEndReason = pgEnum("interview_attempt_end_reason", [
-	"AI_COMPLETED",
-	"TIME_LIMIT",
-]);
+export const attemptEndReason = pgEnum(
+	"interview_attempt_end_reason",
+	ATTEMPT_END_REASONS,
+);
 
 export const questionProgressState = pgEnum("question_progress_state", [
 	"PENDING",
 	"COMPLETED",
 ]);
 
-export const turnRole = pgEnum("interview_turn_role", [
-	"ASSISTANT",
-	"CANDIDATE",
-]);
+export const turnRole = pgEnum("interview_turn_role", INTERVIEW_TURN_ROLES);
 
+/**
+ * One candidate's run through an interview.
+ *
+ * This row owns the attempt lifecycle, overall timing, and current media state.
+ * Question progress and conversation history are stored in their own tables.
+ */
 export const interviewAttempt = pgTable(
 	"interview_attempt",
 	{
@@ -56,7 +56,9 @@ export const interviewAttempt = pgTable(
 		deadlineAt: timestamp("deadline_at", { withTimezone: true }),
 		endedAt: timestamp("ended_at", { withTimezone: true }),
 		endReason: attemptEndReason("end_reason"),
+		// Monotonically increases whenever mutable attempt state changes.
 		version: integer("version").notNull().default(0),
+		// Current device state only; media activity history is not stored here.
 		cameraActive: boolean("camera_active").notNull().default(false),
 		screenActive: boolean("screen_active").notNull().default(false),
 		microphoneActive: boolean("microphone_active").notNull().default(false),
@@ -74,6 +76,12 @@ export const interviewAttempt = pgTable(
 	],
 );
 
+/**
+ * Server-owned progress for each question within one attempt.
+ *
+ * These rows track coverage of the interview plan; they are not conversation
+ * history and do not change the source interview questions.
+ */
 export const attemptQuestionProgress = pgTable(
 	"attempt_question_progress",
 	{
@@ -84,6 +92,7 @@ export const attemptQuestionProgress = pgTable(
 			.notNull()
 			.references(() => interviewQuestion.id, { onDelete: "cascade" }),
 		state: questionProgressState("state").notNull().default("PENDING"),
+		// Number of assistant turns that engaged this question.
 		turnCount: integer("turn_count").notNull().default(0),
 		completedAt: timestamp("completed_at", { withTimezone: true }),
 	},
@@ -94,6 +103,13 @@ export const attemptQuestionProgress = pgTable(
 	],
 );
 
+/**
+ * Durable, ordered conversation history for an interview attempt.
+ *
+ * Each row is one assistant or candidate utterance. `createdAt` records when
+ * the row was persisted, while `startedAt` and `endedAt` capture the
+ * server-observed utterance window. Audio bytes are intentionally not stored.
+ */
 export const interviewTurn = pgTable(
 	"interview_turn",
 	{
@@ -101,9 +117,14 @@ export const interviewTurn = pgTable(
 		attemptId: uuid("attempt_id")
 			.notNull()
 			.references(() => interviewAttempt.id, { onDelete: "cascade" }),
+		// Canonical conversation order; timestamps are analytical metadata.
 		sequence: integer("sequence").notNull(),
 		role: turnRole("role").notNull(),
 		text: text("text").notNull(),
+		// Server-observed utterance window; it does not claim client playback time.
+		startedAt: timestamp("started_at", { withTimezone: true }),
+		endedAt: timestamp("ended_at", { withTimezone: true }),
+		// Candidate-provided replay key; assistant turns do not need one.
 		clientTurnId: uuid("client_turn_id"),
 	},
 	(table) => [
@@ -116,6 +137,10 @@ export const interviewTurn = pgTable(
 			table.clientTurnId,
 		),
 		check("interview_turn_sequence_check", sql`${table.sequence} > 0`),
+		check(
+			"interview_turn_time_range_check",
+			sql`${table.endedAt} is null or (${table.startedAt} is not null and ${table.endedAt} >= ${table.startedAt})`,
+		),
 	],
 );
 

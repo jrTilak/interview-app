@@ -16,6 +16,7 @@ type BufferEntry = MicrophoneStartEvent & {
 	chunks: Uint8Array[];
 	expectedSequence: number;
 	totalBytes: number;
+	startedAt: Date;
 	timer?: NodeJS.Timeout;
 	onSilence: () => void;
 };
@@ -64,6 +65,7 @@ export class AudioTurnBufferService {
 			chunks: [],
 			expectedSequence: 0,
 			totalBytes: 0,
+			startedAt: new Date(),
 			onSilence,
 		};
 		this._buffers.set(socketId, entry);
@@ -150,6 +152,8 @@ export class AudioTurnBufferService {
 			sampleRateHz: entry.sampleRateHz,
 			channels: entry.channels,
 			bytes: Buffer.concat(entry.chunks.map((chunk) => Buffer.from(chunk))),
+			startedAt: entry.startedAt,
+			endedAt: new Date(),
 		};
 	}
 

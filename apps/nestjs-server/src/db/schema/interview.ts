@@ -13,6 +13,12 @@ import {
 import { baseTable } from "./base-table.js";
 import { user } from "./better-auth.js";
 
+/**
+ * Creator-owned interview definition.
+ *
+ * Interviews are private until `isPublic` is enabled. The interview UUID is
+ * also its share identifier, so no separate share-code state is required.
+ */
 export const interview = pgTable(
 	"interview",
 	{
@@ -39,6 +45,7 @@ export const interview = pgTable(
 	],
 );
 
+/** Ordered, structured question plan generated from an interview's raw input. */
 export const interviewQuestion = pgTable(
 	"interview_question",
 	{

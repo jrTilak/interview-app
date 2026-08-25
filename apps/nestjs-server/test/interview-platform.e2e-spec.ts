@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { io, type Socket } from "socket.io-client";
 import request from "supertest";
 import { AppModule } from "#/app.module.js";
 import { type AppDatabase, DATABASE } from "#/db/database.provider.js";
-import { interviewAttempt } from "#/db/schema/index.js";
+import { interviewAttempt, interviewTurn } from "#/db/schema/index.js";
 import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
@@ -20,7 +20,7 @@ import {
 	TEXT_TO_SPEECH,
 	type TextToSpeechPort,
 } from "#/modules/ai/tts/tts.port.js";
-import { InterviewAttemptsService } from "#/modules/interview-attempts/interview-attempts.service.js";
+import { InterviewAttemptStateService } from "#/modules/interview-attempts/interview-attempt-state.service.js";
 import { OpenApiService } from "#/modules/open-api/open-api.service.js";
 import type { AppConfigService } from "#/types/index.js";
 
@@ -506,7 +506,7 @@ describe("interview platform end to end", () => {
 		expect(joined.data.state).toBe("READY");
 		expect(
 			await app
-				.get(InterviewAttemptsService)
+				.get(InterviewAttemptStateService)
 				.claimDeadline(attemptId, candidateUser),
 		).toBe(false);
 
@@ -657,6 +657,61 @@ describe("interview platform end to end", () => {
 		expect(finalSnapshot.body.data.turns.map((turn: any) => turn.role)).toEqual(
 			["assistant", "candidate", "assistant", "candidate", "assistant"],
 		);
+		const persistedTurns = await app
+			.get<AppDatabase>(DATABASE)
+			.select({
+				sequence: interviewTurn.sequence,
+				role: interviewTurn.role,
+				text: interviewTurn.text,
+				startedAt: interviewTurn.startedAt,
+				endedAt: interviewTurn.endedAt,
+			})
+			.from(interviewTurn)
+			.where(eq(interviewTurn.attemptId, attemptId))
+			.orderBy(asc(interviewTurn.sequence));
+		expect(
+			persistedTurns.map(({ sequence, role, text }) => ({
+				sequence,
+				role,
+				text,
+			})),
+		).toEqual([
+			{
+				sequence: 1,
+				role: "assistant",
+				text: "Hello Candidate Ada. What experience have you had with react state?",
+			},
+			{
+				sequence: 2,
+				role: "candidate",
+				text: "This is my candidate answer.",
+			},
+			{
+				sequence: 3,
+				role: "assistant",
+				text: "Thank you for that context. Could you walk me through your experience with difficult bug?",
+			},
+			{
+				sequence: 4,
+				role: "candidate",
+				text: "This is my candidate answer.",
+			},
+			{
+				sequence: 5,
+				role: "assistant",
+				text: "Thank you for sharing that. This concludes the interview.",
+			},
+		]);
+		for (const turn of persistedTurns) {
+			expect(turn.startedAt).toBeInstanceOf(Date);
+			expect(turn.endedAt).toBeInstanceOf(Date);
+			if (!turn.startedAt || !turn.endedAt) {
+				throw new Error("Persisted conversation timing is incomplete");
+			}
+			expect(turn.endedAt.getTime()).toBeGreaterThanOrEqual(
+				turn.startedAt.getTime(),
+			);
+		}
 		expect(fakeLlm.turnCalls).toBe(3);
 		await request(app.getHttpServer())
 			.delete(`/api/interviews/${ownerInterviewId}`)

@@ -1,3 +1,5 @@
+import type { InterviewTurnRole } from "@interview-desk/validations";
+
 export const INTERVIEW_LLM = Symbol("INTERVIEW_LLM");
 
 /** Provider-neutral question fields that application services may persist. */
@@ -23,7 +25,7 @@ export type InterviewTaskContext = StructuredInterviewQuestion & {
 };
 
 export type InterviewTranscriptEntry = {
-	role: "assistant" | "candidate";
+	role: InterviewTurnRole;
 	text: string;
 };
 

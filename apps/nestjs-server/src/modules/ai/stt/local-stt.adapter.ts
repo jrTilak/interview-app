@@ -1,3 +1,4 @@
+import { TRANSCRIPT_LENGTH } from "@interview-desk/validations";
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import z from "zod";
@@ -17,7 +18,7 @@ export class LocalSpeechToTextAdapter implements SpeechToTextPort {
 	private static readonly _MIN_PCM_SAMPLE_RATE_HZ = 8_000;
 	private static readonly _MAX_PCM_SAMPLE_RATE_HZ = 192_000;
 	private static readonly _TRANSCRIPT_SCHEMA = z
-		.object({ text: z.string().trim() })
+		.object({ text: z.string().trim().max(TRANSCRIPT_LENGTH.max) })
 		.strict();
 
 	constructor(

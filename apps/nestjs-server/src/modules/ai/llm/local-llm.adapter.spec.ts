@@ -1,3 +1,4 @@
+import { TRANSCRIPT_LENGTH } from "@interview-desk/validations";
 import { jest } from "@jest/globals";
 import type { AppConfigService } from "#/types/index.js";
 import { AiHttpService } from "../ai-http.service.js";
@@ -197,7 +198,7 @@ describe("LocalLlmAdapter", () => {
 
 		const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string);
 		const sentTranscript = body.transcript as string;
-		expect(sentTranscript.length).toBeLessThanOrEqual(20_000);
+		expect(sentTranscript.length).toBeLessThanOrEqual(TRANSCRIPT_LENGTH.max);
 		expect(JSON.parse(sentTranscript)).toEqual(transcript.slice(-2));
 	});
 
@@ -218,7 +219,7 @@ describe("LocalLlmAdapter", () => {
 			role: string;
 			text: string;
 		}>;
-		expect(serialized).toHaveLength(20_000);
+		expect(serialized).toHaveLength(TRANSCRIPT_LENGTH.max);
 		expect(entry?.role).toBe("candidate");
 		expect(entry?.text.length).toBeGreaterThan(19_000);
 		expect(entry?.text.length).toBeLessThan(text.length);

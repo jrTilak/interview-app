@@ -6,8 +6,10 @@ import type {
 import type { SpeechToTextPort } from "#/modules/ai/stt/stt.port.js";
 import type { TextToSpeechPort } from "#/modules/ai/tts/tts.port.js";
 import type { AttemptSnapshot } from "./dto/response.dto.js";
-import type { InterviewAttemptsService } from "./interview-attempts.service.js";
+import type { InterviewAttemptStateService } from "./interview-attempt-state.service.js";
+import type { InterviewConversationService } from "./interview-conversation.service.js";
 import { InterviewOrchestratorService } from "./interview-orchestrator.service.js";
+import type { BufferedCandidateAudio } from "./realtime/interview-realtime.protocol.js";
 
 const candidate = {
 	id: "4b8757d8-b56b-47eb-827f-65b14977fa25",
@@ -23,6 +25,8 @@ const attemptId = "f0c765b0-a9fe-4a67-bf75-a63486949831";
 const questionId = "7635f24a-adb3-457c-8e43-2d0a1a8fa0df";
 const futureQuestionId = "83e0c06d-cbbf-47db-80fe-9da1bc4d37b0";
 const turnId = "19ad8c03-9e89-4d23-b393-d3cd6a654900";
+const candidateStartedAt = new Date("2026-08-01T00:05:00.000Z");
+const candidateEndedAt = new Date("2026-08-01T00:05:12.000Z");
 
 /** Creates a typed resolved async Jest mock without `never` inference. */
 function asyncMock<T>(value: T) {
@@ -111,13 +115,26 @@ async function speechResponse() {
 	};
 }
 
+/** Builds buffered candidate audio with its server-recorded speaking range. */
+function candidateAudio(bytes = Buffer.from("audio")): BufferedCandidateAudio {
+	return {
+		attemptId,
+		turnId,
+		mimeType: "audio/wav",
+		channels: 1,
+		bytes,
+		startedAt: candidateStartedAt,
+		endedAt: candidateEndedAt,
+	};
+}
+
 describe("InterviewOrchestratorService", () => {
 	it("uses the LLM for a personalized opening without completing its topic", async () => {
-		const attempts = {
-			start: asyncMock({
-				snapshot: snapshot("ASSISTANT_SPEAKING"),
-				shouldRunAssistant: true,
-			}),
+		const state = {
+			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
+			claimDeadline: asyncMock(false),
+		};
+		const conversation = {
 			loadModelContext: asyncMock(modelContext()),
 			saveAssistantTurn: asyncMock({
 				id: turnId,
@@ -125,8 +142,7 @@ describe("InterviewOrchestratorService", () => {
 				shouldEnd: false,
 				endReason: null,
 			}),
-			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
-			claimDeadline: asyncMock(false),
+			finishAssistantTurn: asyncMock(undefined),
 		};
 		const llm = createLlm({
 			text: "Welcome, Ada. How have effects shaped the React work you have done?",
@@ -134,15 +150,19 @@ describe("InterviewOrchestratorService", () => {
 		});
 		const tts: TextToSpeechPort = { synthesize: speechResponse };
 		const service = new InterviewOrchestratorService(
-			attempts as unknown as InterviewAttemptsService,
+			state as unknown as InterviewAttemptStateService,
+			conversation as unknown as InterviewConversationService,
 			llm,
 			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
 			tts,
 		);
 		const events: Array<{ event: string; payload: any }> = [];
 
-		await service.start(attemptId, candidate, (event, payload) =>
-			events.push({ event, payload }),
+		await service.runAssistant(
+			attemptId,
+			candidate,
+			snapshot("ASSISTANT_SPEAKING"),
+			(event, payload) => events.push({ event, payload }),
 		);
 
 		expect(llm.generateTurn).toHaveBeenCalledWith(
@@ -151,7 +171,7 @@ describe("InterviewOrchestratorService", () => {
 				transcript: [],
 			}),
 		);
-		expect(attempts.saveAssistantTurn).toHaveBeenCalledWith(
+		expect(conversation.saveAssistantTurn).toHaveBeenCalledWith(
 			attemptId,
 			candidate,
 			{
@@ -186,12 +206,68 @@ describe("InterviewOrchestratorService", () => {
 		).toBeLessThan(
 			events.findIndex(({ event }) => event === "assistant:turn:end"),
 		);
+		expect(conversation.finishAssistantTurn).toHaveBeenCalledWith(
+			attemptId,
+			turnId,
+		);
 		expect(events.at(-1)?.payload.state).toBe("LISTENING");
+	});
+
+	it("finishes a recovered assistant turn even when audio is unavailable", async () => {
+		const state = {
+			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
+			claimDeadline: asyncMock(false),
+		};
+		const conversation = {
+			loadModelContext: jest.fn(),
+			finishAssistantTurn: asyncMock(undefined),
+		};
+		const llm = createLlm();
+		const events: Array<{ event: string; payload: unknown }> = [];
+		const service = new InterviewOrchestratorService(
+			state as unknown as InterviewAttemptStateService,
+			conversation as unknown as InterviewConversationService,
+			llm,
+			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
+			{
+				synthesize: rejectedAsyncMock(new Error("TTS unavailable")),
+			},
+		);
+		const recovered = snapshot("ASSISTANT_SPEAKING", [
+			{
+				id: turnId,
+				sequence: 1,
+				role: "assistant",
+				text: "Let us continue with the next question.",
+				startedAt: "2026-08-01T00:04:00.000Z",
+				endedAt: null,
+				createdAt: "2026-08-01T00:04:00.000Z",
+			},
+		]);
+
+		await service.runAssistant(
+			attemptId,
+			candidate,
+			recovered,
+			(event, payload) => events.push({ event, payload }),
+		);
+
+		expect(llm.generateTurn).not.toHaveBeenCalled();
+		expect(conversation.loadModelContext).not.toHaveBeenCalled();
+		expect(conversation.finishAssistantTurn).toHaveBeenCalledWith(
+			attemptId,
+			turnId,
+		);
+		expect(events).toContainEqual({
+			event: "attempt:error",
+			payload: expect.objectContaining({ code: "AUDIO_UNAVAILABLE" }),
+		});
+		expect(events.map(({ event }) => event)).toContain("assistant:turn:end");
 	});
 
 	it("restores and emits LISTENING when transcription fails", async () => {
 		const listening = snapshot("LISTENING");
-		const attempts = {
+		const state = {
 			claimCandidateTurn: asyncMock({ claimed: true, duplicate: false }),
 			findSnapshot: asyncMock(snapshot("PROCESSING")),
 			restoreListening: asyncMock(listening),
@@ -199,20 +275,15 @@ describe("InterviewOrchestratorService", () => {
 		};
 		const events: Array<{ event: string; payload: any }> = [];
 		const service = new InterviewOrchestratorService(
-			attempts as unknown as InterviewAttemptsService,
+			state as unknown as InterviewAttemptStateService,
+			{} as InterviewConversationService,
 			createLlm(),
 			{ transcribe: rejectedAsyncMock(new Error("STT unavailable")) },
 			{ synthesize: speechResponse },
 		);
 
 		await service.processCandidateAudio(
-			{
-				attemptId,
-				turnId,
-				mimeType: "audio/wav",
-				channels: 1,
-				bytes: Buffer.from("audio"),
-			},
+			candidateAudio(),
 			candidate,
 			(event, payload) => events.push({ event, payload }),
 		);
@@ -229,9 +300,14 @@ describe("InterviewOrchestratorService", () => {
 
 	it("transcribes a candidate turn and emits final completion", async () => {
 		const completed = snapshot("COMPLETED");
-		const attempts = {
+		const assistantTurnId = "8f5a5033-020b-4187-88d7-2d7a07e53917";
+		const state = {
 			claimCandidateTurn: asyncMock({ claimed: true, duplicate: false }),
 			findSnapshot: asyncMock(snapshot("PROCESSING")),
+			finishAssistantSpeech: asyncMock(completed),
+			claimDeadline: asyncMock(false),
+		};
+		const conversation = {
 			saveCandidateTranscript: asyncMock({
 				id: turnId,
 				text: "My candidate answer",
@@ -242,16 +318,16 @@ describe("InterviewOrchestratorService", () => {
 				remainingSeconds: 0,
 			}),
 			saveAssistantTurn: asyncMock({
-				id: "8f5a5033-020b-4187-88d7-2d7a07e53917",
+				id: assistantTurnId,
 				text: "Thank you. This interview is complete.",
 				shouldEnd: true,
 				endReason: "TIME_LIMIT",
 			}),
-			finishAssistantSpeech: asyncMock(completed),
-			claimDeadline: asyncMock(false),
+			finishAssistantTurn: asyncMock(undefined),
 		};
 		const service = new InterviewOrchestratorService(
-			attempts as unknown as InterviewAttemptsService,
+			state as unknown as InterviewAttemptStateService,
+			conversation as unknown as InterviewConversationService,
 			createLlm({
 				text: "Thank you. This interview is complete.",
 				actions: [{ type: "end_interview", reason: "done" }],
@@ -261,25 +337,27 @@ describe("InterviewOrchestratorService", () => {
 		);
 		const events: string[] = [];
 
-		await service.processCandidateAudio(
-			{
-				attemptId,
-				turnId,
-				mimeType: "audio/wav",
-				channels: 1,
-				bytes: Buffer.from("audio"),
-			},
-			candidate,
-			(event) => events.push(event),
+		await service.processCandidateAudio(candidateAudio(), candidate, (event) =>
+			events.push(event),
 		);
 
-		expect(attempts.saveCandidateTranscript).toHaveBeenCalledTimes(1);
+		expect(conversation.saveCandidateTranscript).toHaveBeenCalledWith(
+			attemptId,
+			turnId,
+			"My candidate answer",
+			candidate,
+			{ startedAt: candidateStartedAt, endedAt: candidateEndedAt },
+		);
+		expect(conversation.finishAssistantTurn).toHaveBeenCalledWith(
+			attemptId,
+			assistantTurnId,
+		);
 		expect(events).toContain("candidate:transcript");
 		expect(events).toContain("attempt:ended");
 	});
 
 	it("restores listening and does not call the LLM when speech is empty", async () => {
-		const attempts = {
+		const state = {
 			claimCandidateTurn: asyncMock({ claimed: true, duplicate: false }),
 			findSnapshot: asyncMock(snapshot("PROCESSING")),
 			restoreListening: asyncMock(snapshot("LISTENING")),
@@ -288,27 +366,22 @@ describe("InterviewOrchestratorService", () => {
 		const llm = createLlm();
 		const errors: any[] = [];
 		const service = new InterviewOrchestratorService(
-			attempts as unknown as InterviewAttemptsService,
+			state as unknown as InterviewAttemptStateService,
+			{} as InterviewConversationService,
 			llm,
 			{ transcribe: asyncMock("   ") },
 			{ synthesize: speechResponse },
 		);
 
 		await service.processCandidateAudio(
-			{
-				attemptId,
-				turnId,
-				mimeType: "audio/wav",
-				channels: 1,
-				bytes: Buffer.from("silence"),
-			},
+			candidateAudio(Buffer.from("silence")),
 			candidate,
 			(event, payload) => {
 				if (event === "attempt:error") errors.push(payload);
 			},
 		);
 
-		expect(attempts.restoreListening).toHaveBeenCalledTimes(1);
+		expect(state.restoreListening).toHaveBeenCalledTimes(1);
 		expect(llm.generateTurn).not.toHaveBeenCalled();
 		expect(errors).toContainEqual(
 			expect.objectContaining({ code: "NO_SPEECH" }),
@@ -316,11 +389,11 @@ describe("InterviewOrchestratorService", () => {
 	});
 
 	it("allows one conversational follow-up and refuses a premature end", async () => {
-		const attempts = {
-			start: asyncMock({
-				snapshot: snapshot("ASSISTANT_SPEAKING"),
-				shouldRunAssistant: true,
-			}),
+		const state = {
+			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
+			claimDeadline: asyncMock(false),
+		};
+		const conversation = {
 			loadModelContext: asyncMock({
 				...modelContext(),
 				tasks: modelContext().tasks.map((task, index) => ({
@@ -335,11 +408,11 @@ describe("InterviewOrchestratorService", () => {
 				shouldEnd: false,
 				endReason: null,
 			}),
-			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
-			claimDeadline: asyncMock(false),
+			finishAssistantTurn: asyncMock(undefined),
 		};
 		const service = new InterviewOrchestratorService(
-			attempts as unknown as InterviewAttemptsService,
+			state as unknown as InterviewAttemptStateService,
+			conversation as unknown as InterviewConversationService,
 			createLlm({
 				text: "That is a useful example. What trade-off did you notice?",
 				actions: [{ type: "end_interview", reason: "too early" }],
@@ -348,9 +421,14 @@ describe("InterviewOrchestratorService", () => {
 			{ synthesize: speechResponse },
 		);
 
-		await service.start(attemptId, candidate, jest.fn());
+		await service.runAssistant(
+			attemptId,
+			candidate,
+			snapshot("ASSISTANT_SPEAKING"),
+			jest.fn(),
+		);
 
-		expect(attempts.saveAssistantTurn).toHaveBeenCalledWith(
+		expect(conversation.saveAssistantTurn).toHaveBeenCalledWith(
 			attemptId,
 			candidate,
 			{
@@ -368,11 +446,11 @@ describe("InterviewOrchestratorService", () => {
 			...task,
 			turnCount: index === 0 ? 2 : 0,
 		}));
-		const attempts = {
-			start: asyncMock({
-				snapshot: snapshot("ASSISTANT_SPEAKING"),
-				shouldRunAssistant: true,
-			}),
+		const state = {
+			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
+			claimDeadline: asyncMock(false),
+		};
+		const conversation = {
 			loadModelContext: asyncMock({
 				...modelContext(),
 				tasks,
@@ -386,26 +464,31 @@ describe("InterviewOrchestratorService", () => {
 				shouldEnd: false,
 				endReason: null,
 			}),
-			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
-			claimDeadline: asyncMock(false),
+			finishAssistantTurn: asyncMock(undefined),
 		};
 		const llm = createLlm({
 			text: "Thanks for expanding on that. Tell me about a bug that challenged you.",
 			actions: [],
 		});
 		const service = new InterviewOrchestratorService(
-			attempts as unknown as InterviewAttemptsService,
+			state as unknown as InterviewAttemptStateService,
+			conversation as unknown as InterviewConversationService,
 			llm,
 			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
 			{ synthesize: speechResponse },
 		);
 
-		await service.start(attemptId, candidate, jest.fn());
+		await service.runAssistant(
+			attemptId,
+			candidate,
+			snapshot("ASSISTANT_SPEAKING"),
+			jest.fn(),
+		);
 
 		expect(llm.generateTurn).toHaveBeenCalledWith(
 			expect.objectContaining({ tasks }),
 		);
-		expect(attempts.saveAssistantTurn).toHaveBeenCalledWith(
+		expect(conversation.saveAssistantTurn).toHaveBeenCalledWith(
 			attemptId,
 			candidate,
 			{
@@ -424,11 +507,11 @@ describe("InterviewOrchestratorService", () => {
 			completed: index === 0,
 			turnCount: 1,
 		}));
-		const attempts = {
-			start: asyncMock({
-				snapshot: snapshot("ASSISTANT_SPEAKING"),
-				shouldRunAssistant: true,
-			}),
+		const state = {
+			finishAssistantSpeech: asyncMock(snapshot("COMPLETED")),
+			claimDeadline: asyncMock(false),
+		};
+		const conversation = {
 			loadModelContext: asyncMock({
 				...modelContext(),
 				tasks,
@@ -442,8 +525,7 @@ describe("InterviewOrchestratorService", () => {
 				shouldEnd: true,
 				endReason: "AI_COMPLETED" as const,
 			}),
-			finishAssistantSpeech: asyncMock(snapshot("COMPLETED")),
-			claimDeadline: asyncMock(false),
+			finishAssistantTurn: asyncMock(undefined),
 		};
 		const llm = createLlm({
 			text: "Thank you for walking me through that. This concludes our interview.",
@@ -453,18 +535,24 @@ describe("InterviewOrchestratorService", () => {
 			],
 		});
 		const service = new InterviewOrchestratorService(
-			attempts as unknown as InterviewAttemptsService,
+			state as unknown as InterviewAttemptStateService,
+			conversation as unknown as InterviewConversationService,
 			llm,
 			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
 			{ synthesize: speechResponse },
 		);
 
-		await service.start(attemptId, candidate, jest.fn());
+		await service.runAssistant(
+			attemptId,
+			candidate,
+			snapshot("ASSISTANT_SPEAKING"),
+			jest.fn(),
+		);
 
 		expect(llm.generateTurn).toHaveBeenCalledWith(
 			expect.objectContaining({ tasks: [tasks[1]] }),
 		);
-		expect(attempts.saveAssistantTurn).toHaveBeenCalledWith(
+		expect(conversation.saveAssistantTurn).toHaveBeenCalledWith(
 			attemptId,
 			candidate,
 			{
@@ -490,35 +578,40 @@ describe("InterviewOrchestratorService", () => {
 				remainingSeconds: 0,
 				mustEnd: true,
 			});
-		const attempts = {
-			start: asyncMock({
-				snapshot: snapshot("ASSISTANT_SPEAKING"),
-				shouldRunAssistant: true,
-			}),
-			loadModelContext,
+		const state = {
 			claimDeadline: asyncMock(true),
 			findSnapshot: asyncMock(snapshot("PROCESSING")),
+			finishAssistantSpeech: asyncMock(snapshot("COMPLETED")),
+		};
+		const conversation = {
+			loadModelContext,
 			saveAssistantTurn: asyncMock({
 				id: turnId,
 				text: "Thank you for your time.",
 				shouldEnd: true,
 				endReason: "TIME_LIMIT",
 			}),
-			finishAssistantSpeech: asyncMock(snapshot("COMPLETED")),
+			finishAssistantTurn: asyncMock(undefined),
 		};
 		const llm = createLlm();
 		llm.generateTurn.mockRejectedValue(new Error("LLM timeout"));
 		const events: string[] = [];
 		const service = new InterviewOrchestratorService(
-			attempts as unknown as InterviewAttemptsService,
+			state as unknown as InterviewAttemptStateService,
+			conversation as unknown as InterviewConversationService,
 			llm,
 			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
 			{ synthesize: speechResponse },
 		);
 
-		await service.start(attemptId, candidate, (event) => events.push(event));
+		await service.runAssistant(
+			attemptId,
+			candidate,
+			snapshot("ASSISTANT_SPEAKING"),
+			(event) => events.push(event),
+		);
 
-		expect(attempts.saveAssistantTurn).toHaveBeenCalledWith(
+		expect(conversation.saveAssistantTurn).toHaveBeenCalledWith(
 			attemptId,
 			candidate,
 			expect.objectContaining({ forceEnd: true }),
@@ -527,28 +620,19 @@ describe("InterviewOrchestratorService", () => {
 	});
 
 	it("ignores a replayed candidate turn before calling providers", async () => {
-		const attempts = {
+		const state = {
 			claimCandidateTurn: asyncMock({ claimed: false, duplicate: true }),
 		};
 		const stt = { transcribe: jest.fn<SpeechToTextPort["transcribe"]>() };
 		const service = new InterviewOrchestratorService(
-			attempts as unknown as InterviewAttemptsService,
+			state as unknown as InterviewAttemptStateService,
+			{} as InterviewConversationService,
 			createLlm(),
 			stt,
 			{ synthesize: speechResponse },
 		);
 
-		await service.processCandidateAudio(
-			{
-				attemptId,
-				turnId,
-				mimeType: "audio/wav",
-				channels: 1,
-				bytes: Buffer.from("audio"),
-			},
-			candidate,
-			jest.fn(),
-		);
+		await service.processCandidateAudio(candidateAudio(), candidate, jest.fn());
 
 		expect(stt.transcribe).not.toHaveBeenCalled();
 	});

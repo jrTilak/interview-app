@@ -1,98 +1,62 @@
+import { UuidSchema } from "@interview-desk/validations";
 import z from "zod";
 import {
 	normalizeAudioMimeType,
 	TRANSCRIPTION_AUDIO_MIME_TYPES,
 } from "#/modules/ai/audio-formats.js";
 
-const AttemptCommandSchema = z
-	.object({
-		attemptId: z.uuid(),
-		commandId: z.uuid(),
-	})
-	.strict();
+const AttemptEventSchema = z.object({ attemptId: UuidSchema });
+const TurnEventSchema = AttemptEventSchema.extend({ turnId: UuidSchema });
 
-export const ConnectionPingEventSchema = z
-	.object({ probeId: z.uuid() })
-	.strict();
+export const ConnectionPingEventSchema = z.object({ probeId: UuidSchema });
 
-export const AttemptJoinEventSchema = z
-	.object({ attemptId: z.uuid() })
-	.strict();
+export const AttemptJoinEventSchema = AttemptEventSchema;
 
-export const AttemptStartEventSchema = AttemptCommandSchema;
+export const AttemptStartEventSchema = AttemptEventSchema;
 
-export const MicrophoneStartEventSchema = z
-	.object({
-		attemptId: z.uuid(),
-		turnId: z.uuid(),
-		mimeType: z
-			.string()
-			.transform(normalizeAudioMimeType)
-			.refine((value) => TRANSCRIPTION_AUDIO_MIME_TYPES.has(value), {
-				message: "Audio type is not supported by the transcription provider",
-			}),
-		sampleRateHz: z.number().int().min(8_000).max(96_000).optional(),
-		channels: z.number().int().min(1).max(2).default(1),
-	})
-	.strict()
-	.superRefine((value, context) => {
-		if (value.mimeType === "audio/l16" && value.sampleRateHz === undefined) {
-			context.addIssue({
-				code: "custom",
-				path: ["sampleRateHz"],
-				message: "Raw linear PCM audio requires a sample rate",
-			});
-		}
-	});
+export const MicrophoneStartEventSchema = TurnEventSchema.extend({
+	mimeType: z
+		.string()
+		.transform(normalizeAudioMimeType)
+		.refine((value) => TRANSCRIPTION_AUDIO_MIME_TYPES.has(value), {
+			message: "Audio type is not supported by the transcription provider",
+		}),
+	sampleRateHz: z.number().int().positive().optional(),
+	channels: z.number().int().positive().default(1),
+}).superRefine((value, context) => {
+	if (value.mimeType === "audio/l16" && value.sampleRateHz === undefined) {
+		context.addIssue({
+			code: "custom",
+			path: ["sampleRateHz"],
+			message: "Raw linear PCM audio requires a sample rate",
+		});
+	}
+});
 
-export const MicrophoneChunkEventSchema = z
-	.object({
-		attemptId: z.uuid(),
-		turnId: z.uuid(),
-		sequence: z.number().int().nonnegative(),
-		data: z.unknown(),
-	})
-	.strict();
+export const MicrophoneChunkEventSchema = TurnEventSchema.extend({
+	sequence: z.number().int().nonnegative(),
+	data: z.unknown(),
+});
 
-export const MicrophoneEndEventSchema = z
-	.object({
-		attemptId: z.uuid(),
-		turnId: z.uuid(),
-		lastSequence: z.number().int().nonnegative(),
-	})
-	.strict();
+export const MicrophoneEndEventSchema = TurnEventSchema.extend({
+	lastSequence: z.number().int().nonnegative(),
+});
 
-export const MicrophoneCancelEventSchema = z
-	.object({
-		attemptId: z.uuid(),
-		turnId: z.uuid(),
-	})
-	.strict();
+export const MicrophoneCancelEventSchema = TurnEventSchema;
 
-export const IntegrityStatusEventSchema = z
-	.object({
-		attemptId: z.uuid(),
-		detectedFaceCount: z.number().int().min(0).max(10),
-	})
-	.strict();
+export const IntegrityStatusEventSchema = AttemptEventSchema.extend({
+	detectedFaceCount: z.number().int().nonnegative(),
+});
 
-export const MediaStatusEventSchema = z
-	.object({
-		attemptId: z.uuid(),
-		cameraActive: z.boolean(),
-		screenActive: z.boolean(),
-		microphoneActive: z.boolean(),
-	})
-	.strict();
+export const MediaStatusEventSchema = AttemptEventSchema.extend({
+	cameraActive: z.boolean(),
+	screenActive: z.boolean(),
+	microphoneActive: z.boolean(),
+});
 
-export const DisposableMediaChunkEventSchema = z
-	.object({
-		attemptId: z.uuid(),
-		sequence: z.number().int().nonnegative(),
-		mimeType: z.string().trim().min(1).max(100),
-		data: z.unknown(),
-	})
-	.strict();
+export const DisposableMediaChunkEventSchema = AttemptEventSchema.extend({
+	data: z.unknown(),
+});
 
 export type MicrophoneStartEvent = z.infer<typeof MicrophoneStartEventSchema>;
 
@@ -103,6 +67,8 @@ export type ConnectionPingAckData = {
 
 export type BufferedCandidateAudio = MicrophoneStartEvent & {
 	bytes: Uint8Array;
+	startedAt: Date;
+	endedAt: Date;
 };
 
 export type RealtimeErrorPayload = {

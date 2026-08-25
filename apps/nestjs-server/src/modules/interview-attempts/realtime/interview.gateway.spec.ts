@@ -2,7 +2,7 @@ import { jest } from "@jest/globals";
 import type { UserSession } from "@thallesp/nestjs-better-auth";
 import type { Server } from "socket.io";
 import type { AttemptSnapshot } from "#/modules/interview-attempts/dto/response.dto.js";
-import type { InterviewAttemptsService } from "#/modules/interview-attempts/interview-attempts.service.js";
+import type { InterviewAttemptStateService } from "#/modules/interview-attempts/interview-attempt-state.service.js";
 import type { InterviewOrchestratorService } from "#/modules/interview-attempts/interview-orchestrator.service.js";
 import type { AppConfigService } from "#/types/index.js";
 import type { AudioTurnBufferService } from "./audio-turn-buffer.service.js";
@@ -65,11 +65,21 @@ function snapshot(
 
 /** Constructs the gateway with concise provider, persistence, and room doubles. */
 function createGateway(flagOverrides: Record<string, boolean> = {}) {
-	const attempts = {
+	const state = {
 		findSnapshot: jest
 			.fn<(...args: unknown[]) => Promise<AttemptSnapshot>>()
 			.mockResolvedValue(snapshot("READY")),
-		start: jest.fn(),
+		start: jest
+			.fn<
+				(...args: unknown[]) => Promise<{
+					snapshot: AttemptSnapshot;
+					shouldRunAssistant: boolean;
+				}>
+			>()
+			.mockResolvedValue({
+				snapshot: snapshot("ASSISTANT_SPEAKING"),
+				shouldRunAssistant: true,
+			}),
 		assertListening: jest
 			.fn<(...args: unknown[]) => Promise<void>>()
 			.mockResolvedValue(),
@@ -78,9 +88,15 @@ function createGateway(flagOverrides: Record<string, boolean> = {}) {
 			jest.fn<(...args: unknown[]) => Promise<AttemptSnapshot>>(),
 	};
 	const orchestrator = {
-		start: jest.fn(),
-		handleDeadline: jest.fn(),
-		processCandidateAudio: jest.fn(),
+		runAssistant: jest
+			.fn<(...args: unknown[]) => Promise<void>>()
+			.mockResolvedValue(),
+		handleDeadline: jest
+			.fn<(...args: unknown[]) => Promise<void>>()
+			.mockResolvedValue(),
+		processCandidateAudio: jest
+			.fn<(...args: unknown[]) => Promise<void>>()
+			.mockResolvedValue(),
 	};
 	const audioBuffers = {
 		start: jest.fn(),
@@ -114,7 +130,7 @@ function createGateway(flagOverrides: Record<string, boolean> = {}) {
 		}),
 	};
 	const gateway = new InterviewGateway(
-		attempts as unknown as InterviewAttemptsService,
+		state as unknown as InterviewAttemptStateService,
 		orchestrator as unknown as InterviewOrchestratorService,
 		audioBuffers as unknown as AudioTurnBufferService,
 		{ instance: { api: { getSession } } } as never,
@@ -124,7 +140,7 @@ function createGateway(flagOverrides: Record<string, boolean> = {}) {
 	const roomEmit = jest.fn();
 	const to = jest.fn(() => ({ emit: roomEmit }));
 	gateway.server = { to } as unknown as Server;
-	return { gateway, attempts, audioBuffers, getSession, roomEmit };
+	return { gateway, state, orchestrator, audioBuffers, getSession, roomEmit };
 }
 
 describe("InterviewGateway", () => {
@@ -178,7 +194,7 @@ describe("InterviewGateway", () => {
 	});
 
 	it("acknowledges an authenticated connection probe without joining an attempt", async () => {
-		const { gateway, attempts, audioBuffers } = createGateway();
+		const { gateway, state, audioBuffers } = createGateway();
 		const client = socketDouble("latency-probe", { session });
 
 		const acknowledgement = await gateway.pingConnection(client, { probeId });
@@ -195,17 +211,17 @@ describe("InterviewGateway", () => {
 			acknowledgement.data.serverTime,
 		);
 		expect(client.join).not.toHaveBeenCalled();
-		expect(attempts.findSnapshot).not.toHaveBeenCalled();
-		expect(attempts.start).not.toHaveBeenCalled();
-		expect(attempts.assertListening).not.toHaveBeenCalled();
-		expect(attempts.updateMedia).not.toHaveBeenCalled();
+		expect(state.findSnapshot).not.toHaveBeenCalled();
+		expect(state.start).not.toHaveBeenCalled();
+		expect(state.assertListening).not.toHaveBeenCalled();
+		expect(state.updateMedia).not.toHaveBeenCalled();
 		expect(audioBuffers.start).not.toHaveBeenCalled();
 		expect(audioBuffers.append).not.toHaveBeenCalled();
 		expect(audioBuffers.finish).not.toHaveBeenCalled();
 	});
 
-	it("rejects unauthenticated or invalid connection probes", async () => {
-		const { gateway, attempts } = createGateway();
+	it("rejects unauthenticated or malformed connection probes", async () => {
+		const { gateway, state } = createGateway();
 		const unauthenticated = socketDouble("unauthenticated-probe");
 		const authenticated = socketDouble("invalid-probe", { session });
 
@@ -216,14 +232,14 @@ describe("InterviewGateway", () => {
 			error: expect.objectContaining({ code: "HTTP_401" }),
 		});
 		await expect(
-			gateway.pingConnection(authenticated, { probeId, extra: true }),
+			gateway.pingConnection(authenticated, { probeId: "not-a-uuid" }),
 		).resolves.toEqual({
 			ok: false,
 			error: expect.objectContaining({ code: "INVALID_EVENT" }),
 		});
 		expect(unauthenticated.join).not.toHaveBeenCalled();
 		expect(authenticated.join).not.toHaveBeenCalled();
-		expect(attempts.findSnapshot).not.toHaveBeenCalled();
+		expect(state.findSnapshot).not.toHaveBeenCalled();
 		expect(unauthenticated.emit).toHaveBeenCalledWith(
 			"attempt:error",
 			expect.objectContaining({ code: "HTTP_401" }),
@@ -232,6 +248,30 @@ describe("InterviewGateway", () => {
 			"attempt:error",
 			expect.objectContaining({ code: "INVALID_EVENT" }),
 		);
+	});
+
+	it("starts state first and passes its snapshot to assistant orchestration", async () => {
+		const { gateway, state, orchestrator, roomEmit } = createGateway();
+		const client = socketDouble("candidate", { session, attemptId });
+		const speaking = snapshot("ASSISTANT_SPEAKING");
+		state.start.mockResolvedValue({
+			snapshot: speaking,
+			shouldRunAssistant: true,
+		});
+
+		await expect(gateway.startAttempt(client, { attemptId })).resolves.toEqual({
+			ok: true,
+			data: { accepted: true },
+		});
+
+		expect(state.start).toHaveBeenCalledWith(attemptId, session.user);
+		expect(orchestrator.runAssistant).toHaveBeenCalledWith(
+			attemptId,
+			session.user,
+			speaking,
+			expect.any(Function),
+		);
+		expect(roomEmit).toHaveBeenCalledWith("attempt:state", speaking);
 	});
 
 	it("permits only one microphone owner and releases it on disconnect", async () => {
@@ -264,7 +304,7 @@ describe("InterviewGateway", () => {
 	});
 
 	it("rejects disposable media in inactive states or without its active flag", async () => {
-		const { gateway, attempts } = createGateway();
+		const { gateway, state } = createGateway();
 		const client = socketDouble("candidate", { session, attemptId });
 		const activeCamera = snapshot("READY", {
 			cameraActive: true,
@@ -272,7 +312,7 @@ describe("InterviewGateway", () => {
 			microphoneActive: false,
 		});
 		const inactiveScreen = snapshot("LISTENING");
-		attempts.findSnapshot
+		state.findSnapshot
 			.mockResolvedValueOnce(activeCamera)
 			.mockResolvedValueOnce(inactiveScreen);
 		const media = {
@@ -300,11 +340,11 @@ describe("InterviewGateway", () => {
 	});
 
 	it("terminates an active attempt when a global face rule is violated", async () => {
-		const { gateway, attempts, audioBuffers, roomEmit } = createGateway({
+		const { gateway, state, audioBuffers, roomEmit } = createGateway({
 			terminateOnMultipleFaces: true,
 		});
 		const failed = snapshot("FAILED");
-		attempts.failForIntegrity.mockResolvedValue(failed);
+		state.failForIntegrity.mockResolvedValue(failed);
 		const client = socketDouble("integrity-candidate", {
 			attemptId,
 			session,
@@ -317,7 +357,7 @@ describe("InterviewGateway", () => {
 			}),
 		).resolves.toEqual(expect.objectContaining({ ok: true }));
 
-		expect(attempts.failForIntegrity).toHaveBeenCalledWith(
+		expect(state.failForIntegrity).toHaveBeenCalledWith(
 			attemptId,
 			session.user,
 		);

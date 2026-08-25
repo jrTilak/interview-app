@@ -34,14 +34,21 @@ function createConfig(
 describe("AudioTurnBufferService", () => {
 	afterEach(() => jest.useRealTimers());
 
-	it("combines strictly ordered chunks and closes exactly once", () => {
+	it("combines ordered chunks and records the microphone time range", () => {
+		jest.useFakeTimers();
+		const startedAt = new Date("2026-08-01T00:05:00.000Z");
+		const endedAt = new Date("2026-08-01T00:05:12.000Z");
+		jest.setSystemTime(startedAt);
 		const service = new AudioTurnBufferService(createConfig());
 		service.start("socket", metadata, jest.fn());
 		service.append("socket", { ...metadata, sequence: 0 }, Buffer.from("ab"));
 		service.append("socket", { ...metadata, sequence: 1 }, Buffer.from("cd"));
 
+		jest.setSystemTime(endedAt);
 		const result = service.finish("socket", { ...metadata, lastSequence: 1 });
 		expect(Buffer.from(result.bytes).toString()).toBe("abcd");
+		expect(result.startedAt).toEqual(startedAt);
+		expect(result.endedAt).toEqual(endedAt);
 		expect(() => service.finish("socket")).toThrow(ConflictException);
 	});
 

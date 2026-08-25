@@ -10,6 +10,7 @@
 		"pnpm": ">=11"
 	},
 	"scripts": {
+		"postinstall": "pnpm --filter @interview-desk/validations build",
 		"build": "pnpm -r --if-present build",
 		"start": "pnpm --filter @interview-desk/nestjs-server start",
 		"dev": "pnpm --parallel --filter @interview-desk/nestjs-server --filter @interview-desk/react-client dev",
