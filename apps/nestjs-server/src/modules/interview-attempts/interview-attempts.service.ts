@@ -19,10 +19,7 @@ import {
 	notInArray,
 	sql,
 } from "drizzle-orm";
-import {
-	type AppDatabase,
-	InjectDatabase,
-} from "../../db/database.provider.js";
+import { type AppDatabase, InjectDatabase } from "#/db/database.provider.js";
 import {
 	attemptQuestionProgress,
 	interview,
@@ -30,11 +27,11 @@ import {
 	interviewQuestion,
 	interviewTurn,
 	user,
-} from "../../db/schema/index.js";
+} from "#/db/schema/index.js";
 import type {
 	GenerateInterviewTurnInput,
 	InterviewTaskContext,
-} from "../ai/llm/llm.port.js";
+} from "#/modules/ai/llm/llm.port.js";
 import type {
 	AttemptSnapshot,
 	CandidateInterviewHistory,
@@ -140,9 +137,9 @@ export class InterviewAttemptsService {
 		return Number(result?.sequence ?? 0) + 1;
 	}
 
-	/** Resumes active work or creates a permitted new attempt for a share link. */
+	/** Resumes active work or creates a permitted attempt for a public interview. */
 	async createOrResume(
-		shareCode: string,
+		interviewId: string,
 		candidate: User,
 	): Promise<AttemptSnapshot> {
 		const attemptId = await this._database.transaction(async (transaction) => {
@@ -152,7 +149,7 @@ export class InterviewAttemptsService {
 					allowMultipleAttempts: interview.allowMultipleAttempts,
 				})
 				.from(interview)
-				.where(eq(interview.shareCode, shareCode))
+				.where(and(eq(interview.id, interviewId), eq(interview.isPublic, true)))
 				.limit(1)
 				.for("update");
 			if (!definition)
@@ -289,7 +286,6 @@ export class InterviewAttemptsService {
 				interviewId: interview.id,
 				interviewTitle: interview.title,
 				interviewDescription: interview.description,
-				shareCode: interview.shareCode,
 				durationMinutes: interview.durationMinutes,
 				allowMultipleAttempts: interview.allowMultipleAttempts,
 				attemptId: interviewAttempt.id,
@@ -321,7 +317,6 @@ export class InterviewAttemptsService {
 						id: row.interviewId,
 						title: row.interviewTitle,
 						description: row.interviewDescription,
-						shareCode: row.shareCode,
 						durationMinutes: row.durationMinutes,
 						allowMultipleAttempts: row.allowMultipleAttempts,
 					},

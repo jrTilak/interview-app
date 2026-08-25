@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import z from "zod";
-import type { AppConfigService } from "../../../types/index.js";
+import type { AppConfigService } from "#/types/index.js";
 import type {
 	GeneratedInterviewTurn,
 	GenerateInterviewTurnInput,

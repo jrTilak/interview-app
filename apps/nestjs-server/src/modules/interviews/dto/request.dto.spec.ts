@@ -1,14 +1,15 @@
 import {
 	CreateInterviewSchema,
-	ShareCodeParamsSchema,
+	InterviewIdParamsSchema,
 	UpdateInterviewSchema,
 } from "./request.dto.js";
 
 const validInput = {
-	clientRequestId: "f1fe6e65-4d76-4d21-96dc-4a4aa841f4ea",
 	title: "Frontend interview",
 	rawQuestions: "Ask about React hooks",
 };
+
+const interviewId = "7635f24a-adb3-457c-8e43-2d0a1a8fa0df";
 
 describe("interview request schemas", () => {
 	it("normalizes a valid create request and supplies safe defaults", () => {
@@ -37,14 +38,13 @@ describe("interview request schemas", () => {
 		).toBe(false);
 	});
 
-	it("accepts only fixed-length URL-safe share codes", () => {
+	it("uses a UUID interview ID as the share identifier", () => {
+		expect(InterviewIdParamsSchema.safeParse({ id: interviewId }).success).toBe(
+			true,
+		);
 		expect(
-			ShareCodeParamsSchema.safeParse({
-				shareCode: "uF7qP8Q3bFvLXrAQdS5kMK0pNPkVsU8_",
-			}).success,
-		).toBe(true);
-		expect(
-			ShareCodeParamsSchema.safeParse({ shareCode: "short" }).success,
+			InterviewIdParamsSchema.safeParse({ id: "not-an-interview-uuid" })
+				.success,
 		).toBe(false);
 	});
 
@@ -58,6 +58,9 @@ describe("interview request schemas", () => {
 		).toBe(false);
 		expect(UpdateInterviewSchema.parse({ description: null })).toEqual({
 			description: null,
+		});
+		expect(UpdateInterviewSchema.parse({ isPublic: true })).toEqual({
+			isPublic: true,
 		});
 	});
 });

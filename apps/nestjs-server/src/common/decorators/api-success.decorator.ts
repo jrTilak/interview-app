@@ -4,7 +4,7 @@ import {
 	getSchemaPath,
 	ApiResponse as SwaggerApiResponse,
 } from "@nestjs/swagger";
-import { ApiSuccessResponseDto } from "../dto/api-response.dto.js";
+import { ApiSuccessResponseDto } from "#/common/dto/api-response.dto.js";
 
 type ApiSuccessOptions = {
 	description: string;

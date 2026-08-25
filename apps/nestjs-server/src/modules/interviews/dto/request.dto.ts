@@ -1,6 +1,6 @@
 import { createZodDto } from "nestjs-zod";
 import z from "zod";
-import { INTERVIEW_LIMITS, SHARE_CODE_LENGTH } from "../interview.constants.js";
+import { INTERVIEW_LIMITS } from "#/modules/interviews/interview.constants.js";
 
 export const InterviewIdParamsSchema = z
 	.object({
@@ -11,25 +11,8 @@ export const InterviewIdParamsSchema = z
 	})
 	.strict();
 
-export const ShareCodeParamsSchema = z
-	.object({
-		shareCode: z
-			.string()
-			.length(SHARE_CODE_LENGTH)
-			.regex(/^[A-Za-z0-9_-]+$/, "Share code is invalid")
-			.meta({
-				description: "Unguessable share code from the interview link.",
-				example: "uF7qP8Q3bFvLXrAQdS5kMK0pNPkVsU8_",
-			}),
-	})
-	.strict();
-
 export const CreateInterviewSchema = z
 	.object({
-		clientRequestId: z.uuid().meta({
-			description: "Client-generated idempotency UUID.",
-			example: "f1fe6e65-4d76-4d21-96dc-4a4aa841f4ea",
-		}),
 		title: z
 			.string()
 			.trim()
@@ -100,6 +83,7 @@ export const UpdateInterviewSchema = z
 			.max(INTERVIEW_LIMITS.durationMinutes.maximum)
 			.optional(),
 		allowMultipleAttempts: z.boolean().optional(),
+		isPublic: z.boolean().optional(),
 	})
 	.strict()
 	.refine((value) => Object.keys(value).length > 0, {
@@ -109,6 +93,5 @@ export const UpdateInterviewSchema = z
 export class InterviewIdParamsDto extends createZodDto(
 	InterviewIdParamsSchema,
 ) {}
-export class ShareCodeParamsDto extends createZodDto(ShareCodeParamsSchema) {}
 export class CreateInterviewDto extends createZodDto(CreateInterviewSchema) {}
 export class UpdateInterviewDto extends createZodDto(UpdateInterviewSchema) {}

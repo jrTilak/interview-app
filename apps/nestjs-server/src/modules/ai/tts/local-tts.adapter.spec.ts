@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import type { AppConfigService } from "../../../types/index.js";
+import type { AppConfigService } from "#/types/index.js";
 import { LocalTextToSpeechAdapter } from "./local-tts.adapter.js";
 
 type WaveOptions = {

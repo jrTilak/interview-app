@@ -77,7 +77,6 @@ export const CandidateInterviewHistoryResponseSchema = z
 				id: z.uuid(),
 				title: z.string(),
 				description: z.string().nullable(),
-				shareCode: z.string(),
 				durationMinutes: z.number().int().positive(),
 				allowMultipleAttempts: z.boolean(),
 			})

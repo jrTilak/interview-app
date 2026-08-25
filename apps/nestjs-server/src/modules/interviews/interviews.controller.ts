@@ -10,13 +10,14 @@ import {
 } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import {
+	AllowAnonymous,
 	AuthGuard,
 	Session,
 	type UserSession,
 } from "@thallesp/nestjs-better-auth";
-import { ApiSessionAuth } from "../../common/decorators/api-session-auth.decorator.js";
-import { ApiSuccess } from "../../common/decorators/api-success.decorator.js";
-import { ApiResponse } from "../../common/dto/api-response.dto.js";
+import { ApiSessionAuth } from "#/common/decorators/api-session-auth.decorator.js";
+import { ApiSuccess } from "#/common/decorators/api-success.decorator.js";
+import { ApiResponse } from "#/common/dto/api-response.dto.js";
 import {
 	CreateInterviewDto,
 	InterviewIdParamsDto,
@@ -26,18 +27,19 @@ import {
 	DeletedInterviewResponseDto,
 	InterviewDetailsResponseDto,
 	InterviewSummaryResponseDto,
+	SharedInterviewPreviewResponseDto,
 } from "./dto/response.dto.js";
 import { InterviewsService } from "./interviews.service.js";
 
-@Controller("interviews")
+@Controller()
 @ApiTags("Interviews")
-@ApiSessionAuth()
 @UseGuards(AuthGuard)
 export class InterviewsController {
 	constructor(private readonly _interviewsService: InterviewsService) {}
 
-	/** Creates one shareable interview with an AI-structured topic plan. */
-	@Post()
+	/** Creates one private interview with an AI-structured topic plan. */
+	@Post("interviews")
+	@ApiSessionAuth()
 	@ApiOperation({ summary: "Create and structure an interview" })
 	@ApiSuccess({
 		status: 201,
@@ -53,8 +55,9 @@ export class InterviewsController {
 		});
 	}
 
-	/** Lists the authenticated creator's interviews and reusable share URLs. */
-	@Get()
+	/** Lists the authenticated creator's interviews. */
+	@Get("interviews")
+	@ApiSessionAuth()
 	@ApiOperation({ summary: "List my created interviews" })
 	@ApiSuccess({
 		description: "Creator-owned interviews.",
@@ -70,7 +73,8 @@ export class InterviewsController {
 	}
 
 	/** Returns private topic notes and the structured plan only to its creator. */
-	@Get(":id")
+	@Get("interviews/:id")
+	@ApiSessionAuth()
 	@ApiOperation({ summary: "Get one of my created interviews" })
 	@ApiSuccess({
 		description: "Creator-owned interview details.",
@@ -85,9 +89,10 @@ export class InterviewsController {
 		});
 	}
 
-	/** Updates mutable interview metadata without rewriting attempt history. */
-	@Patch(":id")
-	@ApiOperation({ summary: "Update one of my interviews" })
+	/** Updates owner-controlled metadata and public visibility. */
+	@Patch("interviews/:id")
+	@ApiSessionAuth()
+	@ApiOperation({ summary: "Update or publish one of my interviews" })
 	@ApiSuccess({
 		description: "Updated creator-owned interview.",
 		type: InterviewDetailsResponseDto,
@@ -103,7 +108,8 @@ export class InterviewsController {
 	}
 
 	/** Deletes an unused creator-owned interview and its topic plan. */
-	@Delete(":id")
+	@Delete("interviews/:id")
+	@ApiSessionAuth()
 	@ApiOperation({ summary: "Delete one of my unused interviews" })
 	@ApiSuccess({
 		description: "Deleted creator-owned interview.",
@@ -115,6 +121,22 @@ export class InterviewsController {
 	): Promise<ApiResponse<DeletedInterviewResponseDto>> {
 		return new ApiResponse({
 			data: await this._interviewsService.remove(id, session.user),
+		});
+	}
+
+	/** Returns candidate-safe metadata for a public interview UUID. */
+	@Get("shared-interviews/:id")
+	@AllowAnonymous()
+	@ApiOperation({ summary: "Preview a public interview", security: [] })
+	@ApiSuccess({
+		description: "Safe preview without hidden question content.",
+		type: SharedInterviewPreviewResponseDto,
+	})
+	async preview(
+		@Param() { id }: InterviewIdParamsDto,
+	): Promise<ApiResponse<SharedInterviewPreviewResponseDto>> {
+		return new ApiResponse({
+			data: await this._interviewsService.findSharedPreview(id),
 		});
 	}
 }

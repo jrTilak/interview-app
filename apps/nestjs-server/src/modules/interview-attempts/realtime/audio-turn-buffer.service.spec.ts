@@ -4,7 +4,7 @@ import {
 	ConflictException,
 	PayloadTooLargeException,
 } from "@nestjs/common";
-import type { AppConfigService } from "../../../types/index.js";
+import type { AppConfigService } from "#/types/index.js";
 import {
 	AUDIO_MAX_CHUNKS_PER_TURN,
 	AudioTurnBufferService,

@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import type { AppConfigService } from "../../../types/index.js";
+import type { AppConfigService } from "#/types/index.js";
 import type { GenerateInterviewTurnInput } from "./llm.port.js";
 import { LocalLlmAdapter } from "./local-llm.adapter.js";
 

@@ -2,7 +2,7 @@ import z from "zod";
 import {
 	stringAsBoolean,
 	stringAsInteger,
-} from "../common/validation/string-value.js";
+} from "#/common/validation/string-value.js";
 
 const BaseEnvironmentSchema = z.object({
 	NODE_ENV: z
@@ -10,7 +10,6 @@ const BaseEnvironmentSchema = z.object({
 		.default("development"),
 	PORT: stringAsInteger({ defaultValue: 3000, minimum: 1, maximum: 65_535 }),
 	APP_NAME: z.string().trim().min(1).default("Interview Desk"),
-	APP_WEB_URL: z.url().default("http://localhost:5173"),
 	API_PREFIX: z
 		.string()
 		.trim()

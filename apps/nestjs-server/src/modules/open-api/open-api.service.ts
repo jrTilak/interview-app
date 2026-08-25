@@ -9,11 +9,11 @@ import {
 import { apiReference } from "@scalar/nestjs-api-reference";
 import { AuthService } from "@thallesp/nestjs-better-auth";
 import { cleanupOpenApiDoc } from "nestjs-zod";
-import type { AppConfigService } from "../../types/index.js";
 import {
 	ALLOWED_AUTH_PATHS,
 	type ApplicationAuth,
-} from "../auth/auth.factory.js";
+} from "#/modules/auth/auth.factory.js";
+import type { AppConfigService } from "#/types/index.js";
 
 @Injectable()
 export class OpenApiService {

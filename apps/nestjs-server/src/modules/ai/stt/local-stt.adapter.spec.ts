@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import type { AppConfigService } from "../../../types/index.js";
+import type { AppConfigService } from "#/types/index.js";
 import { LocalSpeechToTextAdapter } from "./local-stt.adapter.js";
 
 function config(overrides: Record<string, unknown> = {}): AppConfigService {

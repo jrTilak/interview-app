@@ -1,10 +1,10 @@
 import { jest } from "@jest/globals";
 import type { UserSession } from "@thallesp/nestjs-better-auth";
 import type { Server } from "socket.io";
-import type { AppConfigService } from "../../../types/index.js";
-import type { AttemptSnapshot } from "../dto/response.dto.js";
-import type { InterviewAttemptsService } from "../interview-attempts.service.js";
-import type { InterviewOrchestratorService } from "../interview-orchestrator.service.js";
+import type { AttemptSnapshot } from "#/modules/interview-attempts/dto/response.dto.js";
+import type { InterviewAttemptsService } from "#/modules/interview-attempts/interview-attempts.service.js";
+import type { InterviewOrchestratorService } from "#/modules/interview-attempts/interview-orchestrator.service.js";
+import type { AppConfigService } from "#/types/index.js";
 import type { AudioTurnBufferService } from "./audio-turn-buffer.service.js";
 import { InterviewGateway } from "./interview.gateway.js";
 

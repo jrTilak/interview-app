@@ -5,24 +5,24 @@ import { Test } from "@nestjs/testing";
 import { eq } from "drizzle-orm";
 import { io, type Socket } from "socket.io-client";
 import request from "supertest";
-import { AppModule } from "../src/app.module.js";
-import { type AppDatabase, DATABASE } from "../src/db/database.provider.js";
-import { interviewAttempt } from "../src/db/schema/index.js";
+import { AppModule } from "#/app.module.js";
+import { type AppDatabase, DATABASE } from "#/db/database.provider.js";
+import { interviewAttempt } from "#/db/schema/index.js";
 import {
 	INTERVIEW_LLM,
 	type InterviewLlmPort,
-} from "../src/modules/ai/llm/llm.port.js";
+} from "#/modules/ai/llm/llm.port.js";
 import {
 	SPEECH_TO_TEXT,
 	type SpeechToTextPort,
-} from "../src/modules/ai/stt/stt.port.js";
+} from "#/modules/ai/stt/stt.port.js";
 import {
 	TEXT_TO_SPEECH,
 	type TextToSpeechPort,
-} from "../src/modules/ai/tts/tts.port.js";
-import { InterviewAttemptsService } from "../src/modules/interview-attempts/interview-attempts.service.js";
-import { OpenApiService } from "../src/modules/open-api/open-api.service.js";
-import type { AppConfigService } from "../src/types/index.js";
+} from "#/modules/ai/tts/tts.port.js";
+import { InterviewAttemptsService } from "#/modules/interview-attempts/interview-attempts.service.js";
+import { OpenApiService } from "#/modules/open-api/open-api.service.js";
+import type { AppConfigService } from "#/types/index.js";
 
 class FakeInterviewLlm implements InterviewLlmPort {
 	structureCalls = 0;
@@ -175,7 +175,6 @@ describe("interview platform end to end", () => {
 	let candidateCookie: string;
 	let candidateUser: any;
 	let ownerInterviewId: string;
-	let shareCode: string;
 	let attemptId: string;
 	const sockets = new Set<Socket>();
 
@@ -252,6 +251,9 @@ describe("interview platform end to end", () => {
 		expect(applicationSchema.body.paths).toHaveProperty("/api/interviews");
 		expect(applicationSchema.body.paths).toHaveProperty("/api/__flags__");
 		expect(applicationSchema.body.paths).toHaveProperty("/api/interviews/{id}");
+		expect(applicationSchema.body.paths).toHaveProperty(
+			"/api/shared-interviews/{id}",
+		);
 		const authSchema = await request(app.getHttpServer())
 			.get("/auth-docs.json")
 			.expect(200);
@@ -328,10 +330,8 @@ describe("interview platform end to end", () => {
 		}
 	});
 
-	it("creates one atomic AI-structured interview and enforces ownership", async () => {
-		const clientRequestId = randomUUID();
+	it("creates a private interview and shares it explicitly by ID", async () => {
 		const createBody = {
-			clientRequestId,
 			title: "Junior React Developer",
 			description: "A focused project interview",
 			rawQuestions: "Ask about state and then about a difficult bug.",
@@ -344,26 +344,17 @@ describe("interview platform end to end", () => {
 			.send(createBody)
 			.expect(201);
 		ownerInterviewId = created.body.data.id;
-		shareCode = created.body.data.shareCode;
 		expect(created.body.data.questions).toHaveLength(2);
 		expect(created.body.data.allowMultipleAttempts).toBe(true);
-		expect(created.body.data.shareUrl).toBe(
-			`http://localhost:5173/interviews/${shareCode}`,
-		);
-		expect(fakeLlm.structureCalls).toBe(1);
-
-		const retry = await request(app.getHttpServer())
-			.post("/api/interviews")
-			.set("Cookie", ownerCookie)
-			.send(createBody)
-			.expect(201);
-		expect(retry.body.data.id).toBe(ownerInterviewId);
+		expect(created.body.data.isPublic).toBe(false);
+		expect(created.body.data).not.toHaveProperty("shareCode");
+		expect(created.body.data).not.toHaveProperty("shareUrl");
 		expect(fakeLlm.structureCalls).toBe(1);
 
 		await request(app.getHttpServer())
 			.post("/api/interviews")
 			.set("Cookie", ownerCookie)
-			.send({ ...createBody, clientRequestId: randomUUID(), unexpected: true })
+			.send({ ...createBody, clientRequestId: randomUUID() })
 			.expect(422);
 
 		const failed = await request(app.getHttpServer())
@@ -371,7 +362,6 @@ describe("interview platform end to end", () => {
 			.set("Cookie", ownerCookie)
 			.send({
 				...createBody,
-				clientRequestId: randomUUID(),
 				rawQuestions: "[FAIL] provider",
 			})
 			.expect(503);
@@ -387,20 +377,31 @@ describe("interview platform end to end", () => {
 		expect(list.body.data).toHaveLength(1);
 		expect(list.body.data[0].questionCount).toBe(2);
 		expect(list.body.data[0].allowMultipleAttempts).toBe(true);
+		expect(list.body.data[0].isPublic).toBe(false);
+
+		await request(app.getHttpServer())
+			.get(`/api/shared-interviews/${ownerInterviewId}`)
+			.set("Cookie", candidateCookie)
+			.expect(404);
+		await request(app.getHttpServer())
+			.post(`/api/shared-interviews/${ownerInterviewId}/attempts`)
+			.set("Cookie", candidateCookie)
+			.expect(404);
 
 		const updated = await request(app.getHttpServer())
 			.patch(`/api/interviews/${ownerInterviewId}`)
 			.set("Cookie", ownerCookie)
-			.send({ durationMinutes: 45, description: null })
+			.send({ durationMinutes: 45, description: null, isPublic: true })
 			.expect(200);
 		expect(updated.body.data).toMatchObject({
 			description: null,
 			durationMinutes: 45,
+			isPublic: true,
 		});
 		await request(app.getHttpServer())
 			.patch(`/api/interviews/${ownerInterviewId}`)
 			.set("Cookie", candidateCookie)
-			.send({ title: "Not mine" })
+			.send({ isPublic: false })
 			.expect(404);
 
 		await request(app.getHttpServer())
@@ -408,7 +409,7 @@ describe("interview platform end to end", () => {
 			.set("Cookie", candidateCookie)
 			.expect(404);
 		const preview = await request(app.getHttpServer())
-			.get(`/api/shared-interviews/${shareCode}`)
+			.get(`/api/shared-interviews/${ownerInterviewId}`)
 			.set("Cookie", candidateCookie)
 			.expect(200);
 		expect(preview.body.data.questionCount).toBe(2);
@@ -416,20 +417,41 @@ describe("interview platform end to end", () => {
 		expect(preview.body.data).not.toHaveProperty("questions");
 		expect(preview.body.data).not.toHaveProperty("rawQuestions");
 		await request(app.getHttpServer())
-			.get(`/api/shared-interviews/${shareCode}`)
-			.expect(401);
+			.get(`/api/shared-interviews/${ownerInterviewId}`)
+			.expect(200);
+
+		const privateAgain = await request(app.getHttpServer())
+			.patch(`/api/interviews/${ownerInterviewId}`)
+			.set("Cookie", ownerCookie)
+			.send({ isPublic: false })
+			.expect(200);
+		expect(privateAgain.body.data.isPublic).toBe(false);
+		await request(app.getHttpServer())
+			.get(`/api/shared-interviews/${ownerInterviewId}`)
+			.set("Cookie", candidateCookie)
+			.expect(404);
+
+		const publicAgain = await request(app.getHttpServer())
+			.patch(`/api/interviews/${ownerInterviewId}`)
+			.set("Cookie", ownerCookie)
+			.send({ isPublic: true })
+			.expect(200);
+		expect(publicAgain.body.data).toMatchObject({
+			id: ownerInterviewId,
+			isPublic: true,
+		});
 	});
 
 	it("creates one resumable candidate attempt per shared link", async () => {
 		const created = await request(app.getHttpServer())
-			.post(`/api/shared-interviews/${shareCode}/attempts`)
+			.post(`/api/shared-interviews/${ownerInterviewId}/attempts`)
 			.set("Cookie", candidateCookie)
 			.expect(201);
 		attemptId = created.body.data.id;
 		expect(created.body.data.state).toBe("READY");
 
 		const resumed = await request(app.getHttpServer())
-			.post(`/api/shared-interviews/${shareCode}/attempts`)
+			.post(`/api/shared-interviews/${ownerInterviewId}/attempts`)
 			.set("Cookie", candidateCookie)
 			.expect(201);
 		expect(resumed.body.data.id).toBe(attemptId);
@@ -679,7 +701,7 @@ describe("interview platform end to end", () => {
 		]);
 
 		const repeated = await request(app.getHttpServer())
-			.post(`/api/shared-interviews/${shareCode}/attempts`)
+			.post(`/api/shared-interviews/${ownerInterviewId}/attempts`)
 			.set("Cookie", candidateCookie)
 			.expect(201);
 		expect(repeated.body.data.id).not.toBe(attemptId);
@@ -701,17 +723,19 @@ describe("interview platform end to end", () => {
 			.post("/api/interviews")
 			.set("Cookie", ownerCookie)
 			.send({
-				clientRequestId: randomUUID(),
 				title: "Single attempt interview",
 				rawQuestions: "Ask one focused project question.",
 				durationMinutes: 15,
 			})
 			.expect(201);
 		expect(singleInterview.body.data.allowMultipleAttempts).toBe(false);
+		await request(app.getHttpServer())
+			.patch(`/api/interviews/${singleInterview.body.data.id}`)
+			.set("Cookie", ownerCookie)
+			.send({ isPublic: true })
+			.expect(200);
 		const singleAttempt = await request(app.getHttpServer())
-			.post(
-				`/api/shared-interviews/${singleInterview.body.data.shareCode}/attempts`,
-			)
+			.post(`/api/shared-interviews/${singleInterview.body.data.id}/attempts`)
 			.set("Cookie", candidateCookie)
 			.expect(201);
 		await app
@@ -725,9 +749,7 @@ describe("interview platform end to end", () => {
 			})
 			.where(eq(interviewAttempt.id, singleAttempt.body.data.id));
 		await request(app.getHttpServer())
-			.post(
-				`/api/shared-interviews/${singleInterview.body.data.shareCode}/attempts`,
-			)
+			.post(`/api/shared-interviews/${singleInterview.body.data.id}/attempts`)
 			.set("Cookie", candidateCookie)
 			.expect(409);
 
@@ -757,7 +779,7 @@ describe("interview platform end to end", () => {
 			.expect(200);
 		const otherCandidateCookie = responseCookie(otherCandidateSignup);
 		const otherAttempt = await request(app.getHttpServer())
-			.post(`/api/shared-interviews/${shareCode}/attempts`)
+			.post(`/api/shared-interviews/${ownerInterviewId}/attempts`)
 			.set("Cookie", otherCandidateCookie)
 			.expect(201);
 		const otherHistory = await request(app.getHttpServer())

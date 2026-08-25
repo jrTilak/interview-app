@@ -3,7 +3,7 @@ import { ConflictException, NotFoundException } from "@nestjs/common";
 import type { User } from "better-auth/types";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
-import type { AppDatabase } from "../../db/database.provider.js";
+import type { AppDatabase } from "#/db/database.provider.js";
 import type { AttemptSnapshot } from "./dto/response.dto.js";
 import { InterviewAttemptsService } from "./interview-attempts.service.js";
 
@@ -171,9 +171,14 @@ describe("InterviewAttemptsService", () => {
 		const expected = snapshot("READY");
 		jest.spyOn(service, "findSnapshot").mockResolvedValue(expected);
 
-		await expect(
-			service.createOrResume("shared-code", candidate),
-		).resolves.toBe(expected);
+		await expect(service.createOrResume(interviewId, candidate)).resolves.toBe(
+			expected,
+		);
+
+		const definitionWhere = compiledWhere(definitionQuery);
+		expect(definitionWhere.sql).toContain('"interview"."id" =');
+		expect(definitionWhere.sql).toContain('"interview"."is_public" =');
+		expect(definitionWhere.params).toEqual([interviewId, true]);
 
 		expect(createdQuery.values).toHaveBeenCalledWith({
 			interviewId,
@@ -184,6 +189,18 @@ describe("InterviewAttemptsService", () => {
 			{ attemptId, questionId },
 		]);
 		expect(database.transaction).toHaveBeenCalledTimes(1);
+	});
+
+	it("hides a private interview as missing", async () => {
+		const definitionQuery = query([]);
+		const { database, service } = databaseMock({
+			select: [definitionQuery],
+		});
+
+		await expect(
+			service.createOrResume(interviewId, candidate),
+		).rejects.toThrow(NotFoundException);
+		expect(database.insert).not.toHaveBeenCalled();
 	});
 
 	it("resumes the same nonterminal attempt without duplicating question progress", async () => {
@@ -197,9 +214,9 @@ describe("InterviewAttemptsService", () => {
 		const expected = snapshot("LISTENING");
 		jest.spyOn(service, "findSnapshot").mockResolvedValue(expected);
 
-		await expect(
-			service.createOrResume("shared-code", candidate),
-		).resolves.toBe(expected);
+		await expect(service.createOrResume(interviewId, candidate)).resolves.toBe(
+			expected,
+		);
 
 		expect(database.insert).not.toHaveBeenCalled();
 		expect(service.findSnapshot).toHaveBeenCalledWith(attemptId, candidate);
@@ -216,7 +233,7 @@ describe("InterviewAttemptsService", () => {
 			});
 
 			await expect(
-				service.createOrResume("shared-code", candidate),
+				service.createOrResume(interviewId, candidate),
 			).rejects.toThrow(ConflictException);
 		},
 	);
@@ -236,9 +253,9 @@ describe("InterviewAttemptsService", () => {
 		const expected = { ...snapshot("READY"), id: nextAttemptId };
 		jest.spyOn(service, "findSnapshot").mockResolvedValue(expected);
 
-		await expect(
-			service.createOrResume("shared-code", candidate),
-		).resolves.toBe(expected);
+		await expect(service.createOrResume(interviewId, candidate)).resolves.toBe(
+			expected,
+		);
 
 		expect(createdQuery.values).toHaveBeenCalledWith({
 			interviewId,
@@ -263,9 +280,9 @@ describe("InterviewAttemptsService", () => {
 		const expected = { ...snapshot("READY"), id: concurrentAttemptId };
 		jest.spyOn(service, "findSnapshot").mockResolvedValue(expected);
 
-		await expect(
-			service.createOrResume("shared-code", candidate),
-		).resolves.toBe(expected);
+		await expect(service.createOrResume(interviewId, candidate)).resolves.toBe(
+			expected,
+		);
 		expect(racedInsert.onConflictDoNothing).toHaveBeenCalledWith();
 		expect(service.findSnapshot).toHaveBeenCalledWith(
 			concurrentAttemptId,
@@ -320,7 +337,6 @@ describe("InterviewAttemptsService", () => {
 			interviewId,
 			interviewTitle: "Junior React Developer",
 			interviewDescription: null,
-			shareCode: "shared-code",
 			durationMinutes: 30,
 			allowMultipleAttempts: true,
 			state: "COMPLETED" as const,
@@ -344,9 +360,13 @@ describe("InterviewAttemptsService", () => {
 		const histories = await service.findAllForCandidate(candidate);
 
 		expect(histories).toHaveLength(1);
-		expect(histories[0]?.interview).toEqual(
-			expect.objectContaining({ id: interviewId, allowMultipleAttempts: true }),
-		);
+		expect(histories[0]?.interview).toEqual({
+			id: interviewId,
+			title: "Junior React Developer",
+			description: null,
+			durationMinutes: 30,
+			allowMultipleAttempts: true,
+		});
 		expect(histories[0]?.attempts.map((attempt) => attempt.id)).toEqual([
 			secondAttemptId,
 			attemptId,

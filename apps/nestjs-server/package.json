@@ -4,6 +4,12 @@
 	"description": "Interview Desk API and realtime interview orchestration server.",
 	"private": true,
 	"type": "module",
+	"imports": {
+		"#/*": {
+			"types": "./src/*",
+			"default": "./dist/*"
+		}
+	},
 	"scripts": {
 		"build": "nest build",
 		"dev": "pnpm run start:dev",
@@ -82,6 +88,7 @@
 			]
 		},
 		"moduleNameMapper": {
+			"^#/(.*)\\.js$": "<rootDir>/$1",
 			"^(\\.{1,2}/.*)\\.js$": "$1"
 		},
 		"collectCoverageFrom": [

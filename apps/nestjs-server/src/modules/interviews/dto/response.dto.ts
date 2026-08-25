@@ -22,8 +22,7 @@ export const InterviewSummaryResponseSchema = z
 		durationMinutes: z.number().int(),
 		allowMultipleAttempts: z.boolean(),
 		questionCount: z.number().int().nonnegative(),
-		shareCode: z.string(),
-		shareUrl: z.url(),
+		isPublic: z.boolean(),
 		createdAt: DateTimeSchema,
 	})
 	.strict();

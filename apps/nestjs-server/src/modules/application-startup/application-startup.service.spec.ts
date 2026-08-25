@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import type { DatabaseLifecycleService } from "../../db/database-lifecycle.service.js";
+import type { DatabaseLifecycleService } from "#/db/database-lifecycle.service.js";
 import { ApplicationStartupService } from "./application-startup.service.js";
 
 describe("ApplicationStartupService", () => {

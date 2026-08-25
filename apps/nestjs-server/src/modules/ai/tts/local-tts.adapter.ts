@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { AppConfigService } from "../../../types/index.js";
-import { normalizeAudioMimeType } from "../audio-formats.js";
+import { normalizeAudioMimeType } from "#/modules/ai/audio-formats.js";
+import type { AppConfigService } from "#/types/index.js";
 import type {
 	SpeechChunk,
 	SynthesizeSpeechInput,

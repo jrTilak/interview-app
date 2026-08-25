@@ -1,7 +1,6 @@
 process.env.NODE_ENV = "test";
 process.env.PORT = "3001";
 process.env.APP_NAME = "Interview Desk Test";
-process.env.APP_WEB_URL = "http://localhost:5173";
 process.env.API_PREFIX = "api";
 process.env.API_CORS_ORIGINS = "http://localhost:5173";
 process.env.API_DOCS_FILE_PATH = "docs/api-info.md";

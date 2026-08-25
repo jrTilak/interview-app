@@ -22,6 +22,13 @@
 			"when": 1787493579753,
 			"tag": "0002_flaky_bug",
 			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1787650005307,
+			"tag": "0003_cooing_unicorn",
+			"breakpoints": true
 		}
 	]
 }

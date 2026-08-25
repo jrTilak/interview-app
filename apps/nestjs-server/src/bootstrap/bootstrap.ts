@@ -1,9 +1,9 @@
 import { type INestApplication, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
-import { AppModule } from "../app.module.js";
-import { OpenApiService } from "../modules/open-api/open-api.service.js";
-import type { AppConfigService } from "../types/index.js";
+import { AppModule } from "#/app.module.js";
+import { OpenApiService } from "#/modules/open-api/open-api.service.js";
+import type { AppConfigService } from "#/types/index.js";
 
 const logger = new Logger("Bootstrap", { timestamp: true });
 

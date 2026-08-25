@@ -2,7 +2,7 @@ import z from "zod";
 import {
 	normalizeAudioMimeType,
 	TRANSCRIPTION_AUDIO_MIME_TYPES,
-} from "../../ai/audio-formats.js";
+} from "#/modules/ai/audio-formats.js";
 
 const AttemptCommandSchema = z
 	.object({
