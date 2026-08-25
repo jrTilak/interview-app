@@ -6,7 +6,7 @@
  *
  * Application routes require a Better Auth session cookie unless explicitly documented as public. Request bodies and parameters are strictly validated. Validation failures use HTTP 422, ownership checks hide foreign resources as 404, and unexpected server failures are sanitized.
  *
- * Use a UUID `clientRequestId` when creating an interview so network retries are idempotent. Hidden questions are only returned to their creator; a share-link preview exposes title, description, duration, and question count.
+ * Use a UUID `clientRequestId` when creating an interview so network retries are idempotent. Private topic boundaries and follow-up guidance are returned only to their creator; a share-link preview exposes title, description, duration, and topic count. Existing transport fields retain their `questions` and `questionCount` names for compatibility.
  *
  * The Socket.IO interview protocol is documented in the repository's `docs/REALTIME_PROTOCOL.md` file.
  *
@@ -35,6 +35,10 @@ export * from './creatorAttemptHistoryResponseDto';
 export * from './creatorAttemptHistoryResponseDtoCandidate';
 export * from './creatorAttemptHistoryResponseDtoEndReason';
 export * from './creatorAttemptHistoryResponseDtoState';
+export * from './deletedInterviewResponseDto';
+export * from './devFlagsControllerRead200';
+export * from './devFlagsControllerUpdate200';
+export * from './devFlagsResponseDto';
 export * from './healthResponseDto';
 export * from './healthResponseDtoStatus';
 export * from './interviewAttemptsControllerCreateOrResume201';
@@ -46,6 +50,8 @@ export * from './interviewDetailsResponseDtoQuestionsItem';
 export * from './interviewsControllerCreate201';
 export * from './interviewsControllerFindAll200';
 export * from './interviewsControllerFindById200';
+export * from './interviewsControllerRemove200';
+export * from './interviewsControllerUpdate200';
 export * from './interviewSummaryResponseDto';
 export * from './readinessDependenciesDto';
 export * from './readinessDependenciesDtoDatabase';
@@ -53,3 +59,5 @@ export * from './readinessResponseDto';
 export * from './readinessResponseDtoStatus';
 export * from './sharedInterviewPreviewResponseDto';
 export * from './sharedInterviewsControllerPreview200';
+export * from './updateDevFlagsDto';
+export * from './updateInterviewDto';

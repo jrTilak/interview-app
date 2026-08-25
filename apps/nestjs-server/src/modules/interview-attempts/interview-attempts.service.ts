@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
 	ConflictException,
 	Injectable,
@@ -43,6 +44,8 @@ import type {
 type AttemptRow = typeof interviewAttempt.$inferSelect;
 
 const PROCESSING_RECOVERY_MS = 3 * 60_000;
+const TIME_LIMIT_CLOSING_TEXT =
+	"Thank you for your time. The interview has now reached its time limit.";
 
 export type StartAttemptResult = {
 	snapshot: AttemptSnapshot;
@@ -580,6 +583,7 @@ export class InterviewAttemptsService {
 				objective: interviewQuestion.objective,
 				followUpGuidance: interviewQuestion.followUpGuidance,
 				progress: attemptQuestionProgress.state,
+				turnCount: attemptQuestionProgress.turnCount,
 			})
 			.from(attemptQuestionProgress)
 			.innerJoin(
@@ -602,7 +606,15 @@ export class InterviewAttemptsService {
 				title: row.interviewTitle,
 				description: row.interviewDescription,
 			},
-			candidate: { name: row.candidateName },
+			candidate: {
+				name: row.candidateName,
+				// The LLM receives only this opaque, attempt-scoped key. It cannot
+				// recover or expose the candidate/attempt UUIDs used to derive it.
+				variationKey: createHash("sha256")
+					.update(`${attemptId}:${candidate.id}`)
+					.digest("hex")
+					.slice(0, 32),
+			},
 			tasks: taskRows.map(
 				(task): InterviewTaskContext => ({
 					id: task.id,
@@ -612,6 +624,7 @@ export class InterviewAttemptsService {
 					objective: task.objective,
 					followUpGuidance: task.followUpGuidance,
 					completed: task.progress === "COMPLETED",
+					turnCount: task.turnCount,
 				}),
 			),
 			transcript: transcriptRows.map((turn) => ({
@@ -630,6 +643,7 @@ export class InterviewAttemptsService {
 		input: {
 			text: string;
 			completedQuestionIds: string[];
+			engagedQuestionId: string | null;
 			endRequested: boolean;
 			forceEnd: boolean;
 		},
@@ -652,37 +666,72 @@ export class InterviewAttemptsService {
 			if (row.state !== "ASSISTANT_SPEAKING" && row.state !== "PROCESSING") {
 				throw new ConflictException("Assistant transcript is not expected now");
 			}
+			const deadlineReached =
+				row.deadlineAt !== null && row.deadlineAt.getTime() <= Date.now();
 
-			if (input.completedQuestionIds.length > 0) {
-				await transaction
+			// A generation may finish after its deadline. In that race, discard the
+			// model move and do not mutate topic progress; the persisted/spoken turn
+			// is the server-owned time-limit close below.
+			const completedQuestionIds = deadlineReached
+				? []
+				: [...new Set(input.completedQuestionIds)];
+			if (completedQuestionIds.length > 0) {
+				const completed = await transaction
 					.update(attemptQuestionProgress)
 					.set({ state: "COMPLETED", completedAt: new Date() })
 					.where(
 						and(
 							eq(attemptQuestionProgress.attemptId, attemptId),
-							inArray(
-								attemptQuestionProgress.questionId,
-								input.completedQuestionIds,
-							),
+							eq(attemptQuestionProgress.state, "PENDING"),
+							inArray(attemptQuestionProgress.questionId, completedQuestionIds),
 						),
+					)
+					.returning({ questionId: attemptQuestionProgress.questionId });
+				if (completed.length !== completedQuestionIds.length) {
+					throw new ConflictException(
+						"Interview topic progress changed before it could be completed",
 					);
+				}
 			}
 
-			const [pending] = await transaction
-				.select({ count: count() })
-				.from(attemptQuestionProgress)
-				.where(
-					and(
-						eq(attemptQuestionProgress.attemptId, attemptId),
-						eq(attemptQuestionProgress.state, "PENDING"),
-					),
-				);
-			const deadlineReached =
-				row.deadlineAt !== null && row.deadlineAt.getTime() <= Date.now();
+			if (!deadlineReached && input.engagedQuestionId) {
+				const [engaged] = await transaction
+					.update(attemptQuestionProgress)
+					.set({
+						turnCount: sql`${attemptQuestionProgress.turnCount} + 1`,
+					})
+					.where(
+						and(
+							eq(attemptQuestionProgress.attemptId, attemptId),
+							eq(attemptQuestionProgress.questionId, input.engagedQuestionId),
+							eq(attemptQuestionProgress.state, "PENDING"),
+						),
+					)
+					.returning({ questionId: attemptQuestionProgress.questionId });
+				if (!engaged) {
+					throw new ConflictException(
+						"Interview topic progress changed before the turn was saved",
+					);
+				}
+			}
+
+			let pendingCount = 0;
+			if (!deadlineReached) {
+				const [pending] = await transaction
+					.select({ count: count() })
+					.from(attemptQuestionProgress)
+					.where(
+						and(
+							eq(attemptQuestionProgress.attemptId, attemptId),
+							eq(attemptQuestionProgress.state, "PENDING"),
+						),
+					);
+				pendingCount = Number(pending?.count ?? 0);
+			}
 			const shouldEnd =
 				input.forceEnd ||
 				deadlineReached ||
-				(input.endRequested && Number(pending?.count ?? 0) === 0);
+				(input.endRequested && pendingCount === 0);
 			const endReason = shouldEnd
 				? input.forceEnd || deadlineReached
 					? "TIME_LIMIT"
@@ -694,7 +743,7 @@ export class InterviewAttemptsService {
 					attemptId,
 					sequence: await this._nextSequence(transaction, attemptId),
 					role: "ASSISTANT",
-					text: input.text,
+					text: deadlineReached ? TIME_LIMIT_CLOSING_TEXT : input.text,
 				})
 				.returning({ id: interviewTurn.id, text: interviewTurn.text });
 			if (!saved)

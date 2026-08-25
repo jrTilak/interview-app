@@ -7,7 +7,7 @@ export function CreateInterviewScreen() {
 	return (
 		<CreatorAppShell>
 			<PageHeader
-				description="Add the brief, timing, and question notes."
+				description="Set the brief, timing, and topics to explore."
 				eyebrow="Recruiter mode"
 				title="New interview"
 			/>

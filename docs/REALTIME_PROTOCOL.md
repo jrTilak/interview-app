@@ -36,7 +36,9 @@ Camera/screen events are accepted only during an active attempt, when the corres
 | `attempt:ended` | Final reason and timestamp |
 | `attempt:error` | Stable code, safe message, and retryability |
 
-The server emits subtitle text before synthesis begins. The opening subtitle does not wait for the local LLM; it is composed from trusted persisted data and the first active question. Later turns follow transcription and local generation.
+The server emits subtitle text before synthesis begins. The opening and later interviewer subtitles come from the preloaded resident local LLM, constrained by server-owned topic boundaries. Later turns follow transcription and use at most four recent dialogue turns for contextual acknowledgments and personalized questions.
+
+Topic progression is authoritative server state. A persisted `turnCount` prevents the opening from completing its topic, allows at most one same-topic follow-up or conversational move, and forces a bridge afterward. The model provider never chooses IDs; the bridge maps its bounded completion signal to the current topic, and the server validates completion and decides final/deadline endings.
 
 ## Integrity behavior
 

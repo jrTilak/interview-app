@@ -35,7 +35,10 @@ function turnInput(
 ): GenerateInterviewTurnInput {
 	return {
 		interview: { title: "Frontend interview", description: null },
-		candidate: { name: "Ada Candidate" },
+		candidate: {
+			name: "Ada Candidate",
+			variationKey: "opaque-attempt-variation-key",
+		},
 		tasks: [
 			{
 				id: questionId,
@@ -45,6 +48,7 @@ function turnInput(
 				objective: "Understand effect timing.",
 				followUpGuidance: null,
 				completed: false,
+				turnCount: 1,
 			},
 		],
 		transcript: [
@@ -134,6 +138,7 @@ describe("LocalLlmAdapter", () => {
 			title: input.interview.title,
 			description: input.interview.description,
 			candidateName: input.candidate.name,
+			candidateVariationKey: input.candidate.variationKey,
 			tasks: [
 				{
 					id: questionId,
@@ -142,6 +147,7 @@ describe("LocalLlmAdapter", () => {
 					objective: "Understand effect timing.",
 					followUpGuidance: null,
 					completed: false,
+					turnCount: 1,
 				},
 			],
 			transcript: JSON.stringify(input.transcript),

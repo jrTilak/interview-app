@@ -45,8 +45,8 @@ export function CreateInterviewForm() {
 				});
 				requestId.current = crypto.randomUUID();
 				toaster.success({
-					description: `${interview.questionCount} questions are ready to share.`,
-					title: "Interview structured",
+					description: `${interview.questionCount} topics are ready to share.`,
+					title: "Interview plan ready",
 				});
 				await router.navigate({
 					params: { interviewId: interview.id },
@@ -186,8 +186,8 @@ export function CreateInterviewForm() {
 						{(field) => (
 							<FieldShell
 								error={firstFormError(field.state.meta.errors)}
-								hint="The local interviewer structures these private notes."
-								label="Question notes"
+								hint="These private notes guide the conversation, not a fixed script."
+								label="Topics to cover"
 								required
 							>
 								<TextAreaInput
@@ -199,9 +199,9 @@ export function CreateInterviewForm() {
 									onBlur={field.handleBlur}
 									onChange={(event) => field.handleChange(event.target.value)}
 									placeholder={[
-										"Ask for a concise introduction.",
-										"Discuss React rendering and one difficult bug.",
-										"Ask how they would test a realtime feature.",
+										"Background and a recent project.",
+										"React rendering and a difficult debugging experience.",
+										"Testing strategy for a realtime feature.",
 									].join("\n")}
 									value={field.state.value}
 								/>
@@ -219,7 +219,7 @@ export function CreateInterviewForm() {
 								disabled={!canSubmit || createInterview.isPending}
 								h="12"
 								loading={isSubmitting || createInterview.isPending}
-								loadingText="Structuring question set…"
+								loadingText="Building topic plan…"
 								px="6"
 								type="submit"
 							>

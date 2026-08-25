@@ -225,7 +225,7 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 								maxW="3xl"
 							>
 								{preview.data.description ||
-									"The interviewer will guide you through a structured question set."}
+									"The interviewer will guide a natural conversation across the planned topics."}
 							</Text>
 							<Flex
 								borderColor="line"
@@ -241,8 +241,8 @@ export function JoinInterviewScreen({ shareCode }: { shareCode: string }) {
 								/>
 								<BriefStat
 									icon={ListChecks}
-									label="Question set"
-									value={`${preview.data.questionCount} tasks`}
+									label="Topic plan"
+									value={`${preview.data.questionCount} topics`}
 								/>
 								<BriefStat
 									icon={Repeat2}

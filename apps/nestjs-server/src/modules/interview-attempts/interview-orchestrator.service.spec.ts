@@ -69,7 +69,10 @@ function snapshot(
 function modelContext() {
 	return {
 		interview: { title: "Frontend", description: null },
-		candidate: { name: candidate.name },
+		candidate: {
+			name: candidate.name,
+			variationKey: "opaque-attempt-variation-key",
+		},
 		tasks: [
 			{
 				id: questionId,
@@ -79,6 +82,7 @@ function modelContext() {
 				objective: null,
 				followUpGuidance: null,
 				completed: false,
+				turnCount: 0,
 			},
 			{
 				id: futureQuestionId,
@@ -88,6 +92,7 @@ function modelContext() {
 				objective: null,
 				followUpGuidance: null,
 				completed: false,
+				turnCount: 0,
 			},
 		],
 		transcript: [],
@@ -107,7 +112,7 @@ async function speechResponse() {
 }
 
 describe("InterviewOrchestratorService", () => {
-	it("starts immediately from saved context without an LLM round trip", async () => {
+	it("uses the LLM for a personalized opening without completing its topic", async () => {
 		const attempts = {
 			start: asyncMock({
 				snapshot: snapshot("ASSISTANT_SPEAKING"),
@@ -116,14 +121,17 @@ describe("InterviewOrchestratorService", () => {
 			loadModelContext: asyncMock(modelContext()),
 			saveAssistantTurn: asyncMock({
 				id: turnId,
-				text: "Hello Ada Candidate. Welcome to the Frontend interview. Explain useEffect",
+				text: "Welcome, Ada. How have effects shaped the React work you have done?",
 				shouldEnd: false,
 				endReason: null,
 			}),
 			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
 			claimDeadline: asyncMock(false),
 		};
-		const llm = createLlm();
+		const llm = createLlm({
+			text: "Welcome, Ada. How have effects shaped the React work you have done?",
+			actions: [{ type: "complete_questions", questionIds: [questionId] }],
+		});
 		const tts: TextToSpeechPort = { synthesize: speechResponse };
 		const service = new InterviewOrchestratorService(
 			attempts as unknown as InterviewAttemptsService,
@@ -137,12 +145,23 @@ describe("InterviewOrchestratorService", () => {
 			events.push({ event, payload }),
 		);
 
+		expect(llm.generateTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tasks: modelContext().tasks,
+				transcript: [],
+			}),
+		);
 		expect(attempts.saveAssistantTurn).toHaveBeenCalledWith(
 			attemptId,
 			candidate,
-			expect.objectContaining({ completedQuestionIds: [questionId] }),
+			{
+				text: "Welcome, Ada. How have effects shaped the React work you have done?",
+				completedQuestionIds: [],
+				engagedQuestionId: questionId,
+				endRequested: false,
+				forceEnd: false,
+			},
 		);
-		expect(llm.generateTurn).not.toHaveBeenCalled();
 		expect(events.map(({ event }) => event)).toEqual(
 			expect.arrayContaining([
 				"assistant:subtitle",
@@ -296,7 +315,7 @@ describe("InterviewOrchestratorService", () => {
 		);
 	});
 
-	it("refuses a premature end tool while a task is still pending", async () => {
+	it("allows one conversational follow-up and refuses a premature end", async () => {
 		const attempts = {
 			start: asyncMock({
 				snapshot: snapshot("ASSISTANT_SPEAKING"),
@@ -304,11 +323,15 @@ describe("InterviewOrchestratorService", () => {
 			}),
 			loadModelContext: asyncMock({
 				...modelContext(),
+				tasks: modelContext().tasks.map((task, index) => ({
+					...task,
+					turnCount: index === 0 ? 1 : 0,
+				})),
 				transcript: [{ role: "candidate" as const, text: "Previous answer" }],
 			}),
 			saveAssistantTurn: asyncMock({
 				id: turnId,
-				text: "Let us continue. Explain useEffect",
+				text: "That is a useful example. What trade-off did you notice?",
 				shouldEnd: false,
 				endReason: null,
 			}),
@@ -318,14 +341,8 @@ describe("InterviewOrchestratorService", () => {
 		const service = new InterviewOrchestratorService(
 			attempts as unknown as InterviewAttemptsService,
 			createLlm({
-				text: "Thank you, goodbye.",
-				actions: [
-					{
-						type: "complete_questions",
-						questionIds: [questionId, futureQuestionId],
-					},
-					{ type: "end_interview", reason: "too early" },
-				],
+				text: "That is a useful example. What trade-off did you notice?",
+				actions: [{ type: "end_interview", reason: "too early" }],
 			}),
 			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
 			{ synthesize: speechResponse },
@@ -337,9 +354,124 @@ describe("InterviewOrchestratorService", () => {
 			attemptId,
 			candidate,
 			{
-				text: "Let us continue. Explain useEffect",
-				completedQuestionIds: [questionId],
+				text: "That is a useful example. What trade-off did you notice?",
+				completedQuestionIds: [],
+				engagedQuestionId: questionId,
 				endRequested: false,
+				forceEnd: false,
+			},
+		);
+	});
+
+	it("forces advancement after the optional follow-up and engages the next topic", async () => {
+		const tasks = modelContext().tasks.map((task, index) => ({
+			...task,
+			turnCount: index === 0 ? 2 : 0,
+		}));
+		const attempts = {
+			start: asyncMock({
+				snapshot: snapshot("ASSISTANT_SPEAKING"),
+				shouldRunAssistant: true,
+			}),
+			loadModelContext: asyncMock({
+				...modelContext(),
+				tasks,
+				transcript: [
+					{ role: "candidate" as const, text: "A more detailed answer" },
+				],
+			}),
+			saveAssistantTurn: asyncMock({
+				id: turnId,
+				text: "Thanks for expanding on that. Tell me about a bug that challenged you.",
+				shouldEnd: false,
+				endReason: null,
+			}),
+			finishAssistantSpeech: asyncMock(snapshot("LISTENING")),
+			claimDeadline: asyncMock(false),
+		};
+		const llm = createLlm({
+			text: "Thanks for expanding on that. Tell me about a bug that challenged you.",
+			actions: [],
+		});
+		const service = new InterviewOrchestratorService(
+			attempts as unknown as InterviewAttemptsService,
+			llm,
+			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
+			{ synthesize: speechResponse },
+		);
+
+		await service.start(attemptId, candidate, jest.fn());
+
+		expect(llm.generateTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ tasks }),
+		);
+		expect(attempts.saveAssistantTurn).toHaveBeenCalledWith(
+			attemptId,
+			candidate,
+			{
+				text: "Thanks for expanding on that. Tell me about a bug that challenged you.",
+				completedQuestionIds: [questionId],
+				engagedQuestionId: futureQuestionId,
+				endRequested: false,
+				forceEnd: false,
+			},
+		);
+	});
+
+	it("completes the final topic without attributing the closing turn to a topic", async () => {
+		const tasks = modelContext().tasks.map((task, index) => ({
+			...task,
+			completed: index === 0,
+			turnCount: 1,
+		}));
+		const attempts = {
+			start: asyncMock({
+				snapshot: snapshot("ASSISTANT_SPEAKING"),
+				shouldRunAssistant: true,
+			}),
+			loadModelContext: asyncMock({
+				...modelContext(),
+				tasks,
+				transcript: [
+					{ role: "candidate" as const, text: "That is how I fixed it." },
+				],
+			}),
+			saveAssistantTurn: asyncMock({
+				id: turnId,
+				text: "Thank you for walking me through that. This concludes our interview.",
+				shouldEnd: true,
+				endReason: "AI_COMPLETED" as const,
+			}),
+			finishAssistantSpeech: asyncMock(snapshot("COMPLETED")),
+			claimDeadline: asyncMock(false),
+		};
+		const llm = createLlm({
+			text: "Thank you for walking me through that. This concludes our interview.",
+			actions: [
+				{ type: "complete_questions", questionIds: [futureQuestionId] },
+				{ type: "end_interview", reason: "All topics completed" },
+			],
+		});
+		const service = new InterviewOrchestratorService(
+			attempts as unknown as InterviewAttemptsService,
+			llm,
+			{ transcribe: jest.fn<SpeechToTextPort["transcribe"]>() },
+			{ synthesize: speechResponse },
+		);
+
+		await service.start(attemptId, candidate, jest.fn());
+
+		expect(llm.generateTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ tasks: [tasks[1]] }),
+		);
+		expect(attempts.saveAssistantTurn).toHaveBeenCalledWith(
+			attemptId,
+			candidate,
+			{
+				text: "Thank you for walking me through that. This concludes our interview.",
+				completedQuestionIds: [futureQuestionId],
+				engagedQuestionId: null,
+				endRequested: true,
 				forceEnd: false,
 			},
 		);

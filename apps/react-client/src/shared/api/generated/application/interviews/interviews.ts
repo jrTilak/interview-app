@@ -6,7 +6,7 @@
  *
  * Application routes require a Better Auth session cookie unless explicitly documented as public. Request bodies and parameters are strictly validated. Validation failures use HTTP 422, ownership checks hide foreign resources as 404, and unexpected server failures are sanitized.
  *
- * Use a UUID `clientRequestId` when creating an interview so network retries are idempotent. Hidden questions are only returned to their creator; a share-link preview exposes title, description, duration, and question count.
+ * Use a UUID `clientRequestId` when creating an interview so network retries are idempotent. Private topic boundaries and follow-up guidance are returned only to their creator; a share-link preview exposes title, description, duration, and topic count. Existing transport fields retain their `questions` and `questionCount` names for compatibility.
  *
  * The Socket.IO interview protocol is documented in the repository's `docs/REALTIME_PROTOCOL.md` file.
  *
@@ -16,7 +16,10 @@ import type {
   CreateInterviewDto,
   InterviewsControllerCreate201,
   InterviewsControllerFindAll200,
-  InterviewsControllerFindById200
+  InterviewsControllerFindById200,
+  InterviewsControllerRemove200,
+  InterviewsControllerUpdate200,
+  UpdateInterviewDto
 } from '../models';
 
 import { apiClient } from '../../../client';
@@ -62,7 +65,34 @@ const interviewsControllerFindById = (
     },
       options);
     }
-  return {interviewsControllerCreate,interviewsControllerFindAll,interviewsControllerFindById}};
+  /**
+ * @summary Update one of my interviews
+ */
+const interviewsControllerUpdate = (
+    id: string,
+    updateInterviewDto: BodyType<UpdateInterviewDto>,
+ options?: SecondParameter<typeof apiClient<InterviewsControllerUpdate200>>,) => {
+      return apiClient<InterviewsControllerUpdate200>(
+      {url: `/api/interviews/${id}`, method: 'PATCH',
+      headers: {'Content-Type': 'application/json', },
+      data: updateInterviewDto
+    },
+      options);
+    }
+  /**
+ * @summary Delete one of my unused interviews
+ */
+const interviewsControllerRemove = (
+    id: string,
+ options?: SecondParameter<typeof apiClient<InterviewsControllerRemove200>>,) => {
+      return apiClient<InterviewsControllerRemove200>(
+      {url: `/api/interviews/${id}`, method: 'DELETE'
+    },
+      options);
+    }
+  return {interviewsControllerCreate,interviewsControllerFindAll,interviewsControllerFindById,interviewsControllerUpdate,interviewsControllerRemove}};
 export type InterviewsControllerCreateResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviews>['interviewsControllerCreate']>>>
 export type InterviewsControllerFindAllResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviews>['interviewsControllerFindAll']>>>
 export type InterviewsControllerFindByIdResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviews>['interviewsControllerFindById']>>>
+export type InterviewsControllerUpdateResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviews>['interviewsControllerUpdate']>>>
+export type InterviewsControllerRemoveResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getInterviews>['interviewsControllerRemove']>>>

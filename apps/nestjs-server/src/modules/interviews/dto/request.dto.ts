@@ -56,9 +56,9 @@ export const CreateInterviewSchema = z
 			.max(INTERVIEW_LIMITS.rawQuestions.maximum)
 			.meta({
 				description:
-					"Raw question notes converted to structured interview tasks.",
+					"Private topic notes converted into conversational interview boundaries.",
 				example:
-					"Ask about React hooks. Then ask them to explain one difficult bug.",
+					"React hooks and state ownership. A difficult debugging experience.",
 			}),
 		durationMinutes: z
 			.number()

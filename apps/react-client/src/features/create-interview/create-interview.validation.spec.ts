@@ -111,7 +111,7 @@ describe("CreateInterviewSchema", () => {
 	});
 
 	it.each([3, 20_000])(
-		"accepts trimmed question notes at the %i character boundary",
+		"accepts trimmed topic notes at the %i character boundary",
 		(length) => {
 			expect(
 				CreateInterviewSchema.safeParse({
@@ -123,7 +123,7 @@ describe("CreateInterviewSchema", () => {
 	);
 
 	it.each([0, 2, 20_001])(
-		"rejects trimmed question notes outside the boundary at %i characters",
+		"rejects trimmed topic notes outside the boundary at %i characters",
 		(length) => {
 			expect(
 				CreateInterviewSchema.safeParse({

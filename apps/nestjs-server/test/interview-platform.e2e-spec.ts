@@ -55,31 +55,42 @@ class FakeInterviewLlm implements InterviewLlmPort {
 			};
 		}
 		const pending = input.tasks.filter((task) => !task.completed);
-		if (input.transcript.length === 0 && pending[0]) {
+		const current = pending[0];
+		const next = pending[1];
+		if (!current) {
 			return {
-				text: `Hello ${input.candidate.name}. ${pending[0].prompt}`,
+				text: "Thank you for your time. The interview is now complete.",
 				actions: [
-					{
-						type: "complete_questions" as const,
-						questionIds: [pending[0].id],
-					},
+					{ type: "end_interview" as const, reason: "All tasks asked" },
 				],
 			};
 		}
-		if (pending[0]) {
+		if (current.turnCount === 0) {
 			return {
-				text: `Thank you. ${pending[0].prompt}`,
+				text: `Hello ${input.candidate.name}. What experience have you had with ${current.title.toLowerCase()}?`,
+				actions: [],
+			};
+		}
+		if (next) {
+			return {
+				text: `Thank you for that context. Could you walk me through your experience with ${next.title.toLowerCase()}?`,
 				actions: [
 					{
 						type: "complete_questions" as const,
-						questionIds: [pending[0].id],
+						questionIds: [current.id],
 					},
 				],
 			};
 		}
 		return {
-			text: "Thank you for your time. The interview is now complete.",
-			actions: [{ type: "end_interview" as const, reason: "All tasks asked" }],
+			text: "Thank you for sharing that. This concludes the interview.",
+			actions: [
+				{
+					type: "complete_questions" as const,
+					questionIds: [current.id],
+				},
+				{ type: "end_interview" as const, reason: "All tasks asked" },
+			],
 		};
 	}
 }
@@ -607,7 +618,7 @@ describe("interview platform end to end", () => {
 		expect(finalSnapshot.body.data.turns.map((turn: any) => turn.role)).toEqual(
 			["assistant", "candidate", "assistant", "candidate", "assistant"],
 		);
-		expect(fakeLlm.turnCalls).toBe(2);
+		expect(fakeLlm.turnCalls).toBe(3);
 		await request(app.getHttpServer())
 			.delete(`/api/interviews/${ownerInterviewId}`)
 			.set("Cookie", ownerCookie)

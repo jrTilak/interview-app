@@ -20,6 +20,7 @@ const candidate: User = {
 const interviewId = "ad83ff52-d2e8-49f1-a580-8086390dc90a";
 const attemptId = "f0c765b0-a9fe-4a67-bf75-a63486949831";
 const questionId = "7635f24a-adb3-457c-8e43-2d0a1a8fa0df";
+const futureQuestionId = "83e0c06d-cbbf-47db-80fe-9da1bc4d37b0";
 const clientTurnId = "19ad8c03-9e89-4d23-b393-d3cd6a654900";
 
 type QueryChain<T> = PromiseLike<T> & {
@@ -350,6 +351,157 @@ describe("InterviewAttemptsService", () => {
 			secondAttemptId,
 			attemptId,
 		]);
+	});
+
+	it("loads persisted topic turn counts into model context", async () => {
+		const deadlineAt = new Date(Date.now() + 30_000);
+		const { service } = databaseMock({
+			select: [
+				query([
+					{
+						state: "ASSISTANT_SPEAKING",
+						deadlineAt,
+						interviewTitle: "Frontend interview",
+						interviewDescription: null,
+						candidateName: candidate.name,
+					},
+				]),
+				query([
+					{
+						id: questionId,
+						position: 1,
+						title: "Effects",
+						prompt: "React effect behavior",
+						objective: "Explore effect reasoning",
+						followUpGuidance: null,
+						progress: "PENDING",
+						turnCount: 1,
+					},
+				]),
+				query([
+					{ role: "ASSISTANT", text: "How do effects fit your work?" },
+					{ role: "CANDIDATE", text: "I use them for synchronization." },
+				]),
+			],
+		});
+
+		const context = await service.loadModelContext(attemptId, candidate);
+
+		expect(context.tasks).toEqual([
+			expect.objectContaining({
+				id: questionId,
+				completed: false,
+				turnCount: 1,
+			}),
+		]);
+		expect(context.transcript).toEqual([
+			{ role: "assistant", text: "How do effects fit your work?" },
+			{ role: "candidate", text: "I use them for synchronization." },
+		]);
+		expect(context.candidate.name).toBe(candidate.name);
+		expect(context.candidate.variationKey).toMatch(/^[a-f0-9]{32}$/);
+		expect(context.candidate.variationKey).not.toContain(attemptId);
+		expect(context.candidate.variationKey).not.toContain(candidate.id);
+		expect(context.mustEnd).toBe(false);
+	});
+
+	it("atomically completes the current topic and attributes the turn to the next", async () => {
+		const completion = query([{ questionId }]);
+		const engagement = query([{ questionId: futureQuestionId }]);
+		const attemptUpdate = query([]);
+		const savedTurn = query([
+			{ id: clientTurnId, text: "Let us discuss debugging." },
+		]);
+		const { service } = databaseMock({
+			select: [
+				query([
+					{
+						state: "ASSISTANT_SPEAKING",
+						deadlineAt: new Date(Date.now() + 30_000),
+					},
+				]),
+				query([{ count: 1 }]),
+				query([{ sequence: 2 }]),
+			],
+			update: [completion, engagement, attemptUpdate],
+			insert: [savedTurn],
+		});
+
+		await expect(
+			service.saveAssistantTurn(attemptId, candidate, {
+				text: "Let us discuss debugging.",
+				completedQuestionIds: [questionId],
+				engagedQuestionId: futureQuestionId,
+				endRequested: false,
+				forceEnd: false,
+			}),
+		).resolves.toEqual({
+			id: clientTurnId,
+			text: "Let us discuss debugging.",
+			shouldEnd: false,
+			endReason: null,
+		});
+
+		expect(completion.returning).toHaveBeenCalledTimes(1);
+		expect(engagement.set).toHaveBeenCalledWith({
+			turnCount: expect.anything(),
+		});
+		const engagementWhere = compiledWhere(engagement);
+		expect(engagementWhere.params).toEqual(
+			expect.arrayContaining([attemptId, futureQuestionId, "PENDING"]),
+		);
+		expect(savedTurn.values).toHaveBeenCalledWith({
+			attemptId,
+			sequence: 3,
+			role: "ASSISTANT",
+			text: "Let us discuss debugging.",
+		});
+	});
+
+	it("discards a generated question when the deadline expires before persistence", async () => {
+		const closingText =
+			"Thank you for your time. The interview has now reached its time limit.";
+		const attemptUpdate = query([]);
+		const savedTurn = query([{ id: clientTurnId, text: closingText }]);
+		const { database, service } = databaseMock({
+			select: [
+				query([
+					{
+						state: "ASSISTANT_SPEAKING",
+						deadlineAt: new Date(Date.now() - 1),
+					},
+				]),
+				query([{ sequence: 2 }]),
+			],
+			update: [attemptUpdate],
+			insert: [savedTurn],
+		});
+
+		await expect(
+			service.saveAssistantTurn(attemptId, candidate, {
+				text: "Can you tell me about the next topic?",
+				completedQuestionIds: [questionId],
+				engagedQuestionId: futureQuestionId,
+				endRequested: false,
+				forceEnd: false,
+			}),
+		).resolves.toEqual({
+			id: clientTurnId,
+			text: closingText,
+			shouldEnd: true,
+			endReason: "TIME_LIMIT",
+		});
+
+		expect(database.update).toHaveBeenCalledTimes(1);
+		expect(savedTurn.values).toHaveBeenCalledWith({
+			attemptId,
+			sequence: 3,
+			role: "ASSISTANT",
+			text: closingText,
+		});
+		expect(attemptUpdate.set).toHaveBeenCalledWith(
+			expect.objectContaining({ state: "ENDING", endReason: "TIME_LIMIT" }),
+		);
 	});
 
 	it("does not steal a fresh PROCESSING attempt during reconnect", async () => {

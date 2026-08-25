@@ -6,14 +6,15 @@
 - Interview and Recruiter workspaces with compact multipage navigation
 - Recruiter create, list, detail, edit, delete, sharing, and participant history
 - Candidate join-by-link, preflight, resume, live room, and grouped attempt history
-- Local Qwen/Ollama question structuring and follow-up generation
+- Local Qwen/Ollama topic-boundary structuring and personalized natural live dialogue
 - Local faster-whisper transcription and Piper WAV synthesis
-- Immediate server-composed opening question and model preloading
-- Durable attempts, transcripts, task progress, deadlines, reconnect snapshots, and terminal states
+- Model-generated opening from a resident preload, four-turn dialogue context, and at most one same-topic follow-up
+- Server-owned IDs/actions plus durable attempts, transcripts, per-topic turn counts, deadlines, reconnect snapshots, and terminal states
 - Fullscreen concealment plus monitor-only screen sharing
 - Client-side face detection, outlines, start gate, pause behavior, and optional termination
 - Process-wide development flags and optional disposable camera/screen transport
 - REST, Socket.IO, unit/component, and desktop Chromium test coverage
+- Optional NVIDIA GPU Compose overlay with Flash Attention and bounded model concurrency
 
 ## Intentionally outside the current scope
 
