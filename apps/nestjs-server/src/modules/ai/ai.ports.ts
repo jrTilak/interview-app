@@ -20,6 +20,7 @@ export type InterviewTaskContext = StructuredInterviewQuestion & {
 	id: string;
 	position: number;
 	completed: boolean;
+	turnCount: number;
 };
 
 export type InterviewTranscriptEntry = {
@@ -34,6 +35,7 @@ export type GenerateInterviewTurnInput = {
 	};
 	candidate: {
 		name: string;
+		variationKey: string;
 	};
 	tasks: InterviewTaskContext[];
 	transcript: InterviewTranscriptEntry[];

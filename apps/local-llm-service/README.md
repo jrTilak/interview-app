@@ -1,23 +1,25 @@
 # Local LLM service
 
 This FastAPI service connects the interview backend to a local Ollama model. It
-structures creator notes and generates the next spoken interviewer turn. NestJS
-continues to own users, timing, task state, transcripts, audio, and WebSockets.
+structures creator notes into ordered topic boundaries and generates natural,
+personalized interviewer turns within those boundaries. NestJS continues to
+own users, timing, topic progress, transcripts, audio, WebSockets, and all
+authoritative state transitions.
 
 ## Requirements
 
 - Python 3.12
 - Ollama running locally or as a Compose service
-- The configured model installed in Ollama (default: `qwen3:8b`)
+- The configured model installed in Ollama (default: `qwen3:4b`)
 
 The Python image does not contain the model. Pull it once into Ollama's model
 store before native use:
 
 ```bash
-ollama pull qwen3:8b
+ollama pull qwen3:4b
 ```
 
-The default Q4 model download is about 5.2 GB. A Compose model-pull initializer
+The default Q4 model download is about 2.5 GB. A Compose model-pull initializer
 can perform this download automatically and retain it in an Ollama volume.
 
 ## Native setup
@@ -34,23 +36,26 @@ Keep one Uvicorn worker. The service admits one generation at a time so parallel
 requests cannot overload the local model; another request receives `503` with a
 short `Retry-After` value.
 
-Readiness is available at `GET /health`. It returns `200` only when Ollama is
-reachable and the configured model appears in Ollama's installed-model list;
-otherwise it returns `503`.
+Readiness is available at `GET /health`. It returns `200` only after Ollama has
+successfully loaded the configured model and that model remains resident;
+otherwise it returns `503`. A failed or unloaded model is preloaded again in
+the background every five seconds.
 
 ## Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama base URL; `/api` is optional |
-| `OLLAMA_MODEL` | `qwen3:8b` | Installed Ollama model or fine-tuned model name |
+| `OLLAMA_MODEL` | `qwen3:4b` | Installed Ollama model or fine-tuned model name |
 | `OLLAMA_TIMEOUT_SECONDS` | `110` | Provider timeout, leaving NestJS a response margin |
 | `OLLAMA_HEALTH_TIMEOUT_SECONDS` | `3` | Readiness-check timeout |
 | `OLLAMA_NUM_CTX` | `8192` | Context tokens allocated for a generation |
-| `OLLAMA_KEEP_ALIVE` | `10m` | How long Ollama keeps the model loaded |
+| `OLLAMA_KEEP_ALIVE` | `-1` | Keep the dedicated model resident; set a duration to permit unloading |
 
 For a custom or fine-tuned model, create/import it in Ollama and set
 `OLLAMA_MODEL` to that installed name. No application code change is required.
+Leave Ollama's CPU thread count automatic. On the reference hybrid CPU, its
+automatic six-thread choice outperformed both ten and sixteen forced threads.
 
 ## HTTP contract
 
@@ -66,8 +71,11 @@ For a custom or fine-tuned model, create/import it in Ollama and set
 }
 ```
 
-The response contains `tasks` with only `title`, `prompt`, `objective`, and
-`followUpGuidance`. It never adds attempt IDs or completion state.
+The response contains ordered topic seeds with only `title`, `prompt`,
+`objective`, and `followUpGuidance`. `prompt` is a private boundary cue, not a
+fixed question to read aloud. The response never adds attempt IDs or completion
+state. The `/questions/structure` route and internal `question*` names remain for
+API and database compatibility, but these records are treated as topics.
 
 ### Generate an interview turn
 
@@ -78,32 +86,70 @@ The response contains `tasks` with only `title`, `prompt`, `objective`, and
   "title": "Backend Engineer",
   "description": "A practical technical interview",
   "candidateName": "Alex",
+  "candidateVariationKey": "9d7f3b1480e849bcb10db60f4ccf18ad",
   "tasks": [
     {
       "id": "11111111-1111-4111-8111-111111111111",
-      "position": 1,
       "title": "API design",
-      "prompt": "How would you design this API?",
-      "objective": null,
+      "prompt": "Resource modeling, validation, and trade-offs",
+      "objective": "Explore practical API design reasoning",
+      "followUpGuidance": "Probe failure handling when relevant",
+      "completed": false,
+      "turnCount": 1
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "title": "Testing strategy",
+      "prompt": "Test boundaries, confidence, and maintenance",
+      "objective": "Understand how the candidate balances test layers",
       "followUpGuidance": null,
-      "completed": false
+      "completed": false,
+      "turnCount": 0
     }
   ],
-  "transcript": "",
+  "transcript": "[{\"role\":\"assistant\",\"text\":\"Tell me about an API you designed.\"},{\"role\":\"candidate\",\"text\":\"I started from the main resources and failure cases.\"}]",
   "remainingTime": 600,
   "mustEnd": false
 }
 ```
 
-The response contains speakable `text` and validated actions. Task completion
-uses the current NestJS contract: the task is marked complete in the same turn
-in which its question is asked. `mustEnd=true` or no incomplete task produces a
-deterministic closing response without calling Ollama.
+The live request normally contains only the current and next incomplete topic.
+Ollama receives those private boundaries plus at most the four most recent
+assistant/candidate turns. It generates the exact next spoken move: a
+personalized opening, a contextual acknowledgment, or at most one useful
+same-topic follow-up/conversational move before naturally bridging to the next
+topic. The opening calls the same preloaded resident model; it is not assembled
+from a fixed stored question.
 
-Requests and generated fields are length-bounded. Ollama receives JSON-serialized
-application data, a JSON output schema, `think=false`, deterministic temperature,
-and bounded context/output settings. Provider failures return generic gateway
-errors without exposing internal details.
+NestJS derives `candidateVariationKey` as an opaque, attempt-scoped hash. The
+bridge uses it only to choose stable framing and delivery cues from a broad
+palette; the key itself and the underlying candidate/attempt IDs are never
+placed in the Ollama prompt.
+
+The endpoint response contains speakable `text` and validated actions. The
+provider-only output is `text` plus `completeCurrentTopic`; it never chooses or
+emits task IDs. The bridge maps that boolean to the current server-supplied ID,
+and NestJS validates it against persisted `turnCount`. NestJS prevents an
+opening from completing its topic, permits no more than one same-topic
+follow-up, forces progression afterward, and is authoritative for final-topic
+and deadline endings. `mustEnd=true` or no incomplete topic produces a
+server-defined close without another Ollama generation.
+
+Requests and generated fields are length-bounded. Ollama receives a compact
+JSON output schema, `think=false`, bounded context/output settings, and a small
+amount of live-turn variation. Application size constraints are enforced after
+generation instead of being expanded into Ollama grammar repetitions, which
+keeps the schema compatible with Ollama's grammar compiler. Logs include
+provider timing and token counts; client-facing provider failures remain
+generic.
+
+The default service keeps `qwen3:4b` resident with `OLLAMA_KEEP_ALIVE=-1` and
+admits one generation at a time for responsive CPU use. The repository's
+optional NVIDIA Compose overlay selects `qwen3:8b`, gives Ollama access to all
+available NVIDIA GPUs, enables Flash Attention with a `q8_0` KV cache, and uses
+one loaded model and one parallel generation. Ollama decides the actual offload;
+the host must have a working NVIDIA driver and NVIDIA Container Toolkit. Set
+`OLLAMA_MODEL=qwen3:8b` explicitly to favor quality on CPU as well.
 
 ## Docker
 
@@ -115,7 +161,9 @@ docker build --tag interview-local-llm apps/local-llm-service
 
 The container expects Ollama at `http://ollama:11434` by default and exposes the
 service on port `8003`. The project Compose configuration is responsible for the
-Ollama container, persistent model volume, and one-time model pull.
+Ollama container, persistent model volume, and one-time model pull. Compose pins
+Ollama `0.32.15` by default; set `OLLAMA_IMAGE_TAG` only when intentionally
+testing another release.
 
 ## Tests
 

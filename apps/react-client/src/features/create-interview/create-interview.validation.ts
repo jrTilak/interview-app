@@ -20,8 +20,8 @@ export const CreateInterviewSchema = z.object({
 	rawQuestions: z
 		.string()
 		.trim()
-		.min(3, "Add at least one question or instruction.")
-		.max(20_000, "Question notes cannot exceed 20,000 characters."),
+		.min(3, "Add at least one topic or instruction.")
+		.max(20_000, "Topic notes cannot exceed 20,000 characters."),
 });
 
 export type CreateInterviewValues = z.input<typeof CreateInterviewSchema>;

@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 ShortText = Annotated[str, StringConstraints(min_length=1, max_length=160)]
 PromptText = Annotated[str, StringConstraints(min_length=1, max_length=4_000)]
 ContextText = Annotated[str, StringConstraints(min_length=1, max_length=2_000)]
+LiveTurnText = Annotated[str, StringConstraints(min_length=1, max_length=600)]
 TaskId = Annotated[str, StringConstraints(min_length=1, max_length=128)]
 
 
@@ -43,6 +44,7 @@ class InterviewTask(StructuredInterviewTask):
     id: TaskId
     position: Annotated[int, Field(ge=1, le=30)] | None = None
     completed: bool = False
+    turnCount: Annotated[int, Field(ge=0, le=100)]
 
 
 class CompleteQuestionsAction(StrictModel):
@@ -65,6 +67,9 @@ class InterviewTurnRequest(StrictModel):
     title: Annotated[str, StringConstraints(min_length=3, max_length=160)]
     description: ContextText | None = None
     candidateName: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    candidateVariationKey: Annotated[
+        str, StringConstraints(min_length=8, max_length=128)
+    ]
     tasks: Annotated[list[InterviewTask], Field(max_length=30)]
     transcript: Annotated[str, StringConstraints(max_length=20_000)]
     remainingTime: Annotated[int, Field(ge=0, le=7_200)]
@@ -74,3 +79,10 @@ class InterviewTurnRequest(StrictModel):
 class InterviewTurnResponse(StrictModel):
     text: PromptText
     actions: Annotated[list[InterviewAction], Field(max_length=30)]
+
+
+class InterviewMoveResponse(StrictModel):
+    """Small provider-only contract without server-owned task identifiers."""
+
+    text: LiveTurnText
+    completeCurrentTopic: bool

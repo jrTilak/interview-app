@@ -36,12 +36,12 @@ import { InterviewsService } from "./interviews.service.js";
 export class InterviewsController {
 	constructor(private readonly _interviewsService: InterviewsService) {}
 
-	/** Creates and AI-structures one immutable shareable interview. */
+	/** Creates one shareable interview with an AI-structured topic plan. */
 	@Post()
 	@ApiOperation({ summary: "Create and structure an interview" })
 	@ApiSuccess({
 		status: 201,
-		description: "Interview and structured questions created.",
+		description: "Interview and structured topic plan created.",
 		type: InterviewDetailsResponseDto,
 	})
 	async create(
@@ -69,7 +69,7 @@ export class InterviewsController {
 		});
 	}
 
-	/** Returns raw and structured questions only to the interview creator. */
+	/** Returns private topic notes and the structured plan only to its creator. */
 	@Get(":id")
 	@ApiOperation({ summary: "Get one of my created interviews" })
 	@ApiSuccess({
@@ -102,7 +102,7 @@ export class InterviewsController {
 		});
 	}
 
-	/** Deletes an unused creator-owned interview and its question set. */
+	/** Deletes an unused creator-owned interview and its topic plan. */
 	@Delete(":id")
 	@ApiOperation({ summary: "Delete one of my unused interviews" })
 	@ApiSuccess({

@@ -206,7 +206,7 @@ test("separates candidate history from recruiter management and creates an inter
 		.click();
 	await expect(repeatAttempts).toBeChecked();
 	await page
-		.getByRole("textbox", { name: /Question notes/ })
+		.getByRole("textbox", { name: /Topics to cover/ })
 		.fill("Ask about React rendering and realtime state.");
 	await page.getByRole("button", { name: "Create interview" }).click();
 
@@ -218,7 +218,7 @@ test("separates candidate history from recruiter management and creates an inter
 	await expect(
 		page.getByRole("heading", { name: "Realtime React interview" }),
 	).toBeVisible();
-	await expect(page.getByText("Structured question set")).toBeVisible();
+	await expect(page.getByText("Interview topics")).toBeVisible();
 	await expect(
 		page.getByText("Explain how you would coordinate realtime React state."),
 	).toBeVisible();

@@ -27,8 +27,8 @@ The lobby acquires camera, microphone, and a monitor screen share. MediaPipe fac
 
 - `auth`: Better Auth sessions and protected routes
 - `database`: Drizzle/PostgreSQL persistence and migrations
-- `interviews`: recruiter CRUD, structuring, ownership, sharing, and participant history
-- `interview-attempts`: attempt lifecycle, transcripts, deadlines, question progress, and realtime rooms
+- `interviews`: recruiter CRUD, topic-boundary structuring, ownership, sharing, and participant history
+- `interview-attempts`: attempt lifecycle, transcripts, deadlines, topic progress, and realtime rooms
 - `ai`: provider-neutral ports and local HTTP adapters
 - `dev-flags`: one process-wide in-memory flag snapshot gated by `DEV_TOOLS_ENABLED`
 
@@ -36,15 +36,17 @@ All HTTP input and realtime events cross strict Zod boundaries. Candidate-safe e
 
 ## Interview flow
 
-1. The recruiter submits notes. The local LLM structures them into persisted questions.
+1. The recruiter submits notes. The local LLM structures them into ordered, persisted topic seeds and boundaries rather than a fixed spoken script.
 2. The candidate opens a share link and passes camera, microphone, one-face, and monitor-share checks.
 3. The client creates/resumes an attempt, enters application fullscreen, connects to its Socket.IO room, and reports media/integrity status.
-4. The server starts the attempt and immediately composes the opening from trusted candidate/interview data plus the first persisted prompt. This avoids a cold model generation on the critical first-question path.
+4. The server starts the attempt and asks the preloaded resident local LLM for a natural, personalized opening inside the first topic boundary.
 5. Local TTS returns a complete WAV; the browser decodes and plays it once.
-6. The browser captures a mono 16 kHz PCM candidate turn. Local STT returns text; later interviewer turns come from the local LLM.
-7. The server owns task completion, hard deadlines, terminal state, and durable transcript snapshots.
+6. The browser captures a mono 16 kHz PCM candidate turn. Local STT returns text; the LLM receives the current and next boundaries plus at most four recent dialogue turns, then generates a contextual acknowledgment, question, follow-up, or natural bridge.
+7. The server persists a per-topic `turnCount`, permits at most one same-topic follow-up/conversational move, forces progression afterward, and owns completion, hard deadlines, terminal state, and durable transcript snapshots.
 
-The local LLM service preloads the configured model during application startup and keeps it resident for a configurable duration. This reduces later-turn cold starts without making server correctness depend on warm state.
+The local LLM service preloads the configured model during application startup and keeps it resident by default, including for the opening generation. Ollama returns spoken text and a bounded completion signal but never controls topic IDs. The bridge maps that signal to the current server-supplied ID, while NestJS validates progression and decides when the final topic or deadline ends the interview.
+
+Existing `/questions/structure` and internal `question*` field/table names remain for compatibility; their current domain meaning is an interview topic boundary.
 
 ## Integrity and media
 

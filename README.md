@@ -7,8 +7,8 @@ A desktop-first interview platform with local language, speech-to-text, and text
 - Separate Interview and Recruiter workspaces after login
 - Recruiter interview create, read, edit, delete, sharing, and participant history
 - Candidate link entry, device preflight, attempt resume, and grouped history
-- Local Qwen/Ollama interview generation, faster-whisper transcription, and Piper speech
-- Immediate deterministic opening question while the local model is kept warm for later turns
+- Local Qwen/Ollama topic-boundary structuring and personalized live interviewer dialogue
+- Natural model-generated openings from a preloaded resident model, with server-enforced topic progression
 - Client-side face detection with visible outlines and configurable pause/termination rules
 - Monitor-only screen sharing and required application fullscreen
 - Global development flags at `/__flags__` for integrity and media-streaming demos
@@ -35,6 +35,41 @@ docker compose up --build --wait
 Open `http://localhost:18080`. The API is available at `http://localhost:18081`; application and authentication references are at `/api-docs` and `/auth-docs`.
 
 The first build downloads the configured Ollama model and embeds the speech models. Model and database data are retained in named volumes. Published ports bind to `127.0.0.1` by default.
+
+### Optional NVIDIA GPU acceleration
+
+The default CPU stack uses `qwen3:4b` for responsive local dialogue. The GPU
+profile uses `qwen3:8b` for higher-quality topic structuring and conversation.
+For substantially faster 8B responses on an NVIDIA host, install the
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html),
+configure its Docker runtime, restart Docker, and launch the opt-in overlay:
+
+```bash
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+pnpm docker:up:gpu
+```
+
+After the model is warm, confirm that Ollama reports GPU use:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec ollama ollama ps
+```
+
+The `PROCESSOR` column should include `GPU`. The GPU command requires a working
+NVIDIA driver and Container Toolkit; continue using `pnpm docker:up` on other
+hosts. The overlay gives Ollama access to all NVIDIA GPUs, enables Flash
+Attention with a `q8_0` KV cache, and selects `qwen3:8b`. Both profiles limit
+Ollama to one loaded model and one parallel generation. The application also
+admits one LLM generation at a time to keep local latency and memory use
+predictable.
+
+To favor 8B quality on a CPU-only machine as well, override the model explicitly
+and accept the additional latency and memory use:
+
+```bash
+OLLAMA_MODEL=qwen3:8b pnpm docker:up
+```
 
 Useful endpoints:
 
@@ -91,6 +126,7 @@ pnpm test:e2e:web
 | `pnpm dev` | Start NestJS and Vite in watch mode |
 | `pnpm dev:server` / `pnpm dev:web` | Start one development process |
 | `pnpm docker:up` | Build and start the complete local stack |
+| `pnpm docker:up:gpu` | Start the stack with NVIDIA acceleration for Ollama |
 | `pnpm docker:down` | Stop the stack while retaining named-volume data |
 | `pnpm docker:logs` | Follow application and model-service logs |
 | `pnpm api:generate` | Regenerate Orval clients from a running server |

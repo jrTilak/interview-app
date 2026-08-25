@@ -1,0 +1,2 @@
+ALTER TABLE "attempt_question_progress" ADD COLUMN "turn_count" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "attempt_question_progress" ADD CONSTRAINT "attempt_question_turn_count_check" CHECK ("attempt_question_progress"."turn_count" >= 0);

@@ -83,11 +83,14 @@ services:
     stop_grace_period: 15s
 
   ollama:
-    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-0.32.15}
     restart: unless-stopped
     init: true
     volumes:
       - interview-ollama-data:/root/.ollama
+    environment:
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NUM_PARALLEL: "1"
     healthcheck:
       test:
         [
@@ -101,7 +104,7 @@ services:
     stop_grace_period: 15s
 
   ollama-pull:
-    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-0.32.15}
     init: true
     depends_on:
       ollama:
@@ -109,7 +112,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
     entrypoint: ["ollama", "pull"]
-    command: ["${OLLAMA_MODEL:-qwen3:8b}"]
+    command: ["${OLLAMA_MODEL:-qwen3:4b}"]
     restart: "no"
 
   local-llm:
@@ -126,11 +129,11 @@ services:
         condition: service_completed_successfully
     environment:
       OLLAMA_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
       OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-110}
       OLLAMA_HEALTH_TIMEOUT_SECONDS: ${OLLAMA_HEALTH_TIMEOUT_SECONDS:-3}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-8192}
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-10m}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:--1}
     ports:
       - "127.0.0.1:${LLM_PORT:-18084}:8003"
     healthcheck:
@@ -144,7 +147,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
-      start_period: 10s
+      # A worst-case provider timeout is 110 seconds. Keep startup checks in
+      # their grace period long enough for that attempt to finish and retry.
+      start_period: 120s
     stop_grace_period: 15s
 
   stt:

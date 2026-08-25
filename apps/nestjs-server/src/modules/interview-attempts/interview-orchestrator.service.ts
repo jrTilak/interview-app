@@ -125,71 +125,75 @@ export class InterviewOrchestratorService {
 		emit: InterviewEventEmitter,
 	): Promise<void> {
 		const context = await this._attempts.loadModelContext(attemptId, candidate);
-		const activeTask = context.tasks.find((task) => !task.completed);
+		const pendingTasks = context.tasks.filter((task) => !task.completed);
+		const activeTask = pendingTasks[0];
+		const nextTask = pendingTasks[1];
 		const providerContext = {
 			...context,
-			tasks: activeTask ? [activeTask] : [],
-			transcript: context.transcript.slice(-40),
+			// The model needs only the current boundary and the next boundary it may
+			// transition into. Persisted server state remains the source of truth.
+			tasks: pendingTasks.slice(0, 2),
+			transcript: context.transcript.slice(-4),
 		};
 		let generated: GeneratedInterviewTurn;
-		if (activeTask && context.transcript.length === 0 && !context.mustEnd) {
-			// The opening is fully determined by server-owned data. Avoiding a model
-			// round-trip here removes cold-start latency from the first question.
-			const title = context.interview.title.trim().replace(/[.!?]+$/, "");
-			const interviewLabel = /\binterview$/i.test(title)
-				? title
-				: `${title} interview`;
+		try {
+			// The opening deliberately goes through the model so candidates receive
+			// a natural, personalized question inside the server-owned topic boundary.
+			generated = await this._llm.generateTurn(providerContext);
+		} catch (error) {
+			if (activeTask && !context.mustEnd) throw error;
 			generated = {
-				text: `Hello ${context.candidate.name}. Welcome to the ${interviewLabel}. ${activeTask.prompt}`,
+				text: context.mustEnd
+					? "Thank you for your time. The interview has now reached its time limit."
+					: "Thank you for your time. That concludes the interview.",
 				actions: [
 					{
-						type: "complete_questions" as const,
-						questionIds: [activeTask.id],
+						type: "end_interview" as const,
+						reason: context.mustEnd
+							? "Time limit reached"
+							: "All topics completed",
 					},
 				],
 			};
-		} else {
-			try {
-				generated = await this._llm.generateTurn(providerContext);
-			} catch (error) {
-				if (!context.mustEnd) throw error;
-				generated = {
-					text: "Thank you for your time. The interview has now reached its time limit.",
-					actions: [
-						{ type: "end_interview" as const, reason: "Time limit reached" },
-					],
-				};
-			}
 		}
 
-		const completionRequested = generated.actions.some(
+		const modelRequestedCompletion = generated.actions.some(
 			(action) =>
 				action.type === "complete_questions" &&
 				activeTask !== undefined &&
 				action.questionIds.includes(activeTask.id),
 		);
-		let completedQuestionIds =
-			completionRequested && activeTask ? [activeTask.id] : [];
-		let text = generated.text.trim();
+		const completeCurrentTask = Boolean(
+			activeTask &&
+				!context.mustEnd &&
+				(activeTask.turnCount >= 2 ||
+					(activeTask.turnCount === 1 && modelRequestedCompletion)),
+		);
+		const completedQuestionIds =
+			completeCurrentTask && activeTask ? [activeTask.id] : [];
+		const engagedQuestionId = context.mustEnd
+			? null
+			: completeCurrentTask
+				? (nextTask?.id ?? null)
+				: (activeTask?.id ?? null);
+		const text = generated.text.trim();
 		if (
 			text.length === 0 ||
 			text.length > InterviewOrchestratorService._MAX_INTERVIEWER_TEXT_LENGTH
 		) {
 			throw new Error("Interview model returned invalid spoken text");
 		}
-		let endRequested = generated.actions.some(
-			(action) => action.type === "end_interview",
-		);
-		if (endRequested && !context.mustEnd && activeTask) {
-			text = `Let us continue. ${activeTask.prompt}`;
-			completedQuestionIds = [
-				...new Set([...completedQuestionIds, activeTask.id]),
-			];
-			endRequested = false;
-		}
+		// Provider action IDs and end requests never decide state. The server
+		// permits completion only after one answer, forces it after one optional
+		// follow-up, and closes only at the deadline or final completed topic.
+		const endRequested =
+			context.mustEnd ||
+			activeTask === undefined ||
+			(completeCurrentTask && nextTask === undefined);
 		const saved = await this._attempts.saveAssistantTurn(attemptId, candidate, {
 			text,
 			completedQuestionIds,
+			engagedQuestionId,
 			endRequested,
 			forceEnd: context.mustEnd,
 		});

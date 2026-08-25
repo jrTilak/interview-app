@@ -45,7 +45,7 @@ export function AuthLayout({
 						lineHeight="1"
 						mt="5"
 					>
-						Structured questions. Natural conversation. One focused room.
+						Clear topics. Natural conversation. One focused room.
 					</Heading>
 					<Grid
 						borderColor="rgba(244,242,236,0.25)"

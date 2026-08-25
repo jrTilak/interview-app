@@ -84,11 +84,13 @@ export const attemptQuestionProgress = pgTable(
 			.notNull()
 			.references(() => interviewQuestion.id, { onDelete: "cascade" }),
 		state: questionProgressState("state").notNull().default("PENDING"),
+		turnCount: integer("turn_count").notNull().default(0),
 		completedAt: timestamp("completed_at", { withTimezone: true }),
 	},
 	(table) => [
 		primaryKey({ columns: [table.attemptId, table.questionId] }),
 		index("attempt_question_question_idx").on(table.questionId),
+		check("attempt_question_turn_count_check", sql`${table.turnCount} >= 0`),
 	],
 );
 

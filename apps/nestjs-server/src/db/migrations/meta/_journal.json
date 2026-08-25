@@ -15,6 +15,13 @@
 			"when": 1785729764096,
 			"tag": "0001_bouncy_brood",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1787493579753,
+			"tag": "0002_flaky_bug",
+			"breakpoints": true
 		}
 	]
 }

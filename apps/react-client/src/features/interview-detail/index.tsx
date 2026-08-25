@@ -24,7 +24,7 @@ import { parseError } from "@/shared/lib/parse-error";
 import { getInterviewShareUrl } from "@/shared/lib/share-url";
 import { toaster } from "@/shared/lib/toaster";
 
-/** Shows the creator-only structured question set and its candidate link. */
+/** Shows the creator-only topic plan and its candidate link. */
 export function InterviewDetailScreen({
 	interviewId,
 }: {
@@ -132,7 +132,7 @@ export function InterviewDetailScreen({
 							label="Duration"
 							value={formatDuration(detail.durationMinutes)}
 						/>
-						<Meta label="Questions" value={String(detail.questionCount)} />
+						<Meta label="Topics" value={String(detail.questionCount)} />
 						<Meta label="Created" value={formatDate(detail.createdAt)} />
 						<Meta
 							label="Attempt policy"
@@ -197,7 +197,7 @@ export function InterviewDetailScreen({
 							Participant attempts
 						</Heading>
 						<Text color="muted" fontSize="sm" mt="1">
-							Candidate identity, live state, question progress, and timing.
+							Candidate identity, live state, topic progress, and timing.
 						</Text>
 					</Box>
 					<Text color="muted" fontFamily="mono" fontSize="xs">
@@ -236,7 +236,7 @@ export function InterviewDetailScreen({
 			<Box mt="12">
 				<Flex align="baseline" justify="space-between">
 					<Heading fontFamily="display" fontSize="2xl">
-						Structured question set
+						Interview topics
 					</Heading>
 					<Text color="muted" fontFamily="mono" fontSize="xs">
 						PRIVATE TO CREATOR
@@ -292,7 +292,7 @@ export function InterviewDetailScreen({
 					fontSize="lg"
 					fontWeight="700"
 				>
-					Original question notes
+					Original topic notes
 				</Box>
 				<Text
 					bg="surface"

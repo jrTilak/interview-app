@@ -53,7 +53,7 @@ export function RecruiterInterviewsScreen() {
 						</Link>
 					</Button>
 				}
-				description="Create, share, and manage interview definitions."
+				description="Create, share, and manage interview plans."
 				eyebrow="Recruiter mode"
 				title="Interviews"
 			/>
@@ -126,7 +126,7 @@ export function RecruiterInterviewsScreen() {
 								<Flex color="muted" fontSize="sm" gap="5" mt="6">
 									<Flex align="center" gap="2">
 										<ListChecks aria-hidden="true" size={15} />
-										{interview.questionCount} questions
+										{interview.questionCount} topics
 									</Flex>
 									<Flex align="center" gap="2">
 										<Clock3 aria-hidden="true" size={15} />

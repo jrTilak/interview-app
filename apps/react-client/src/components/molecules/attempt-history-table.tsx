@@ -65,7 +65,7 @@ export function AttemptHistoryTable({
 					<Table.Row>
 						<ColumnHeader>Attempt</ColumnHeader>
 						<ColumnHeader>Status</ColumnHeader>
-						<ColumnHeader>Progress</ColumnHeader>
+						<ColumnHeader>Topics</ColumnHeader>
 						<ColumnHeader>Started</ColumnHeader>
 						<ColumnHeader>Finished</ColumnHeader>
 					</Table.Row>

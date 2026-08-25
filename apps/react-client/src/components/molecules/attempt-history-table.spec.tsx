@@ -47,7 +47,7 @@ function renderTable(tableRows: AttemptHistoryRow[]) {
 afterEach(cleanup);
 
 describe("AttemptHistoryTable", () => {
-	it("shows participant identity, state, question progress, and end reason", () => {
+	it("shows participant identity, state, topic progress, and end reason", () => {
 		renderTable(rows);
 
 		expect(

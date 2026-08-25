@@ -70,7 +70,7 @@ export class InterviewsService {
 		return `${webUrl}/interviews/${shareCode}`;
 	}
 
-	/** Loads one creator-owned interview and its ordered structured questions. */
+	/** Loads one creator-owned interview and its ordered topic plan. */
 	private async _findOwnedDetails(
 		id: string,
 		ownerId: string,
@@ -143,9 +143,9 @@ export class InterviewsService {
 				}),
 			);
 		} catch (error) {
-			this._logger.error("Question structuring failed", error);
+			this._logger.error("Interview topic structuring failed", error);
 			throw new ServiceUnavailableException(
-				"The interview questions could not be structured. Please retry.",
+				"The interview topics could not be prepared. Please retry.",
 			);
 		}
 
@@ -202,7 +202,7 @@ export class InterviewsService {
 		return details;
 	}
 
-	/** Creates an interview after the provider has structured its raw questions. */
+	/** Creates an interview after the provider structures its raw topic notes. */
 	create(
 		data: CreateInterviewDto,
 		user: User,

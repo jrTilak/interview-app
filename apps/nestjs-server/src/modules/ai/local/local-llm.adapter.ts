@@ -211,6 +211,7 @@ function mapTurnRequest(input: GenerateInterviewTurnInput): object {
 		title: input.interview.title,
 		description: input.interview.description,
 		candidateName: input.candidate.name,
+		candidateVariationKey: input.candidate.variationKey,
 		tasks: input.tasks.map((task) => ({
 			id: task.id,
 			title: task.title,
@@ -218,6 +219,7 @@ function mapTurnRequest(input: GenerateInterviewTurnInput): object {
 			objective: task.objective,
 			followUpGuidance: task.followUpGuidance,
 			completed: task.completed,
+			turnCount: task.turnCount,
 		})),
 		transcript: serializeTranscript(input.transcript),
 		remainingTime: input.remainingSeconds,
