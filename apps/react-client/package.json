@@ -45,7 +45,7 @@
 		"jsdom": "30.0.1",
 		"orval": "8.23.0",
 		"typescript": "6.0.2",
-		"vite": "8.2.0",
+		"vite": "8.2.4",
 		"vite-plugin-pwa": "1.3.0",
 		"vitest": "4.1.10",
 		"workbox-window": "7.4.1"
