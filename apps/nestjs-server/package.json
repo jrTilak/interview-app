@@ -27,7 +27,7 @@
 		"db:studio": "drizzle-kit studio"
 	},
 	"dependencies": {
-		"@better-auth/drizzle-adapter": "1.6.25",
+		"@better-auth/drizzle-adapter": "1.7.7",
 		"@interview-desk/validations": "workspace:*",
 		"@nestjs/common": "^11.1.6",
 		"@nestjs/config": "^4.0.4",
