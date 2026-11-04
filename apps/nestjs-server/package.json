@@ -46,7 +46,7 @@
 		"reflect-metadata": "^0.2.2",
 		"rxjs": "^7.8.1",
 		"socket.io": "^4.8.1",
-		"zod": "^4.4.3"
+		"zod": "^4.6.6"
 	},
 	"devDependencies": {
 		"@jest/globals": "^30.4.1",
